@@ -1,0 +1,3797 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Resto">
+<meta name="theme-color" content="#15181E">
+<title>Resto Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#203554;
+  --navy-2:#1a2b45;
+  --cyan:#66C5DB;
+  --gold:#E4A209;
+  --dark:#15181E;
+  --dark-2:#0e1116;
+  --cream:#FFF1CD;
+  --cream-dim:rgba(255,241,205,.65);
+  --cream-faint:rgba(255,241,205,.4);
+  --line:rgba(102,197,219,.18);
+  --line-strong:rgba(102,197,219,.35);
+  --danger:#E45A40;
+  --success:#7BC47F;
+  --font-display:'Bebas Neue','Impact','Oswald',sans-serif;
+  --font-body:'Oswald',sans-serif;
+  --safe-top:env(safe-area-inset-top,0);
+  --safe-bot:env(safe-area-inset-bottom,0);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--dark);color:var(--cream);font-family:var(--font-body);font-weight:500;letter-spacing:.02em;overscroll-behavior-y:none}
+body{background:
+  radial-gradient(ellipse at top,rgba(32,53,84,.6) 0%,transparent 60%),
+  radial-gradient(ellipse at bottom right,rgba(228,162,9,.08) 0%,transparent 50%),
+  var(--dark);
+  min-height:100vh;min-height:100dvh}
+button,input,textarea,select{font-family:inherit;font-weight:inherit;color:inherit;letter-spacing:inherit}
+button{background:none;border:none;cursor:pointer}
+a{color:var(--cyan);text-decoration:none}
+input,textarea,select{background:var(--dark-2);border:1px solid var(--line);color:var(--cream);padding:12px 14px;border-radius:6px;width:100%;font-size:16px;outline:none;transition:border-color .15s,background .15s}
+input:focus,textarea:focus,select:focus{border-color:var(--cyan);background:var(--dark)}
+textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
+::placeholder{color:var(--cream-faint)}
+
+/* ===== Layout ===== */
+#app{max-width:560px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;padding-top:var(--safe-top);padding-bottom:calc(var(--safe-bot) + 80px);position:relative}
+.topbar{position:sticky;top:0;z-index:50;background:linear-gradient(180deg,var(--dark) 70%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:14px 18px 12px;display:flex;align-items:center;gap:12px}
+.topbar .back{width:36px;height:36px;border-radius:50%;background:rgba(102,197,219,.1);display:flex;align-items:center;justify-content:center;color:var(--cyan);flex-shrink:0;transition:background .15s}
+.topbar .back:active{background:rgba(102,197,219,.25)}
+.topbar h1{font-family:var(--font-display);font-size:28px;letter-spacing:.04em;color:var(--gold);line-height:1;flex:1;text-transform:uppercase}
+.topbar .actions{display:flex;gap:8px}
+.topbar .iconbtn{width:36px;height:36px;border-radius:50%;background:rgba(228,162,9,.12);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:18px}
+.topbar .iconbtn:active{background:rgba(228,162,9,.25)}
+.view{flex:1;padding:0 18px 24px;animation:fadeIn .25s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ===== Bottom nav ===== */
+.bottomnav{position:fixed;bottom:0;left:0;right:0;background:var(--dark-2);border-top:1px solid var(--line);padding:8px 0 calc(var(--safe-bot) + 8px);display:flex;justify-content:space-around;z-index:60}
+.bottomnav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 2px;color:var(--cream-faint);font-size:9px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;transition:color .15s;min-width:0}
+.bottomnav button.active{color:var(--gold)}
+.bottomnav button .nav-ico{font-size:20px;line-height:1}
+
+/* ===== Home grid ===== */
+.hero{padding:24px 0 28px;text-align:center}
+.hero .brand{font-family:var(--font-display);font-size:64px;line-height:.85;color:var(--gold);letter-spacing:.04em;text-transform:uppercase}
+.hero .brand .accent{color:var(--cream);display:block;font-size:42px;margin-top:4px}
+.hero .tag{margin-top:14px;color:var(--cyan);font-size:12px;letter-spacing:.3em;text-transform:uppercase;font-weight:600}
+.grid-home{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+.tile{aspect-ratio:1;background:var(--navy);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;transition:transform .12s,border-color .15s}
+.tile:active{transform:scale(.97)}
+.tile::before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,transparent 60%,rgba(102,197,219,.08));pointer-events:none}
+.tile .tile-ico{font-size:34px;line-height:1}
+.tile .tile-name{font-family:var(--font-display);font-size:24px;color:var(--cream);text-transform:uppercase;letter-spacing:.04em;line-height:1}
+.tile .tile-sub{font-size:11px;color:var(--cyan);text-transform:uppercase;letter-spacing:.15em;font-weight:600;margin-top:2px}
+.tile.gold{background:linear-gradient(135deg,var(--gold) 0%,#c8890a 100%);border-color:var(--gold)}
+.tile.gold .tile-name{color:var(--dark)}
+.tile.gold .tile-sub{color:var(--navy)}
+.tile.cyan{background:linear-gradient(135deg,var(--cyan) 0%,#3ea3bd 100%);border-color:var(--cyan)}
+.tile.cyan .tile-name{color:var(--dark)}
+.tile.cyan .tile-sub{color:var(--navy)}
+
+/* ===== Section header ===== */
+.section-head{display:flex;align-items:flex-end;justify-content:space-between;margin:8px 0 18px;gap:12px}
+.section-head h2{font-family:var(--font-display);font-size:32px;color:var(--gold);letter-spacing:.04em;text-transform:uppercase;line-height:1}
+.section-head .count{color:var(--cyan);font-size:12px;letter-spacing:.2em;text-transform:uppercase;font-weight:600;padding-bottom:4px}
+
+/* ===== Lists & cards ===== */
+.list{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--navy);border:1px solid var(--line);border-radius:10px;padding:0;display:flex;justify-content:flex-start;align-items:stretch;gap:0;overflow:hidden;transition:transform .12s,border-color .15s;text-align:left;width:100%;color:inherit;font-family:inherit;font-weight:inherit;letter-spacing:inherit;cursor:pointer}
+.card:active{transform:scale(.985);border-color:var(--line-strong)}
+.card .card-body{flex:1;min-width:0;padding:14px;display:flex;flex-direction:column;justify-content:center}
+.card .card-arrow{padding:0 14px;display:flex;align-items:center}
+/* legacy padding for cards without thumb (ingredients) */
+.card:not(:has(.card-thumb)) .card-body{padding-left:16px}
+.card .card-title{font-family:var(--font-display);font-size:22px;color:var(--cream);letter-spacing:.03em;text-transform:uppercase;line-height:1.05;margin-bottom:4px}
+.card .card-meta{font-size:12px;color:var(--cyan);letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+.card .card-arrow{color:var(--cyan);font-size:20px;flex-shrink:0}
+.card .card-tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.tag{display:inline-block;padding:2px 8px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;border-radius:4px;background:rgba(102,197,219,.15);color:var(--cyan)}
+.tag.gold{background:rgba(228,162,9,.18);color:var(--gold)}
+.tag.halal{background:rgba(123,196,127,.18);color:var(--success)}
+
+/* ===== Empty state ===== */
+.empty{text-align:center;padding:48px 16px;color:var(--cream-dim)}
+.empty .empty-ico{font-size:48px;margin-bottom:12px;opacity:.5}
+.empty p{font-size:14px}
+
+/* ===== Buttons ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:8px;font-family:var(--font-body);font-weight:600;font-size:13px;letter-spacing:.15em;text-transform:uppercase;transition:transform .12s,opacity .15s;border:1px solid transparent}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--gold);color:var(--dark)}
+.btn-secondary{background:transparent;color:var(--cyan);border-color:var(--cyan)}
+.btn-ghost{background:rgba(255,241,205,.06);color:var(--cream)}
+.btn-danger{background:transparent;color:var(--danger);border-color:rgba(228,90,64,.4)}
+.btn-block{width:100%}
+.btn-row{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.btn-row .btn{flex:1;min-width:0}
+
+.fab{position:fixed;right:18px;bottom:calc(var(--safe-bot) + 88px);width:56px;height:56px;border-radius:50%;background:var(--gold);color:var(--dark);font-size:28px;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(228,162,9,.35);z-index:55;transition:transform .15s}
+.fab:active{transform:scale(.92)}
+
+/* ===== Recipe detail ===== */
+.recipe-hero{background:var(--navy);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+.recipe-hero h2{font-family:var(--font-display);font-size:34px;color:var(--gold);letter-spacing:.04em;text-transform:uppercase;line-height:1;margin-bottom:6px}
+.recipe-hero .cat{color:var(--cyan);font-size:11px;letter-spacing:.25em;text-transform:uppercase;font-weight:600}
+
+.scaler{background:var(--dark-2);border:1px solid var(--line-strong);border-radius:10px;padding:14px;margin-top:14px}
+.scaler-label{font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:var(--cyan);font-weight:600;margin-bottom:8px}
+.scaler-row{display:flex;align-items:center;gap:10px}
+.scaler-row .scaler-name{flex:1;font-family:var(--font-display);font-size:22px;color:var(--cream);text-transform:uppercase;letter-spacing:.03em}
+.scaler-input{display:flex;align-items:center;background:var(--dark);border:1px solid var(--gold);border-radius:6px;overflow:hidden}
+.scaler-input button{padding:8px 12px;color:var(--gold);font-size:18px;font-weight:600;line-height:1}
+.scaler-input button:active{background:rgba(228,162,9,.15)}
+.scaler-input input{width:70px;border:none;background:transparent;text-align:center;padding:8px 4px;font-family:var(--font-display);font-size:20px;color:var(--gold);letter-spacing:.04em}
+.scaler-input .unit{padding:0 12px 0 0;color:var(--gold);font-size:14px;font-weight:600;text-transform:uppercase}
+.scaler-multi{margin-top:8px;font-size:11px;color:var(--cream-dim);letter-spacing:.1em;text-transform:uppercase}
+.scaler-multi b{color:var(--gold);font-weight:600}
+
+.section-block{margin-top:22px}
+.section-block .block-title{font-family:var(--font-display);font-size:20px;color:var(--cyan);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+
+.ing-list{display:flex;flex-direction:column;gap:0}
+.ing-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.ing-row:last-child{border-bottom:none}
+.ing-name{flex:1;color:var(--cream);font-size:15px;font-weight:500}
+.ing-amount{font-family:var(--font-display);font-size:20px;color:var(--gold);letter-spacing:.04em;white-space:nowrap}
+.ing-amount .unit{font-size:12px;color:var(--cyan);margin-left:3px;font-family:var(--font-body);font-weight:600}
+.ing-amount.faded{color:var(--cream-dim)}
+
+.cooking-info{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}
+.cooking-pill{background:rgba(228,162,9,.12);border:1px solid rgba(228,162,9,.3);border-radius:6px;padding:8px 12px;display:flex;align-items:center;gap:8px}
+.cooking-pill .lbl{font-size:10px;color:var(--cyan);letter-spacing:.2em;text-transform:uppercase;font-weight:600}
+.cooking-pill .val{font-family:var(--font-display);font-size:20px;color:var(--gold);letter-spacing:.04em}
+
+.instructions{background:var(--dark-2);border-left:3px solid var(--cyan);padding:14px 16px;border-radius:0 8px 8px 0;white-space:pre-wrap;line-height:1.6;color:var(--cream);font-size:14px}
+.notes{background:rgba(228,162,9,.07);border-left:3px solid var(--gold);padding:14px 16px;border-radius:0 8px 8px 0;white-space:pre-wrap;line-height:1.6;color:var(--cream);font-size:14px;font-style:italic}
+
+/* ===== Forms ===== */
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);font-weight:600;margin-bottom:6px}
+.form-row{display:flex;gap:10px}
+.form-row .form-group{flex:1}
+.dynamic-list{display:flex;flex-direction:column;gap:8px}
+.dynamic-item{display:flex;gap:6px;align-items:center;background:var(--navy-2);border:1px solid var(--line);border-radius:8px;padding:8px}
+.dynamic-item input{padding:8px 10px;font-size:14px}
+.dynamic-item .ing-name-i{flex:2}
+.dynamic-item .ing-amt-i{flex:1;min-width:60px}
+.dynamic-item .ing-unit-i{flex:1;min-width:60px}
+.dynamic-item .rm{width:32px;height:32px;border-radius:50%;background:rgba(228,90,64,.18);color:var(--danger);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.add-btn{margin-top:6px;padding:10px;border:1px dashed var(--line-strong);border-radius:8px;color:var(--cyan);font-size:12px;letter-spacing:.15em;text-transform:uppercase;font-weight:600;width:100%}
+.add-btn:active{background:rgba(102,197,219,.08)}
+.toggle{display:flex;align-items:center;justify-content:space-between;background:var(--navy);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:8px}
+.toggle-label{font-size:13px;color:var(--cream);font-weight:500;letter-spacing:.05em}
+.toggle-switch{width:44px;height:24px;background:var(--dark-2);border-radius:12px;position:relative;transition:background .2s;flex-shrink:0;border:1px solid var(--line)}
+.toggle-switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--cream-dim);transition:transform .2s,background .2s}
+.toggle-switch.on{background:var(--gold);border-color:var(--gold)}
+.toggle-switch.on::after{transform:translateX(20px);background:var(--dark)}
+
+/* ===== Tasks ===== */
+.task-tabs{display:flex;background:var(--dark-2);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:16px}
+.task-tabs button{flex:1;padding:10px;border-radius:7px;color:var(--cream-dim);font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;transition:all .15s}
+.task-tabs button.active{background:var(--gold);color:var(--dark)}
+.task-row{display:flex;align-items:center;gap:12px;background:var(--navy);border:1px solid var(--line);border-radius:8px;padding:14px}
+.task-row.done{opacity:.5}
+.task-row.done .task-title{text-decoration:line-through}
+.task-check{width:26px;height:26px;border-radius:50%;border:2px solid var(--cyan);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--gold);font-size:14px;font-weight:bold;transition:all .15s}
+.task-row.done .task-check{background:var(--gold);border-color:var(--gold);color:var(--dark)}
+.task-body{flex:1;min-width:0}
+.task-title{font-size:15px;color:var(--cream);font-weight:500;line-height:1.3}
+.task-meta{font-size:10px;color:var(--cyan);letter-spacing:.15em;text-transform:uppercase;font-weight:600;margin-top:3px}
+.task-del{color:var(--danger);font-size:18px;padding:4px 8px;opacity:.5}
+.task-del:active{opacity:1}
+
+/* ===== Fiche ===== */
+.fiche-section{background:var(--navy);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px}
+.fiche-section .fs-title{font-family:var(--font-display);font-size:18px;color:var(--gold);letter-spacing:.04em;text-transform:uppercase;margin-bottom:8px}
+.fiche-section ul{list-style:none;padding:0}
+.fiche-section li{padding:6px 0;color:var(--cream);font-size:14px;border-bottom:1px dashed var(--line)}
+.fiche-section li:last-child{border-bottom:none}
+.fiche-section li::before{content:"▸ ";color:var(--cyan);margin-right:4px}
+.variant-card{background:var(--dark-2);border-left:3px solid var(--gold);padding:10px 14px;margin-bottom:8px;border-radius:0 8px 8px 0}
+.variant-card .vc-title{font-family:var(--font-display);font-size:16px;color:var(--cyan);letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+.variant-card .vc-desc{font-size:13px;color:var(--cream);line-height:1.4}
+.linked-recipe{display:flex;align-items:center;gap:10px;background:rgba(228,162,9,.08);border:1px solid rgba(228,162,9,.25);border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:13px;color:var(--cream)}
+.linked-recipe::before{content:"⌁";color:var(--gold);font-size:18px}
+.linked-recipe .lr-arrow{margin-left:auto;color:var(--cyan)}
+
+/* ===== Settings ===== */
+.settings-group{margin-bottom:24px}
+.settings-group .sg-head{font-family:var(--font-display);font-size:18px;color:var(--cyan);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.danger-zone{margin-top:32px;padding:14px;border:1px dashed rgba(228,90,64,.3);border-radius:10px}
+.danger-zone .dz-head{color:var(--danger);font-size:11px;letter-spacing:.25em;text-transform:uppercase;font-weight:600;margin-bottom:8px}
+
+/* ===== Modal ===== */
+.modal-bg{position:fixed;inset:0;background:rgba(15,17,22,.85);z-index:100;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s}
+.modal{background:var(--navy);border-top:2px solid var(--gold);border-radius:16px 16px 0 0;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;padding:20px;padding-bottom:calc(20px + var(--safe-bot));animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(40px)}to{transform:none}}
+.modal h3{font-family:var(--font-display);font-size:22px;color:var(--gold);letter-spacing:.04em;text-transform:uppercase;margin-bottom:14px}
+
+/* ===== Toast ===== */
+.toast{position:fixed;bottom:calc(var(--safe-bot) + 96px);left:50%;transform:translateX(-50%);background:var(--gold);color:var(--dark);padding:10px 20px;border-radius:24px;font-size:12px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,.4);animation:toastIn .25s ease}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translateX(-50%)}}
+
+/* ===== Misc ===== */
+.divider{height:1px;background:var(--line);margin:18px 0}
+.muted{color:var(--cream-dim);font-size:12px}
+.text-center{text-align:center}
+.kbd{display:inline-block;padding:1px 6px;background:var(--dark-2);border:1px solid var(--line);border-radius:4px;font-size:11px;color:var(--cyan);font-family:monospace}
+
+/* Photos */
+.photo-banner{height:200px;background:var(--dark-2) center/cover no-repeat;border-radius:12px 12px 0 0;position:relative;overflow:hidden;margin:-18px -18px 14px}
+.photo-banner::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 50%,rgba(15,17,22,.7))}
+.photo-empty{height:120px;background:var(--dark-2);border:1px dashed var(--line-strong);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--cream-faint);font-size:13px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;margin-bottom:12px}
+.photo-empty:active{background:rgba(102,197,219,.05)}
+.photo-preview{position:relative;border-radius:8px;overflow:hidden;margin-bottom:12px}
+.photo-preview img{width:100%;height:200px;object-fit:cover;display:block}
+.photo-preview .photo-actions{position:absolute;top:8px;right:8px;display:flex;gap:6px}
+.photo-preview button{width:34px;height:34px;border-radius:50%;background:rgba(15,17,22,.85);color:var(--cream);display:flex;align-items:center;justify-content:center;font-size:16px;backdrop-filter:blur(8px)}
+.card-thumb{width:80px;height:80px;background:var(--dark-2) center/cover no-repeat;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--cream-faint);border-right:1px solid var(--line)}
+.card-thumb.has-photo{color:transparent}
+
+/* Spice rows */
+.ing-row.spice .ing-name{color:var(--cream-dim);font-style:italic}
+.dynamic-item.spice-row{border-color:rgba(228,162,9,.3);background:rgba(228,162,9,.04)}
+
+/* Components / kcal */
+.comp-table{background:var(--navy);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:10px}
+.comp-row{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);gap:10px}
+.comp-row:last-child{border-bottom:none}
+.comp-row.total{background:rgba(228,162,9,.1);border-bottom:none;border-top:2px solid var(--gold)}
+.comp-row .comp-name{flex:1;min-width:0;color:var(--cream);font-size:14px;font-weight:500}
+.comp-row .comp-name .comp-tag{display:inline-block;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--cyan);margin-right:6px;background:rgba(102,197,219,.1);padding:1px 5px;border-radius:3px;vertical-align:middle}
+.comp-row .comp-name.recipe-link{color:var(--cyan);cursor:pointer}
+.comp-row .comp-amt{font-family:var(--font-display);font-size:16px;color:var(--gold);letter-spacing:.03em;white-space:nowrap}
+.comp-row .comp-amt .unit{font-family:var(--font-body);font-weight:600;font-size:11px;color:var(--cream-dim);margin-left:2px}
+.comp-row .comp-kcal{font-size:13px;color:var(--cream-dim);font-weight:600;white-space:nowrap;min-width:60px;text-align:right}
+.comp-row.total .comp-name{font-family:var(--font-display);font-size:18px;color:var(--gold);text-transform:uppercase;letter-spacing:.04em}
+.comp-row.total .comp-kcal{font-family:var(--font-display);font-size:22px;color:var(--gold);letter-spacing:.04em}
+.kcal-empty{padding:14px;background:var(--dark-2);border:1px dashed var(--line);border-radius:8px;text-align:center;color:var(--cream-faint);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+
+/* Top tab (tasks/routines) */
+.toptab{display:flex;background:var(--dark-2);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:16px}
+.toptab button{flex:1;padding:10px;border-radius:7px;color:var(--cream-dim);font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;transition:all .15s}
+.toptab button.active{background:var(--gold);color:var(--dark)}
+
+/* Routines */
+.routine-card{background:var(--navy);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;text-align:left}
+.routine-card:active{border-color:var(--line-strong)}
+.routine-card .rc-body{flex:1;min-width:0}
+.routine-card .rc-title{font-family:var(--font-display);font-size:22px;color:var(--gold);letter-spacing:.04em;text-transform:uppercase;line-height:1.05}
+.routine-card .rc-sub{font-size:11px;color:var(--cyan);letter-spacing:.2em;text-transform:uppercase;font-weight:600;margin-top:3px}
+.routine-card .rc-progress{font-size:12px;color:var(--cream);font-weight:600;margin-top:4px}
+.progressbar{height:4px;background:var(--dark-2);border-radius:2px;margin-top:6px;overflow:hidden}
+.progressbar-fill{height:100%;background:var(--gold);transition:width .3s}
+.routine-section{background:var(--navy);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:10px}
+.routine-section .rs-title{font-family:var(--font-display);font-size:18px;color:var(--cyan);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.routine-section .rs-count{font-size:11px;color:var(--gold);font-weight:600;letter-spacing:.1em}
+.routine-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.routine-item:last-child{border-bottom:none}
+.routine-item .ri-check{width:24px;height:24px;border-radius:50%;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:13px;cursor:pointer;transition:all .15s;margin-top:1px}
+.routine-item.done .ri-check{background:var(--gold);border-color:var(--gold);color:var(--dark)}
+.routine-item.done .ri-text{opacity:.5;text-decoration:line-through}
+.routine-item .ri-text{flex:1;font-size:14px;color:var(--cream);line-height:1.4}
+
+/* Cooking pill cyan variant */
+.cooking-pill.cyan{background:rgba(102,197,219,.1);border-color:rgba(102,197,219,.3)}
+.cooking-pill.cyan .val{color:var(--cyan)}
+.cooking-pill{flex-direction:column;gap:1px;padding:6px 10px}
+.cooking-pill .lbl{font-size:9px}
+.cooking-pill .val{font-size:18px;line-height:1}
+
+/* Tile wide for home routines */
+.tile.wide{grid-column:1/-1;aspect-ratio:auto;flex-direction:row;align-items:center;gap:16px}
+.tile.wide .tile-ico{font-size:30px}
+.tile.wide .tile-info{flex:1}
+
+/* Cuisine tabs (segmented) */
+.seg-tabs{display:flex;background:var(--dark-2);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none}
+.seg-tabs::-webkit-scrollbar{display:none}
+.seg-tabs button{flex:1;min-width:max-content;padding:10px 14px;border-radius:7px;color:var(--cream-dim);font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;transition:all .15s;white-space:nowrap}
+.seg-tabs button.active{background:var(--cyan);color:var(--dark)}
+.seg-tabs button.gold.active{background:var(--gold);color:var(--dark)}
+
+/* Type chip on cards */
+.tag.type{background:rgba(228,162,9,.12);color:var(--gold)}
+.tag.cuisine-burger{background:rgba(228,90,64,.18);color:var(--danger)}
+.tag.cuisine-mexicain{background:rgba(228,162,9,.18);color:var(--gold)}
+
+/* Stock list */
+.stock-row{background:var(--navy);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.stock-row.tobuy{border-color:rgba(228,90,64,.4);background:rgba(228,90,64,.06)}
+.stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:13px;cursor:pointer;transition:all .15s}
+.stock-row.tobuy .stock-check{background:var(--danger);border-color:var(--danger);color:var(--cream)}
+.stock-row .stock-body{flex:1;min-width:0}
+.stock-row .stock-name{font-size:14px;color:var(--cream);font-weight:500;line-height:1.2}
+.stock-row .stock-qty{font-family:var(--font-display);font-size:18px;color:var(--gold);letter-spacing:.04em;line-height:1;margin-top:3px}
+.stock-row .stock-qty .unit{font-family:var(--font-body);font-size:11px;color:var(--cream-dim);font-weight:600;margin-left:2px}
+.stock-row .stock-qty.zero{color:var(--danger)}
+.stock-row .stock-note{font-size:11px;color:var(--cream-dim);margin-top:2px;font-style:italic}
+.stock-row .stock-edit{color:var(--cyan);font-size:18px;padding:6px 8px;cursor:pointer}
+.stock-row .stock-del{color:var(--danger);font-size:18px;padding:4px 8px;opacity:.5;cursor:pointer}
+.stock-row .stock-del:active{opacity:1}
+
+/* Reorder buttons in dynamic list */
+.dynamic-item .reorder{display:flex;flex-direction:column;gap:1px;flex-shrink:0}
+.dynamic-item .reorder button{width:24px;height:18px;background:rgba(102,197,219,.1);color:var(--cyan);font-size:11px;border-radius:4px;display:flex;align-items:center;justify-content:center;line-height:1}
+.dynamic-item .reorder button:active{background:rgba(102,197,219,.25)}
+.dynamic-item .reorder button:disabled{opacity:.25;cursor:not-allowed}
+
+/* Sync status */
+.sync-status{font-size:12px;letter-spacing:.05em;padding:8px 12px;background:var(--dark-2);border-radius:6px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+
+/* Type chip on form */
+.type-pill-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.type-pill{padding:6px 12px;border-radius:16px;background:var(--dark-2);border:1px solid var(--line);color:var(--cream-dim);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;cursor:pointer;transition:all .15s}
+.type-pill.active{background:var(--gold);color:var(--dark);border-color:var(--gold)}
+.type-pill.cuisine.active{background:var(--cyan);color:var(--dark);border-color:var(--cyan)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* ============================================================
+   RESTO TOOL — single file app
+   ============================================================ */
+
+/* ---------- Storage layer (artifact / localStorage / memory + GitHub sync) ---------- */
+const STORAGE_KEY = 'restoTool_v3';
+const SYNC_CONFIG_KEY = 'restoTool_syncConfig';
+const memStore = {};
+
+const SyncConfig = {
+  load(){
+    try{ const v = localStorage.getItem(SYNC_CONFIG_KEY); if(v) return JSON.parse(v); }catch(e){}
+    return null;
+  },
+  save(cfg){
+    try{ localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(cfg)); }catch(e){}
+  },
+  clear(){ try{ localStorage.removeItem(SYNC_CONFIG_KEY); }catch(e){} }
+};
+
+const GitHubSync = {
+  async fetchFile(cfg){
+    const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${cfg.path}?ref=${encodeURIComponent(cfg.branch||'main')}`;
+    const r = await fetch(url, { headers: { 'Authorization': 'token ' + cfg.token, 'Accept': 'application/vnd.github.v3+json' }});
+    if(r.status===404) return { exists:false };
+    if(!r.ok) throw new Error('GitHub fetch HTTP '+r.status);
+    const j = await r.json();
+    const bytes = atob(j.content.replace(/\n/g,''));
+    const text = decodeURIComponent(escape(bytes));
+    let data = null;
+    try{ data = JSON.parse(text); }catch(e){ throw new Error('Fichier corrompu sur GitHub'); }
+    return { exists:true, data, sha: j.sha };
+  },
+  async putFile(cfg, dataObj, sha){
+    const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${cfg.path}`;
+    const text = JSON.stringify(dataObj, null, 2);
+    const bytes = unescape(encodeURIComponent(text));
+    let b64 = '';
+    try{ b64 = btoa(bytes); }catch(e){ throw new Error('Encodage base64 impossible'); }
+    const body = { message: 'Resto Tool sync ' + new Date().toISOString(), content: b64, branch: cfg.branch || 'main' };
+    if(sha) body.sha = sha;
+    const r = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Authorization': 'token ' + cfg.token, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if(!r.ok){
+      const err = await r.json().catch(()=>({}));
+      throw new Error('GitHub push: '+(err.message||r.status));
+    }
+    const j = await r.json();
+    return { sha: j.content.sha };
+  },
+  async test(cfg){
+    const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}`;
+    const r = await fetch(url, { headers: { 'Authorization': 'token ' + cfg.token, 'Accept': 'application/vnd.github.v3+json' }});
+    if(r.status===401) throw new Error('Token invalide');
+    if(r.status===404) throw new Error('Repo introuvable');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return true;
+  }
+};
+
+let _currentSha = null;
+let _pushTimer = null;
+let _syncStatus = 'idle';
+let _syncError = '';
+
+const Storage = {
+  async load(){
+    try{
+      if(typeof window!=='undefined' && window.storage && typeof window.storage.get==='function'){
+        const r = await window.storage.get(STORAGE_KEY);
+        if(r && r.value){ return JSON.parse(r.value); }
+      }
+    }catch(e){}
+    try{ const v = localStorage.getItem(STORAGE_KEY); if(v) return JSON.parse(v); }catch(e){}
+    if(memStore[STORAGE_KEY]) return memStore[STORAGE_KEY];
+    return null;
+  },
+  async save(data){
+    const json = JSON.stringify(data);
+    let saved = false;
+    try{
+      if(typeof window!=='undefined' && window.storage && typeof window.storage.set==='function'){
+        await window.storage.set(STORAGE_KEY, json);
+        saved = true;
+      }
+    }catch(e){}
+    if(!saved){
+      try{ localStorage.setItem(STORAGE_KEY, json); saved=true; }
+      catch(e){
+        if(e && e.name === 'QuotaExceededError') alert('⚠️ Stockage local plein.');
+        throw e;
+      }
+    }
+    if(!saved){ memStore[STORAGE_KEY] = data; }
+    const cfg = SyncConfig.load();
+    if(cfg && cfg.token && cfg.owner && cfg.repo && cfg.auto){
+      if(_pushTimer) clearTimeout(_pushTimer);
+      _pushTimer = setTimeout(()=>cloudPush(true), 2000);
+    }
+  },
+  async clear(){
+    try{ if(window.storage) await window.storage.delete(STORAGE_KEY); }catch(e){}
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    delete memStore[STORAGE_KEY];
+  }
+};
+
+async function cloudPull(silent){
+  const cfg = SyncConfig.load();
+  if(!cfg || !cfg.token){ if(!silent) toast('Sync non configurée'); return false; }
+  _syncStatus = 'syncing'; updateSyncStatusUI();
+  try{
+    const res = await GitHubSync.fetchFile(cfg);
+    if(!res.exists){
+      _syncStatus = 'ok'; _syncError = '';
+      if(!silent) toast('Aucun fichier sur GitHub — fais "Push" pour créer.');
+      updateSyncStatusUI();
+      return false;
+    }
+    state = res.data;
+    _currentSha = res.sha;
+    cfg.lastSync = Date.now();
+    SyncConfig.save(cfg);
+    const oldAuto = cfg.auto;
+    cfg.auto = false; SyncConfig.save(cfg);
+    await Storage.save(state);
+    cfg.auto = oldAuto; SyncConfig.save(cfg);
+    _syncStatus = 'ok'; _syncError = '';
+    if(!silent) toast('Données récupérées depuis GitHub');
+    render();
+    return true;
+  }catch(err){
+    _syncStatus = 'error'; _syncError = err.message || String(err);
+    if(!silent) alert('Erreur de pull : '+_syncError);
+    updateSyncStatusUI();
+    return false;
+  }
+}
+
+async function cloudPush(silent){
+  const cfg = SyncConfig.load();
+  if(!cfg || !cfg.token){ if(!silent) toast('Sync non configurée'); return false; }
+  _syncStatus = 'syncing'; updateSyncStatusUI();
+  try{
+    if(!_currentSha){
+      const res = await GitHubSync.fetchFile(cfg);
+      if(res.exists) _currentSha = res.sha;
+    }
+    const r = await GitHubSync.putFile(cfg, state, _currentSha);
+    _currentSha = r.sha;
+    cfg.lastSync = Date.now();
+    SyncConfig.save(cfg);
+    _syncStatus = 'ok'; _syncError = '';
+    if(!silent) toast('Données envoyées sur GitHub');
+    updateSyncStatusUI();
+    return true;
+  }catch(err){
+    _syncStatus = 'error'; _syncError = err.message || String(err);
+    if(/sha/i.test(_syncError) || /409/.test(_syncError)){
+      try{
+        const res = await GitHubSync.fetchFile(cfg);
+        if(res.exists){
+          _currentSha = res.sha;
+          if(!silent) alert('Conflit : un autre appareil a modifié les données. Fais "Pull" puis renouvelle ton "Push".');
+        }
+      }catch(e){}
+    } else if(!silent) alert('Erreur de push : '+_syncError);
+    updateSyncStatusUI();
+    return false;
+  }
+}
+
+function updateSyncStatusUI(){
+  const el = document.getElementById('syncStatus');
+  if(!el) return;
+  const cfg = SyncConfig.load();
+  if(!cfg || !cfg.token){ el.textContent='Non configurée'; el.style.color='var(--cream-faint)'; return; }
+  if(_syncStatus==='syncing'){ el.innerHTML='<span class="spinner"></span> Synchronisation…'; el.style.color='var(--cyan)'; return; }
+  if(_syncStatus==='error'){ el.textContent='⚠ '+_syncError; el.style.color='var(--danger)'; return; }
+  const t = cfg.lastSync ? new Date(cfg.lastSync).toLocaleString('fr-FR',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}) : '—';
+  el.textContent='✓ Sync : '+t;
+  el.style.color='var(--success)';
+}
+
+
+/* ---------- Default seed data ---------- */
+function defaultData(){
+  return {
+    version:3,
+    ingredients: defaultIngredients(),
+    recipes: defaultRecipes(),
+    fiches: defaultFiches(),
+    routines: defaultRoutines(),
+    stock: defaultStock(),
+    tasks: [
+      {id:'t1', title:'Vérifier stock cheddar', frequency:'weekly', day:5, done:false, lastDone:null},
+      {id:'t2', title:'Commande légumes', frequency:'weekly', day:1, done:false, lastDone:null}
+    ],
+    settings: {
+      showPrices:false,
+      showCalories:true,
+      showHalal:true,
+      currency:'€',
+      cuisines: ['burger','mexicain'],
+      types: ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres']
+    }
+  };
+}
+
+function defaultStock(){
+  return [
+    {id:'s1', name:'Cheddar râpé', qty:2, unit:'kg', toBuy:false, note:''},
+    {id:'s2', name:'Tortillas grandes', qty:30, unit:'pièces', toBuy:false, note:''},
+    {id:'s3', name:'Tortillas petites', qty:50, unit:'pièces', toBuy:true, note:'Pack de 100'},
+    {id:'s4', name:'Crème liquide', qty:0, unit:'L', toBuy:true, note:''}
+  ];
+}
+
+function defaultIngredients(){
+  return [
+    // Viandes
+    {id:'ing_poulet',name:'Poulet',unit:'kg',price:null,halal:true,kcal100:165,protein100:31,fat100:3.6,carbs100:0,notes:''},
+    {id:'ing_porc',name:'Porc (épaule)',unit:'kg',price:null,halal:false,kcal100:240,protein100:20,fat100:18,carbs100:0,notes:''},
+    {id:'ing_pulled_pork_prep',name:'Pulled pork préparé',unit:'kg',price:null,halal:false,kcal100:260,protein100:22,fat100:16,carbs100:7,notes:''},
+    {id:'ing_chili',name:'Chili con carne',unit:'kg',price:null,halal:true,kcal100:130,protein100:9,fat100:5,carbs100:12,notes:''},
+    // Liquides
+    {id:'ing_jus_mangue',name:'Jus de mangue',unit:'L',price:null,halal:true,kcal100:54,protein100:0.4,fat100:0.2,carbs100:13,notes:''},
+    {id:'ing_citron_vert',name:'Jus de citron vert',unit:'L',price:null,halal:true,kcal100:25,protein100:0.4,fat100:0.1,carbs100:8,notes:''},
+    {id:'ing_jus_citron',name:'Jus de citron',unit:'L',price:null,halal:true,kcal100:22,protein100:0.4,fat100:0.2,carbs100:6.9,notes:''},
+    {id:'ing_vinaigre_cidre',name:'Vinaigre de cidre',unit:'L',price:null,halal:true,kcal100:22,protein100:0,fat100:0,carbs100:0.9,notes:''},
+    {id:'ing_creme_liquide',name:'Crème liquide 20%',unit:'L',price:null,halal:true,kcal100:200,protein100:2.4,fat100:20,carbs100:3,notes:''},
+    {id:'ing_creme_epaisse',name:'Crème épaisse 24%',unit:'L',price:null,halal:true,kcal100:240,protein100:2.2,fat100:24,carbs100:3,notes:''},
+    {id:'ing_lait',name:'Lait entier',unit:'L',price:null,halal:true,kcal100:62,protein100:3.2,fat100:3.6,carbs100:4.7,notes:''},
+    {id:'ing_eau',name:'Eau',unit:'L',price:null,halal:true,kcal100:0,protein100:0,fat100:0,carbs100:0,notes:''},
+    {id:'ing_huile_olive',name:"Huile d'olive",unit:'L',price:null,halal:true,kcal100:884,protein100:0,fat100:100,carbs100:0,notes:''},
+    // Féculents
+    {id:'ing_riz',name:'Riz cru',unit:'kg',price:null,halal:true,kcal100:354,protein100:7,fat100:0.7,carbs100:78,notes:''},
+    {id:'ing_riz_cuit',name:'Riz cuit',unit:'kg',price:null,halal:true,kcal100:130,protein100:2.7,fat100:0.3,carbs100:28,notes:''},
+    {id:'ing_haricots',name:'Haricots rouges (cuits)',unit:'kg',price:null,halal:true,kcal100:127,protein100:8.7,fat100:0.5,carbs100:23,notes:''},
+    {id:'ing_maizena',name:'Maïzena',unit:'kg',price:null,halal:true,kcal100:381,protein100:0.3,fat100:0.1,carbs100:91,notes:''},
+    {id:'ing_pate_cookie',name:'Pâte cookie',unit:'kg',price:null,halal:true,kcal100:480,protein100:5,fat100:24,carbs100:60,notes:''},
+    {id:'ing_insert_cookie',name:'Insert cookie',unit:'kg',price:null,halal:true,kcal100:500,protein100:4,fat100:28,carbs100:58,notes:''},
+    // Tortillas / chips
+    {id:'ing_tortilla_grande',name:'Tortilla grande',unit:'pièce',price:null,halal:true,kcal100:312,protein100:8,fat100:7,carbs100:54,notes:'~70g/pièce'},
+    {id:'ing_tortilla_petite',name:'Tortilla petite',unit:'pièce',price:null,halal:true,kcal100:312,protein100:8,fat100:7,carbs100:54,notes:'~25g/pièce'},
+    {id:'ing_nachos',name:'Chips Nachos',unit:'kg',price:null,halal:true,kcal100:489,protein100:7,fat100:24,carbs100:60,notes:''},
+    // Fromages
+    {id:'ing_cheddar',name:'Cheddar râpé',unit:'kg',price:null,halal:true,kcal100:402,protein100:25,fat100:33,carbs100:1.3,notes:''},
+    {id:'ing_mozza',name:'Mozzarella râpée',unit:'kg',price:null,halal:true,kcal100:280,protein100:22,fat100:21,carbs100:2,notes:''},
+    // Légumes
+    {id:'ing_poivron',name:'Poivron',unit:'kg',price:null,halal:true,kcal100:31,protein100:1,fat100:0.3,carbs100:6,notes:''},
+    {id:'ing_oignon',name:'Oignon blanc',unit:'kg',price:null,halal:true,kcal100:40,protein100:1.1,fat100:0.1,carbs100:9.3,notes:''},
+    {id:'ing_oignon_jaune',name:'Oignon jaune',unit:'kg',price:null,halal:true,kcal100:40,protein100:1.1,fat100:0.1,carbs100:9.3,notes:''},
+    {id:'ing_tomate',name:'Tomate',unit:'kg',price:null,halal:true,kcal100:18,protein100:0.9,fat100:0.2,carbs100:3.9,notes:''},
+    {id:'ing_coriandre',name:'Coriandre fraîche',unit:'kg',price:null,halal:true,kcal100:23,protein100:2.1,fat100:0.5,carbs100:3.7,notes:''},
+    {id:'ing_chou',name:'Choux',unit:'kg',price:null,halal:true,kcal100:25,protein100:1.3,fat100:0.1,carbs100:5.8,notes:''},
+    {id:'ing_mais',name:'Maïs',unit:'kg',price:null,halal:true,kcal100:86,protein100:3.3,fat100:1.2,carbs100:19,notes:''},
+    {id:'ing_mangue',name:'Mangue',unit:'kg',price:null,halal:true,kcal100:60,protein100:0.8,fat100:0.4,carbs100:15,notes:''},
+    {id:'ing_jalapeno',name:'Jalapeños',unit:'kg',price:null,halal:true,kcal100:30,protein100:1,fat100:0.3,carbs100:6.5,notes:''},
+    {id:'ing_salade',name:'Salade',unit:'kg',price:null,halal:true,kcal100:15,protein100:1.4,fat100:0.2,carbs100:2.9,notes:''},
+    // Sauces
+    {id:'ing_sauce_bbq',name:'Sauce BBQ',unit:'kg',price:null,halal:true,kcal100:175,protein100:1,fat100:0.5,carbs100:42,notes:''},
+    {id:'ing_salsa_roja',name:'Salsa roja',unit:'kg',price:null,halal:true,kcal100:35,protein100:1.5,fat100:0.4,carbs100:7,notes:''},
+    {id:'ing_salsa_verde',name:'Salsa verde',unit:'kg',price:null,halal:true,kcal100:30,protein100:1,fat100:0.5,carbs100:6,notes:''},
+    {id:'ing_tomate_chutney',name:'Tomate chutney',unit:'kg',price:null,halal:true,kcal100:120,protein100:1,fat100:0.5,carbs100:28,notes:''},
+    {id:'ing_guacamole',name:'Guacamole',unit:'kg',price:null,halal:true,kcal100:165,protein100:2,fat100:14,carbs100:9,notes:''},
+    {id:'ing_creme_sour_prep',name:'Crème sour préparée',unit:'kg',price:null,halal:true,kcal100:200,protein100:2.5,fat100:19,carbs100:5,notes:''},
+    // Épices
+    {id:'ing_paprika',name:'Paprika fumé',unit:'kg',price:null,halal:true,kcal100:282,protein100:14,fat100:13,carbs100:54,notes:''},
+    {id:'ing_cumin',name:'Cumin moulu',unit:'kg',price:null,halal:true,kcal100:375,protein100:18,fat100:22,carbs100:44,notes:''},
+    {id:'ing_origan',name:'Origan séché',unit:'kg',price:null,halal:true,kcal100:265,protein100:9,fat100:4.3,carbs100:69,notes:''},
+    {id:'ing_thym',name:'Thym séché',unit:'kg',price:null,halal:true,kcal100:276,protein100:9,fat100:7.4,carbs100:64,notes:''},
+    {id:'ing_ail',name:'Ail frais',unit:'kg',price:null,halal:true,kcal100:149,protein100:6.4,fat100:0.5,carbs100:33,notes:''},
+    {id:'ing_ail_poudre',name:'Ail en poudre',unit:'kg',price:null,halal:true,kcal100:331,protein100:17,fat100:0.7,carbs100:73,notes:''},
+    {id:'ing_poivre',name:'Poivre noir moulu',unit:'kg',price:null,halal:true,kcal100:251,protein100:10,fat100:3.3,carbs100:64,notes:''},
+    {id:'ing_sel',name:'Sel',unit:'kg',price:null,halal:true,kcal100:0,protein100:0,fat100:0,carbs100:0,notes:''},
+    {id:'ing_miel',name:'Miel liquide',unit:'kg',price:null,halal:true,kcal100:304,protein100:0.3,fat100:0,carbs100:82,notes:''},
+    {id:'ing_tajin',name:'Épice Tajin',unit:'kg',price:null,halal:true,kcal100:25,protein100:0,fat100:0,carbs100:6,notes:'Mélange piment-citron-sel'},
+    // Burger
+    {id:'ing_pain_brioche',name:'Pain brioché',unit:'pièce',price:null,halal:true,kcal100:280,protein100:8,fat100:7,carbs100:46,notes:'~85-90g/pièce'},
+    {id:'ing_boeuf_hache',name:'Bœuf haché 15%',unit:'kg',price:null,halal:true,kcal100:215,protein100:18,fat100:15,carbs100:0,notes:''},
+    {id:'ing_bacon',name:'Bacon (tranches)',unit:'kg',price:null,halal:false,kcal100:417,protein100:13,fat100:42,carbs100:1.4,notes:''},
+    {id:'ing_mayo',name:'Mayonnaise',unit:'L',price:null,halal:true,kcal100:680,protein100:1,fat100:75,carbs100:0.6,notes:''},
+    {id:'ing_ketchup',name:'Ketchup',unit:'L',price:null,halal:true,kcal100:101,protein100:1.7,fat100:0.4,carbs100:24,notes:''},
+    {id:'ing_moutarde',name:'Moutarde',unit:'kg',price:null,halal:true,kcal100:66,protein100:4,fat100:4,carbs100:6,notes:''},
+    {id:'ing_cornichons',name:'Cornichons',unit:'kg',price:null,halal:true,kcal100:11,protein100:0.5,fat100:0.2,carbs100:2.3,notes:''},
+    {id:'ing_oignon_rouge',name:'Oignon rouge',unit:'kg',price:null,halal:true,kcal100:40,protein100:1.1,fat100:0.1,carbs100:9.3,notes:''},
+    {id:'ing_sucre',name:'Sucre',unit:'kg',price:null,halal:true,kcal100:387,protein100:0,fat100:0,carbs100:100,notes:''},
+    {id:'ing_sucre_brun',name:'Sucre brun',unit:'kg',price:null,halal:true,kcal100:380,protein100:0,fat100:0,carbs100:98,notes:''},
+    {id:'ing_vinaigre_balsamique',name:'Vinaigre balsamique',unit:'L',price:null,halal:true,kcal100:88,protein100:0.5,fat100:0,carbs100:17,notes:''},
+    {id:'ing_worcestershire',name:'Sauce Worcestershire',unit:'L',price:null,halal:true,kcal100:78,protein100:0,fat100:0,carbs100:19,notes:''},
+    // Burger - viandes & fromages
+    {id:'ing_steak',name:'Steak haché',unit:'kg',price:null,halal:true,kcal100:250,protein100:26,fat100:17,carbs100:0,notes:'~150g/pièce'},
+    {id:'ing_steak_veg',name:'Steak végétarien',unit:'kg',price:null,halal:true,kcal100:200,protein100:18,fat100:8,carbs100:14,notes:''},
+    {id:'ing_raclette',name:'Raclette',unit:'kg',price:null,halal:true,kcal100:357,protein100:23,fat100:29,carbs100:0.5,notes:''},
+    {id:'ing_chevre',name:'Fromage de chèvre',unit:'kg',price:null,halal:true,kcal100:364,protein100:22,fat100:30,carbs100:0.1,notes:''},
+    {id:'ing_abbaye',name:"Fromage d'abbaye",unit:'kg',price:null,halal:true,kcal100:380,protein100:24,fat100:31,carbs100:1.2,notes:''},
+    {id:'ing_parmesan',name:'Parmesan',unit:'kg',price:null,halal:true,kcal100:431,protein100:38,fat100:29,carbs100:4.1,notes:''},
+    // Burger - sauces
+    {id:'ing_caesar',name:'Sauce Caesar',unit:'kg',price:null,halal:true,kcal100:400,protein100:2,fat100:42,carbs100:3,notes:''},
+    {id:'ing_creme_balsamique',name:'Crème balsamique',unit:'L',price:null,halal:true,kcal100:200,protein100:0.5,fat100:0,carbs100:50,notes:''},
+    {id:'ing_sauce_lab',name:'Sauce The Lab',unit:'kg',price:null,halal:true,kcal100:450,protein100:1,fat100:48,carbs100:5,notes:'Sauce maison'},
+    {id:'ing_sauce_maison',name:'Sauce maison',unit:'kg',price:null,halal:true,kcal100:400,protein100:1,fat100:42,carbs100:5,notes:''},
+    {id:'ing_samourai',name:'Sauce Samouraï',unit:'kg',price:null,halal:true,kcal100:480,protein100:1,fat100:50,carbs100:7,notes:''},
+    {id:'ing_mayo_truffe',name:'Mayo truffe',unit:'kg',price:null,halal:true,kcal100:680,protein100:1,fat100:75,carbs100:0.6,notes:''},
+    {id:'ing_miel_moutarde',name:'Miel-moutarde',unit:'kg',price:null,halal:true,kcal100:280,protein100:2,fat100:8,carbs100:50,notes:''},
+    {id:'ing_chutney_mangue',name:'Chutney mangue',unit:'kg',price:null,halal:true,kcal100:180,protein100:0.5,fat100:0.2,carbs100:45,notes:''},
+    {id:'ing_soja_sucree',name:'Sauce soja sucrée',unit:'L',price:null,halal:true,kcal100:230,protein100:6,fat100:0,carbs100:53,notes:''},
+    // Burger - garnitures fraîches
+    {id:'ing_roquette',name:'Roquette',unit:'kg',price:null,halal:true,kcal100:25,protein100:2.6,fat100:0.7,carbs100:3.7,notes:''},
+    {id:'ing_tomate_sechee',name:'Tomates séchées',unit:'kg',price:null,halal:true,kcal100:258,protein100:14,fat100:3,carbs100:56,notes:''},
+    {id:'ing_champignon',name:'Champignons',unit:'kg',price:null,halal:true,kcal100:22,protein100:3.1,fat100:0.3,carbs100:3.3,notes:''},
+    {id:'ing_ananas',name:'Ananas',unit:'kg',price:null,halal:true,kcal100:50,protein100:0.5,fat100:0.1,carbs100:13,notes:''},
+    // Burger - sides
+    {id:'ing_rosti',name:'Rösti',unit:'pièce',price:null,halal:true,kcal100:170,protein100:2,fat100:8,carbs100:22,notes:''},
+    {id:'ing_waffle_fries',name:'Waffle fries',unit:'kg',price:null,halal:true,kcal100:230,protein100:3,fat100:11,carbs100:30,notes:''},
+    {id:'ing_frites',name:'Frites surgelées',unit:'kg',price:null,halal:true,kcal100:160,protein100:2,fat100:5,carbs100:25,notes:''}
+  ];
+}
+
+function defaultRecipes(){
+  return [
+    {
+      id:'rec_creme_sour',
+      name:'Crème sour',
+      category:'Sauce', cuisine:'mexicain', type:'sauces',
+      photo:null,
+      baseAmount:1, baseUnit:'L', baseLabel:'Crème épaisse 24%',
+      ingredients:[
+        {name:'Crème épaisse 24%', amount:1, unit:'L'},
+        {name:'Lait entier', amount:200, unit:'g'},
+        {name:'Jus de citron', amount:100, unit:'g'},
+        {name:'Sel', amount:0, unit:'au goût'},
+        {name:'Poivre', amount:0, unit:'au goût'},
+        {name:'Ail en poudre', amount:0, unit:'au goût'}
+      ],
+      instructions:'Mélanger crème, lait et jus de citron.\nAssaisonner sel, poivre, ail en poudre.\nLaisser reposer 30 min au frais pour épaissir.',
+      prepTime:5, cookTemp:null, cookTime:null, notes:''
+    },
+    {
+      id:'rec_sauce_cheddar',
+      name:'Sauce Cheddar',
+      category:'Sauce', cuisine:'mexicain', type:'sauces',
+      photo:null,
+      baseAmount:1, baseUnit:'kg', baseLabel:'Cheddar râpé',
+      ingredients:[
+        {name:'Cheddar râpé', amount:1, unit:'kg'},
+        {name:'Crème liquide 20%', amount:1, unit:'L'},
+        {name:'Lait entier', amount:1, unit:'L'},
+        {name:'Eau', amount:200, unit:'ml'},
+        {name:'Maïzena', amount:50, unit:'g'},
+        {name:'Sel', amount:0, unit:'au goût'},
+        {name:'Ail en poudre', amount:0, unit:'au goût'},
+        {name:'Paprika fumé', amount:0, unit:'au goût'}
+      ],
+      instructions:'Faire frémir crème + lait dans une casserole.\nMélanger eau et Maïzena dans un bol, puis verser dans la casserole.\nMélanger et laisser épaissir.\nAjouter le cheddar en 3 fois en remuant entre chaque ajout.\nAssaisonner sel, ail en poudre, paprika fumé.',
+      prepTime:20, cookTemp:null, cookTime:null, notes:''
+    },
+    {
+      id:'rec_riz',
+      name:'Riz',
+      category:'Féculent', cuisine:'mexicain', type:'féculents',
+      photo:null,
+      baseAmount:1, baseUnit:'kg', baseLabel:'Riz cru',
+      ingredients:[
+        {name:'Riz cru', amount:1, unit:'kg'},
+        {name:'Eau', amount:2, unit:'L'},
+        {name:"Huile d'olive", amount:30, unit:'ml'},
+        {name:'Sel', amount:0, unit:'au goût'},
+        {name:'Poivre', amount:0, unit:'au goût'},
+        {name:'Paprika fumé', amount:0, unit:'au goût'}
+      ],
+      instructions:"1 volume de riz pour 2 volumes d'eau, avec un peu d'huile d'olive.\nAssaisonner sel, poivre, paprika fumé.\nCouvrir et cuire à feu doux jusqu'à absorption.",
+      prepTime:5, cookTemp:null, cookTime:25, notes:''
+    },
+    {
+      id:'rec_poivrons_oignons',
+      name:'Poivrons & Oignons',
+      category:'Garniture', cuisine:'mexicain', type:'garnitures',
+      photo:null,
+      baseAmount:2, baseUnit:'kg', baseLabel:'Poivrons',
+      ingredients:[
+        {name:'Poivron', amount:2, unit:'kg'},
+        {name:'Oignon blanc', amount:2, unit:'kg'},
+        {name:'Sel', amount:0, unit:'au goût'},
+        {name:'Poivre', amount:0, unit:'au goût'},
+        {name:'Paprika fumé', amount:0, unit:'au goût'}
+      ],
+      instructions:"Couper les poivrons en languettes.\nCouper les oignons en grands dés.\nCuire à la poêle jusqu'à tendre et légèrement caramélisés.\nAssaisonner sel, poivre, paprika fumé.",
+      prepTime:20, cookTemp:null, cookTime:15, notes:''
+    },
+    {
+      id:'rec_pico_de_gallo',
+      name:'Pico de gallo',
+      category:'Garniture', cuisine:'mexicain', type:'garnitures',
+      photo:null,
+      baseAmount:6, baseUnit:'kg', baseLabel:'Tomates',
+      ingredients:[
+        {name:'Tomate', amount:6, unit:'kg'},
+        {name:'Oignon', amount:2, unit:'kg'},
+        {name:'Coriandre fraîche', amount:0, unit:'au goût'},
+        {name:'Jus de citron', amount:0, unit:'au goût'},
+        {name:'Sel', amount:0, unit:'au goût'},
+        {name:'Poivre', amount:0, unit:'au goût'},
+        {name:'Ail en poudre', amount:0, unit:'au goût'},
+        {name:'Paprika fumé', amount:0, unit:'au goût'}
+      ],
+      instructions:'Couper les tomates en grands dés.\nCouper les oignons en petits dés.\nHacher finement la coriandre fraîche.\nMélanger le tout.\nAjouter jus de citron, sel, poivre, ail en poudre, paprika fumé.',
+      prepTime:30, cookTemp:null, cookTime:null, notes:''
+    },
+    {
+      id:'rec_mangue_tajin',
+      name:'Mangue Tajin',
+      category:'Garniture', cuisine:'mexicain', type:'garnitures',
+      photo:null,
+      baseAmount:1, baseUnit:'kg', baseLabel:'Mangue',
+      ingredients:[
+        {name:'Mangue', amount:1, unit:'kg'},
+        {name:'Épice Tajin', amount:0, unit:'au goût'}
+      ],
+      instructions:'Couper la mangue en dés.\nSaupoudrer généreusement de Tajin.\nMélanger délicatement.',
+      prepTime:5, cookTemp:null, cookTime:null, notes:''
+    },
+    {
+      id:'rec_mais_grilles',
+      name:'Maïs grillés',
+      category:'Garniture', cuisine:'mexicain', type:'garnitures',
+      photo:null,
+      baseAmount:1, baseUnit:'kg', baseLabel:'Maïs',
+      ingredients:[
+        {name:'Maïs', amount:1, unit:'kg'},
+        {name:'Sel', amount:0, unit:'au goût'},
+        {name:'Poivre', amount:0, unit:'au goût'},
+        {name:'Paprika fumé', amount:0, unit:'au goût'}
+      ],
+      instructions:"Griller le maïs à la poêle bien chaude jusqu'à coloration.\nAssaisonner sel, poivre, paprika fumé.",
+      prepTime:10, cookTemp:null, cookTime:null, notes:''
+    },
+    {
+      id:'rec_chou_marine',
+      name:'Chou mariné',
+      category:'Garniture', cuisine:'mexicain', type:'garnitures',
+      photo:null,
+      baseAmount:2, baseUnit:'kg', baseLabel:'Choux',
+      ingredients:[
+        {name:'Choux', amount:2, unit:'kg'},
+        {name:'Vinaigre de cidre', amount:350, unit:'ml'},
+        {name:'Sel', amount:0, unit:'au goût'}
+      ],
+      instructions:'Couper les choux en filaments fins.\nVerser le vinaigre de cidre, saler.\nMélanger et laisser mariner au frais (idéalement 1h+).',
+      prepTime:15, cookTemp:null, cookTime:null, notes:''
+    },
+    {
+      id:'rec_cookie',
+      name:'Cookie',
+      category:'Pâtisserie', cuisine:'autres', type:'pâtisserie',
+      photo:null,
+      baseAmount:110, baseUnit:'g', baseLabel:'Pâte (par cookie)',
+      ingredients:[
+        {name:'Pâte cookie', amount:110, unit:'g'},
+        {name:'Insert cookie', amount:15, unit:'g'}
+      ],
+      instructions:"Former une boule de 110g de pâte.\nInsérer 15g d'insert au centre.\nReformer la boule, déposer sur plaque.\nCuire 15 min à 175°C.",
+      prepTime:10, cookTemp:175, cookTime:15, notes:'Quantités par cookie'
+    },
+    {
+      id:'rec_poulet_marine',
+      name:'Poulet Mariné',
+      category:'Marinade', cuisine:'mexicain', type:'viandes',
+      photo:null,
+      baseAmount:10, baseUnit:'kg', baseLabel:'Poulet',
+      ingredients:[
+        {name:'Poulet', amount:10, unit:'kg'},
+        {name:'Jus de mangue', amount:1000, unit:'ml'},
+        {name:'Jus de citron vert', amount:400, unit:'ml'},
+        {name:'Vinaigre de cidre', amount:150, unit:'ml'},
+        {name:'Ail frais', amount:120, unit:'g'},
+        {name:'Miel liquide', amount:30, unit:'g'},
+        {name:'Paprika fumé', amount:140, unit:'g'},
+        {name:'Cumin moulu', amount:90, unit:'g'},
+        {name:'Origan séché', amount:60, unit:'g'},
+        {name:'Poivre noir moulu', amount:30, unit:'g'},
+        {name:'Sel', amount:180, unit:'g'}
+      ],
+      instructions:'Mélanger tous les ingrédients de la marinade.\nAjouter le poulet et bien enrober.\nLaisser mariner 6h à 24h au frigo.',
+      prepTime:20, cookTemp:200, cookTime:40, notes:'Mariner 6h à 24h'
+    },
+    {
+      id:'rec_pulled_pork',
+      name:'Pulled Pork',
+      category:'Marinade', cuisine:'mexicain', type:'viandes',
+      photo:null,
+      baseAmount:10, baseUnit:'kg', baseLabel:'Porc',
+      ingredients:[
+        {name:'Porc (épaule)', amount:10, unit:'kg'},
+        {name:'Sauce BBQ', amount:1.92, unit:'kg'},
+        {name:'Miel liquide', amount:560, unit:'g'},
+        {name:'Sel', amount:160, unit:'g'},
+        {name:'Poivre noir', amount:56, unit:'g'},
+        {name:'Ail en poudre', amount:72, unit:'g'},
+        {name:'Origan séché', amount:40, unit:'g'},
+        {name:'Thym séché', amount:32, unit:'g'}
+      ],
+      instructions:'Mélanger tous les ingrédients (hors porc) dans un grand bol.\nCouper les morceaux de porc en largeur de 4-5 cm.\nIncorporer la préparation sur tous les morceaux.\nDéposer dans un plat profond, cuire 3h à 130°C.\nEffilocher à la fourchette à la sortie.',
+      prepTime:30, cookTemp:130, cookTime:180, notes:'Cuisson lente 3h'
+    },
+    /* ===== BURGER ===== */
+    {
+      id:'rec_sauce_burger_maison',
+      name:'Sauce burger maison',
+      category:'Sauce', cuisine:'burger', type:'sauces',
+      photo:null,
+      baseAmount:1, baseUnit:'L', baseLabel:'Mayonnaise',
+      ingredients:[
+        {name:'Mayonnaise', amount:1, unit:'L'},
+        {name:'Ketchup', amount:300, unit:'g'},
+        {name:'Moutarde', amount:80, unit:'g'},
+        {name:'Cornichons hachés', amount:120, unit:'g'},
+        {name:'Vinaigre de cidre', amount:30, unit:'ml'},
+        {name:'Sel', amount:0, unit:'au goût'},
+        {name:'Poivre', amount:0, unit:'au goût'},
+        {name:'Ail en poudre', amount:0, unit:'au goût'},
+        {name:'Paprika fumé', amount:0, unit:'au goût'}
+      ],
+      instructions:"Mélanger tous les ingrédients dans un saladier.\nAjuster l'assaisonnement.\nLaisser reposer 30 min au frais.",
+      prepTime:10, cookTemp:null, cookTime:null, notes:'À ajuster selon le goût'
+    },
+    {
+      id:'rec_oignons_caramelises',
+      name:'Oignons caramélisés',
+      category:'Garniture', cuisine:'burger', type:'garnitures',
+      photo:null,
+      baseAmount:2, baseUnit:'kg', baseLabel:'Oignons jaunes',
+      ingredients:[
+        {name:'Oignon jaune', amount:2, unit:'kg'},
+        {name:"Huile d'olive", amount:60, unit:'ml'},
+        {name:'Sucre', amount:50, unit:'g'},
+        {name:'Vinaigre balsamique', amount:50, unit:'ml'},
+        {name:'Sel', amount:0, unit:'au goût'},
+        {name:'Poivre', amount:0, unit:'au goût'}
+      ],
+      instructions:"Émincer finement les oignons.\nFaire revenir à feu moyen-doux dans l'huile pendant 20-25 min.\nAjouter le sucre, mélanger.\nDéglacer au vinaigre balsamique.\nAssaisonner sel et poivre.",
+      prepTime:10, cookTemp:null, cookTime:30, notes:'Cuisson longue à feu doux'
+    },
+    {
+      id:'rec_bacon_grille',
+      name:'Bacon grillé',
+      category:'Garniture', cuisine:'burger', type:'viandes',
+      photo:null,
+      baseAmount:1, baseUnit:'kg', baseLabel:'Bacon',
+      ingredients:[
+        {name:'Bacon (tranches)', amount:1, unit:'kg'}
+      ],
+      instructions:"Déposer les tranches sur la plancha bien chaude.\nGriller 2-3 min de chaque côté jusqu'à croustillant.\nÉgoutter sur papier absorbant.",
+      prepTime:2, cookTemp:null, cookTime:5, notes:''
+    },
+    {
+      id:'rec_steak_burger',
+      name:'Steak burger (haché)',
+      category:'Viande', cuisine:'burger', type:'viandes',
+      photo:null,
+      baseAmount:1, baseUnit:'kg', baseLabel:'Bœuf haché',
+      ingredients:[
+        {name:'Bœuf haché 15%', amount:1, unit:'kg'},
+        {name:'Sel', amount:0, unit:'au goût'},
+        {name:'Poivre', amount:0, unit:'au goût'}
+      ],
+      instructions:"Former les steaks de 150g à 180g (poids selon le burger).\nAssaisonner juste avant la cuisson sel et poivre.\nCuire à la plancha bien chaude 2-3 min/face pour saignant, +1 min pour à point.",
+      prepTime:5, cookTemp:null, cookTime:6, notes:'Ne pas appuyer sur le steak pendant la cuisson'
+    },
+    {
+      id:'rec_sauce_bbq_maison',
+      name:'Sauce BBQ maison',
+      category:'Sauce', cuisine:'burger', type:'sauces',
+      photo:null,
+      baseAmount:1, baseUnit:'L', baseLabel:'Ketchup',
+      ingredients:[
+        {name:'Ketchup', amount:1, unit:'L'},
+        {name:'Vinaigre de cidre', amount:150, unit:'ml'},
+        {name:'Sauce Worcestershire', amount:50, unit:'ml'},
+        {name:'Sucre brun', amount:200, unit:'g'},
+        {name:'Miel liquide', amount:100, unit:'g'},
+        {name:'Sel', amount:0, unit:'au goût'},
+        {name:'Poivre', amount:0, unit:'au goût'},
+        {name:'Paprika fumé', amount:0, unit:'au goût'},
+        {name:'Ail en poudre', amount:0, unit:'au goût'}
+      ],
+      instructions:"Mélanger tous les ingrédients dans une casserole.\nPorter à ébullition puis baisser le feu.\nLaisser réduire 15-20 min en remuant régulièrement.\nLaisser refroidir.",
+      prepTime:5, cookTemp:null, cookTime:20, notes:''
+    }
+  ];
+}
+
+function defaultFiches(){
+  return [
+    /* === MEXICAIN === */
+    {
+      id:'fic_burrito',
+      name:'Burrito',
+      category:'Plat (500g)', cuisine:'mexicain',
+      photo:null,
+      prepTime:5,
+      sections:[
+        {title:'Base',items:["Grande tortilla légèrement grillée (légère pression pour l'étendre)","Assemblage carré au centre de la tortilla"]},
+        {title:'Garniture principale',items:['Riz','Haricot rouge','Viande (pulled pork, effiloché de poulet ou chili con carne)','Cheddar râpé']},
+        {title:'Légumes (3 au choix)',items:['Pico de gallo','Poivrons & Oignons','Choux marinés','Maïs grillés','Mangues Tajin']},
+        {title:'Sauces',items:['Salsa roja','Salsa verde','Tomate chutney','Guacamole']},
+        {title:'Finition',items:['Crème sour']}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_tortilla_grande',amount:70,unit:'g',label:'Tortilla grande'},
+        {type:'recipe',refId:'rec_riz',amount:80,unit:'g',label:'Riz'},
+        {type:'ingredient',refId:'ing_haricots',amount:60,unit:'g',label:'Haricots rouges'},
+        {type:'recipe',refId:'rec_pulled_pork',amount:80,unit:'g',label:'Viande (pulled pork)'},
+        {type:'ingredient',refId:'ing_cheddar',amount:30,unit:'g',label:'Cheddar râpé'},
+        {type:'recipe',refId:'rec_pico_de_gallo',amount:50,unit:'g',label:'Pico de gallo'},
+        {type:'recipe',refId:'rec_poivrons_oignons',amount:50,unit:'g',label:'Poivrons & Oignons'},
+        {type:'recipe',refId:'rec_chou_marine',amount:50,unit:'g',label:'Choux marinés'},
+        {type:'ingredient',refId:'ing_salsa_roja',amount:30,unit:'g',label:'Salsa roja'},
+        {type:'recipe',refId:'rec_creme_sour',amount:20,unit:'g',label:'Crème sour'}
+      ],
+      variants:[
+        {title:'Bowl',desc:'Sans tortilla — servir directement les ingrédients dans un bol'},
+        {title:'Sur place',desc:"Petit plateau, laisser ressortir le burrito d'un côté"},
+        {title:'À emporter',desc:"Emballer complètement dans la feuille d'aluminium"}
+      ],
+      linkedRecipes:[],
+      notes:''
+    },
+    {
+      id:'fic_tacos',
+      name:'Tacos x3',
+      category:'Plat', cuisine:'mexicain',
+      photo:null, prepTime:5,
+      sections:[
+        {title:'Base',items:['Petite tortilla x3 légèrement grillée (pas de pression pour ne pas déchirer la pâte)','Assemblage en forme de U','Remplir étage par étage']},
+        {title:'Garniture',items:["Haricots rouges (et riz si commandé via plateformes de l'ancien proprio)",'Viande au choix','Cheddar râpé','Légumes au choix','Sauces au choix','Crème sour']}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_tortilla_petite',amount:75,unit:'g',label:'3× Tortilla petite'},
+        {type:'ingredient',refId:'ing_haricots',amount:75,unit:'g',label:'Haricots rouges'},
+        {type:'recipe',refId:'rec_pulled_pork',amount:90,unit:'g',label:'Viande (3 tacos)'},
+        {type:'ingredient',refId:'ing_cheddar',amount:45,unit:'g',label:'Cheddar râpé'},
+        {type:'recipe',refId:'rec_pico_de_gallo',amount:75,unit:'g',label:'Légumes (pico)'},
+        {type:'ingredient',refId:'ing_salsa_roja',amount:30,unit:'g',label:'Sauce'},
+        {type:'recipe',refId:'rec_creme_sour',amount:30,unit:'g',label:'Crème sour'}
+      ],
+      variants:[], linkedRecipes:[], notes:'Quantités totales pour 3 tacos.'
+    },
+    {
+      id:'fic_quesadillas',
+      name:'Quesadillas',
+      category:'Plat', cuisine:'mexicain',
+      photo:null, prepTime:8,
+      sections:[
+        {title:'Préparation',items:['Lancer la salamandre','Grande tortilla','Montage sur la moitié de la tortilla']},
+        {title:'Garniture (sur la moitié)',items:['Cheddar râpé','Viandes','Légumes','Sauces','Cheddar râpé par-dessus']},
+        {title:'Cuisson',items:['Fermer la tortilla et étaler la farce de façon homogène','Cuire 4 minutes dans la salamandre','Découper en 4 triangles avec le coupe-pizza',"Couper rapidement, vivement, de l'extérieur vers le milieu"]}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_tortilla_grande',amount:80,unit:'g',label:'Tortilla grande'},
+        {type:'ingredient',refId:'ing_cheddar',amount:80,unit:'g',label:'Cheddar (40g + 40g)'},
+        {type:'recipe',refId:'rec_pulled_pork',amount:70,unit:'g',label:'Viande'},
+        {type:'recipe',refId:'rec_poivrons_oignons',amount:30,unit:'g',label:'Légumes'},
+        {type:'ingredient',refId:'ing_salsa_roja',amount:20,unit:'g',label:'Sauce'}
+      ],
+      variants:[], linkedRecipes:[], notes:'Cuisson salamandre 4 min. Découpe en 4 parts.'
+    },
+    {
+      id:'fic_nachos',
+      name:'Nachos',
+      category:'Plat', cuisine:'mexicain',
+      photo:null, prepTime:3,
+      sections:[
+        {title:'Préparation',items:['1 minute au micro-ondes']},
+        {title:'Service à emporter',items:['Pot de sauce cheddar à part']},
+        {title:'Service sur place',items:['Assembler directement sur les Nachos']},
+        {title:'Toppings de base',items:['Pico de gallo','Jalapeños']},
+        {title:'Suppléments',items:['Guacamole','Sauce cheddar','Viandes']}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_nachos',amount:120,unit:'g',label:'Chips Nachos'},
+        {type:'recipe',refId:'rec_pico_de_gallo',amount:50,unit:'g',label:'Pico de gallo'},
+        {type:'ingredient',refId:'ing_jalapeno',amount:15,unit:'g',label:'Jalapeños'},
+        {type:'recipe',refId:'rec_sauce_cheddar',amount:60,unit:'g',label:'Sauce cheddar'}
+      ],
+      variants:[], linkedRecipes:[], notes:'⚠️ Toujours ajouter le chaud en premier !'
+    },
+
+    /* === BURGERS === */
+    {
+      id:'fic_burger_classique',
+      name:'Le Classique',
+      category:'Burger', cuisine:'burger',
+      photo:null, prepTime:6,
+      sections:[
+        {title:'Montage (de bas en haut)',items:[
+          '1. Bas du pain toasté',
+          '2. Sauce The Lab',
+          '3. Salade',
+          '4. Steak',
+          '5. Oignon rouge',
+          '6. Tomate',
+          '7. Sauce The Lab',
+          '8. Haut du pain toasté'
+        ]}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_pain_brioche',amount:90,unit:'g',label:'Pain brioché'},
+        {type:'ingredient',refId:'ing_sauce_lab',amount:25,unit:'g',label:'Sauce The Lab (×2)'},
+        {type:'ingredient',refId:'ing_salade',amount:20,unit:'g',label:'Salade'},
+        {type:'ingredient',refId:'ing_steak',amount:150,unit:'g',label:'Steak'},
+        {type:'ingredient',refId:'ing_oignon_rouge',amount:10,unit:'g',label:'Oignon rouge'},
+        {type:'ingredient',refId:'ing_tomate',amount:30,unit:'g',label:'Tomate'}
+      ],
+      variants:[], linkedRecipes:[], notes:''
+    },
+    {
+      id:'fic_burger_savoyard',
+      name:'Le Savoyard',
+      category:'Burger', cuisine:'burger',
+      photo:null, prepTime:8,
+      sections:[
+        {title:'Montage (de bas en haut)',items:[
+          '1. Bas du pain toasté',
+          '2. Sauce maison',
+          '3. Salade',
+          '4. Steak + raclette fondue',
+          '5. Bacon',
+          '6. Rösti',
+          "7. 2 rondelles d'oignons rouges",
+          '8. 1 rondelle de tomate',
+          '9. Sauce The Lab',
+          '10. Haut du pain toasté'
+        ]}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_pain_brioche',amount:90,unit:'g',label:'Pain brioché'},
+        {type:'ingredient',refId:'ing_sauce_maison',amount:20,unit:'g',label:'Sauce maison'},
+        {type:'ingredient',refId:'ing_salade',amount:15,unit:'g',label:'Salade'},
+        {type:'ingredient',refId:'ing_steak',amount:150,unit:'g',label:'Steak'},
+        {type:'ingredient',refId:'ing_raclette',amount:30,unit:'g',label:'Raclette fondue'},
+        {type:'ingredient',refId:'ing_bacon',amount:25,unit:'g',label:'Bacon'},
+        {type:'ingredient',refId:'ing_rosti',amount:60,unit:'g',label:'Rösti'},
+        {type:'ingredient',refId:'ing_oignon_rouge',amount:10,unit:'g',label:'2 rondelles oignon rouge'},
+        {type:'ingredient',refId:'ing_tomate',amount:20,unit:'g',label:'1 rondelle tomate'},
+        {type:'ingredient',refId:'ing_sauce_lab',amount:20,unit:'g',label:'Sauce The Lab'}
+      ],
+      variants:[], linkedRecipes:[], notes:''
+    },
+    {
+      id:'fic_burger_italien',
+      name:"L'Italien",
+      category:'Burger', cuisine:'burger',
+      photo:null, prepTime:6,
+      sections:[
+        {title:'Montage (de bas en haut)',items:[
+          '1. Bas du pain toasté',
+          '2. Sauce Caesar',
+          '3. Roquette',
+          '4. Steak',
+          '5. Parmesan',
+          '6. Tomates séchées',
+          '7. Oignon rouge',
+          '8. Crème balsamique',
+          '9. Haut du pain toasté'
+        ]}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_pain_brioche',amount:90,unit:'g',label:'Pain brioché'},
+        {type:'ingredient',refId:'ing_caesar',amount:20,unit:'g',label:'Sauce Caesar'},
+        {type:'ingredient',refId:'ing_roquette',amount:15,unit:'g',label:'Roquette'},
+        {type:'ingredient',refId:'ing_steak',amount:150,unit:'g',label:'Steak'},
+        {type:'ingredient',refId:'ing_parmesan',amount:15,unit:'g',label:'Parmesan'},
+        {type:'ingredient',refId:'ing_tomate_sechee',amount:15,unit:'g',label:'Tomates séchées'},
+        {type:'ingredient',refId:'ing_oignon_rouge',amount:10,unit:'g',label:'Oignon rouge'},
+        {type:'ingredient',refId:'ing_creme_balsamique',amount:10,unit:'g',label:'Crème balsamique'}
+      ],
+      variants:[], linkedRecipes:[], notes:''
+    },
+    {
+      id:'fic_burger_mexicain',
+      name:'Le Mexicain',
+      category:'Burger', cuisine:'burger',
+      photo:null, prepTime:6,
+      sections:[
+        {title:'Montage (de bas en haut)',items:[
+          '1. Bas du pain toasté',
+          '2. Sauce samouraï',
+          '3. Salade',
+          '4. Steak + cheddar fondu',
+          '5. Jalapeños',
+          '6. Oignon rouge',
+          '7. Tomate',
+          '8. Guacamole',
+          '9. Haut du pain toasté'
+        ]}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_pain_brioche',amount:90,unit:'g',label:'Pain brioché'},
+        {type:'ingredient',refId:'ing_samourai',amount:20,unit:'g',label:'Sauce samouraï'},
+        {type:'ingredient',refId:'ing_salade',amount:15,unit:'g',label:'Salade'},
+        {type:'ingredient',refId:'ing_steak',amount:150,unit:'g',label:'Steak'},
+        {type:'ingredient',refId:'ing_cheddar',amount:25,unit:'g',label:'Cheddar fondu'},
+        {type:'ingredient',refId:'ing_jalapeno',amount:10,unit:'g',label:'Jalapeños'},
+        {type:'ingredient',refId:'ing_oignon_rouge',amount:10,unit:'g',label:'Oignon rouge'},
+        {type:'ingredient',refId:'ing_tomate',amount:25,unit:'g',label:'Tomate'},
+        {type:'ingredient',refId:'ing_guacamole',amount:25,unit:'g',label:'Guacamole'}
+      ],
+      variants:[], linkedRecipes:[], notes:''
+    },
+    {
+      id:'fic_burger_caprin_miel',
+      name:'Le Caprin Miel',
+      category:'Burger', cuisine:'burger',
+      photo:null, prepTime:6,
+      sections:[
+        {title:'Montage (de bas en haut)',items:[
+          '1. Bas du pain toasté',
+          '2. Roquette',
+          '3. Miel-moutarde',
+          '4. Steak',
+          '5. Fromage de chèvre',
+          '6. Oignon rouge',
+          '7. Tomate',
+          '8. Miel-moutarde',
+          '9. Haut du pain toasté'
+        ]}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_pain_brioche',amount:90,unit:'g',label:'Pain brioché'},
+        {type:'ingredient',refId:'ing_roquette',amount:15,unit:'g',label:'Roquette'},
+        {type:'ingredient',refId:'ing_miel_moutarde',amount:20,unit:'g',label:'Miel-moutarde (×2)'},
+        {type:'ingredient',refId:'ing_steak',amount:150,unit:'g',label:'Steak'},
+        {type:'ingredient',refId:'ing_chevre',amount:30,unit:'g',label:'Fromage de chèvre'},
+        {type:'ingredient',refId:'ing_oignon_rouge',amount:10,unit:'g',label:'Oignon rouge'},
+        {type:'ingredient',refId:'ing_tomate',amount:25,unit:'g',label:'Tomate'}
+      ],
+      variants:[], linkedRecipes:[], notes:''
+    },
+    {
+      id:'fic_burger_boson_truffe',
+      name:'Le Boson de Truffe',
+      category:'Burger', cuisine:'burger',
+      photo:null, prepTime:7,
+      sections:[
+        {title:'Montage (de bas en haut)',items:[
+          '1. Bas du pain toasté',
+          '2. Mayo truffe',
+          '3. Roquette',
+          '4. Steak',
+          "5. Fromage d'abbaye",
+          '6. Champignons',
+          '7. Oignon rouge',
+          '8. Tomate',
+          '9. Mayo truffe',
+          '10. Haut du pain toasté'
+        ]}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_pain_brioche',amount:90,unit:'g',label:'Pain brioché'},
+        {type:'ingredient',refId:'ing_mayo_truffe',amount:25,unit:'g',label:'Mayo truffe (×2)'},
+        {type:'ingredient',refId:'ing_roquette',amount:15,unit:'g',label:'Roquette'},
+        {type:'ingredient',refId:'ing_steak',amount:150,unit:'g',label:'Steak'},
+        {type:'ingredient',refId:'ing_abbaye',amount:30,unit:'g',label:"Fromage d'abbaye"},
+        {type:'ingredient',refId:'ing_champignon',amount:30,unit:'g',label:'Champignons'},
+        {type:'ingredient',refId:'ing_oignon_rouge',amount:10,unit:'g',label:'Oignon rouge'},
+        {type:'ingredient',refId:'ing_tomate',amount:25,unit:'g',label:'Tomate'}
+      ],
+      variants:[], linkedRecipes:[], notes:'Les champignons sur plancha juste après les steaks, sauce soja sucrée après retournement, laisser caraméliser.'
+    },
+    {
+      id:'fic_burger_pulled_pork',
+      name:'Le Pulled Pork',
+      category:'Burger', cuisine:'burger',
+      photo:null, prepTime:6,
+      sections:[
+        {title:'Montage (de bas en haut)',items:[
+          '1. Bas du pain toasté',
+          '2. Sauce BBQ',
+          '3. Salade',
+          '4. Pulled pork',
+          '5. Cheddar fondu',
+          '6. Oignon rouge',
+          '7. Tomate',
+          '8. Sauce Caesar',
+          '9. Haut du pain toasté'
+        ]}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_pain_brioche',amount:90,unit:'g',label:'Pain brioché'},
+        {type:'ingredient',refId:'ing_sauce_bbq',amount:25,unit:'g',label:'Sauce BBQ'},
+        {type:'ingredient',refId:'ing_salade',amount:15,unit:'g',label:'Salade'},
+        {type:'recipe',refId:'rec_pulled_pork',amount:120,unit:'g',label:'Pulled pork'},
+        {type:'ingredient',refId:'ing_cheddar',amount:25,unit:'g',label:'Cheddar fondu'},
+        {type:'ingredient',refId:'ing_oignon_rouge',amount:10,unit:'g',label:'Oignon rouge'},
+        {type:'ingredient',refId:'ing_tomate',amount:25,unit:'g',label:'Tomate'},
+        {type:'ingredient',refId:'ing_caesar',amount:20,unit:'g',label:'Sauce Caesar'}
+      ],
+      variants:[], linkedRecipes:[], notes:''
+    },
+    {
+      id:'fic_burger_reaction_baconique',
+      name:'Le Réaction Baconique BBQ',
+      category:'Burger', cuisine:'burger',
+      photo:null, prepTime:7,
+      sections:[
+        {title:'Montage (de bas en haut)',items:[
+          '1. Bas du pain toasté',
+          '2. Sauce BBQ',
+          '3. Salade',
+          '4. Steak + cheddar fondu',
+          '5. Bacon',
+          "6. 2 rondelles d'oignon rouge",
+          '7. 1 rondelle de tomate',
+          '8. Sauce mayonnaise',
+          '9. Haut du pain toasté'
+        ]}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_pain_brioche',amount:90,unit:'g',label:'Pain brioché'},
+        {type:'ingredient',refId:'ing_sauce_bbq',amount:25,unit:'g',label:'Sauce BBQ'},
+        {type:'ingredient',refId:'ing_salade',amount:15,unit:'g',label:'Salade'},
+        {type:'ingredient',refId:'ing_steak',amount:150,unit:'g',label:'Steak'},
+        {type:'ingredient',refId:'ing_cheddar',amount:25,unit:'g',label:'Cheddar fondu'},
+        {type:'ingredient',refId:'ing_bacon',amount:25,unit:'g',label:'Bacon'},
+        {type:'ingredient',refId:'ing_oignon_rouge',amount:10,unit:'g',label:'2 rondelles oignon rouge'},
+        {type:'ingredient',refId:'ing_tomate',amount:20,unit:'g',label:'1 rondelle tomate'},
+        {type:'ingredient',refId:'ing_mayo',amount:20,unit:'g',label:'Sauce mayonnaise'}
+      ],
+      variants:[], linkedRecipes:[], notes:''
+    },
+    {
+      id:'fic_burger_exotique',
+      name:"L'Exotique",
+      category:'Burger', cuisine:'burger',
+      photo:null, prepTime:7,
+      sections:[
+        {title:'Montage (de bas en haut)',items:[
+          '1. Bas du pain toasté',
+          '2. Salade',
+          '3. Chutney mangue',
+          '4. Steak',
+          '5. Ananas grillé',
+          '6. Fromage de chèvre',
+          '7. Oignon rouge',
+          '8. Tomate',
+          '9. Chutney mangue',
+          '10. Haut du pain toasté'
+        ]}
+      ],
+      components:[
+        {type:'ingredient',refId:'ing_pain_brioche',amount:90,unit:'g',label:'Pain brioché'},
+        {type:'ingredient',refId:'ing_salade',amount:15,unit:'g',label:'Salade'},
+        {type:'ingredient',refId:'ing_chutney_mangue',amount:25,unit:'g',label:'Chutney mangue (×2)'},
+        {type:'ingredient',refId:'ing_steak',amount:150,unit:'g',label:'Steak'},
+        {type:'ingredient',refId:'ing_ananas',amount:30,unit:'g',label:'Ananas grillé'},
+        {type:'ingredient',refId:'ing_chevre',amount:25,unit:'g',label:'Fromage de chèvre'},
+        {type:'ingredient',refId:'ing_oignon_rouge',amount:10,unit:'g',label:'Oignon rouge'},
+        {type:'ingredient',refId:'ing_tomate',amount:25,unit:'g',label:'Tomate'}
+      ],
+      variants:[], linkedRecipes:[], notes:''
+    },
+
+    /* === FICHE DE CUISSON === */
+    {
+      id:'fic_cuisson_standard',
+      name:'Cuisson Standard — The Lab',
+      category:'Cuisson', cuisine:'burger',
+      photo:null, prepTime:null,
+      sections:[
+        {title:'🔥 Steak + fromage (tous les burgers)', items:[
+          'Steak sur plaque chaude : 1 min 40',
+          'Retourner → ajouter le fromage immédiatement',
+          'Deuxième face : 1 min 40',
+          'Fromage fondu = steak terminé ✅'
+        ]},
+        {title:'🥓 Bacon', items:[
+          'Mettre le bacon juste avant de retourner le steak',
+          'Retourner le bacon à la fin de cuisson steak',
+          'Objectif : croustillant, pas brûlé'
+        ]},
+        {title:'🍞 Pain brioche', items:[
+          'Toast bas + haut : 1-1 min 30',
+          'Doré / légèrement croustillant'
+        ]},
+        {title:'🥔 Rösti (Savoyard)', items:[
+          'Mettre en friteuse en premier',
+          'Sortir quand le steak est fini',
+          'Bien croustillant'
+        ]},
+        {title:'🍄 Champignons (Boson de Truffe)', items:[
+          'Mettre sur plancha juste après avoir posé les steaks',
+          'Après avoir retourné : ajouter la sauce soja sucrée',
+          'Laisser caraméliser'
+        ]},
+        {title:'🥨 Waffle fries', items:[
+          'Plonger en friteuse au moment où tu retournes les steaks',
+          'Sortir quand elles sont bien dorées et dures'
+        ]},
+        {title:'🥬 Steak végétarien', items:[
+          'Plonger en friteuse en premier',
+          'Cuisson : 3 minutes',
+          'Égoutter avant montage'
+        ]}
+      ],
+      components:[],
+      variants:[], linkedRecipes:[], notes:'Référence cuisson — à consulter pendant le service.'
+    }
+  ];
+}
+
+function defaultRoutines(){
+  return [
+    {
+      id:'rou_ouverture_soir',
+      name:'Ouverture Soir',
+      subtitle:'The Lab / Mexi Lab',
+      sections:[
+        {title:'Poste Mexicain',items:[
+          'Allumer bain-marie',
+          'Mettre en chauffe : pulled pork, chili, poulet, cheddar, haricots (mélanger après 15 min)',
+          'Vérifier garnitures (pico, oignons/poivrons) — refaire si manque, mettre en bacs',
+          'Préparer si manque : sour cream, riz',
+          'Mettre pinces/cuillères propres dans chaque bac'
+        ]},
+        {title:'Boissons',items:['Frigo rempli (cola, autres)']},
+        {title:'Mise en place Burger',items:[
+          'Steaks/fromages prêts + au froid','Pains sortis','Garnitures prêtes (salade, tomates, oignons)','Sauces burgers en place','Frites en place'
+        ]},
+        {title:'Appareils cuisson',items:['Plancha ON','Friteuse ON','Chauffe-plat ON','Hotte ON']},
+        {title:'Livraison',items:['Tablettes Uber/Deliveroo ON + connectées','Sacs + flyers','Flyers/QR dans pile']}
+      ],
+      checked:{}, lastReset:null
+    },
+    {
+      id:'rou_fermeture_soir',
+      name:'Fermeture Soir',
+      subtitle:'',
+      sections:[
+        {title:'Lancement nettoyage',items:['Allumer lave-vaisselle','Débarrasser et lancer premiers bacs/ustensiles']},
+        {title:'Appareils de cuisson',items:['Éteindre plancha, friteuse, chauffe-plat','Nettoyer plancha','Coup de propre sur friteuse']},
+        {title:'Protéine et garniture',items:[
+          'Éteindre bain-marie',
+          'Mettre restes protéines en tupperware (chili, poulet, pork, haricots, cheddar)',
+          'Nettoyer bacs + cuillères + pinces',
+          'Fermer sauces burger',
+          'Filmer garnitures (cellophane sur bacs)',
+          'Steaks sous vide'
+        ]},
+        {title:'Stock lendemain',items:['Vérifier viandes dispo (steaks, chili, poulet, pork)','Si besoin : sortir du congélateur → frigo']},
+        {title:'Sécurité & fermeture',items:['Vérifier appareils éteints','Vérifier frigos/congélateur bien fermés']},
+        {title:'Nettoyage final',items:['Plans de travail nettoyés/désinfectés','Sol nettoyé']},
+        {title:'Comptabilité / Caisse',items:[
+          'Charger terminal de paiement',
+          'Calculer les chiffres de toutes les tablettes plateformes de livraison, et mettre le total sur un article de la caisse',
+          'Éteindre la caisse : "MA" en haut à gauche → Flèche en haut à gauche → Gestion de caisse Z global → Manager → Z clôture caisse'
+        ]}
+      ],
+      checked:{}, lastReset:null
+    }
+  ];
+}
+
+/* ---------- App state ---------- */
+let state = null;
+let currentRoute = '#home';
+let toastTimer = null;
+
+function uid(prefix){ return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
+function $(sel,parent){ return (parent||document).querySelector(sel); }
+function $$(sel,parent){ return Array.from((parent||document).querySelectorAll(sel)); }
+function escHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+const SPICE_RX = /(sel|poivre|paprika|cumin|origan|thym|ail (en )?poudre|herbes|épice|tajin|miel|au goût)/i;
+function isSpiceLike(name,unit){
+  if(unit==='au goût') return true;
+  return SPICE_RX.test(name||'');
+}
+function fmtMin(min){
+  if(min==null) return null;
+  if(min < 60) return `${min} min`;
+  const h = Math.floor(min/60), m = min%60;
+  return m===0 ? `${h}h` : `${h}h${m.toString().padStart(2,'0')}`;
+}
+function toGrams(amount,unit){
+  if(amount==null || isNaN(amount) || amount<=0) return 0;
+  if(!unit) return 0;
+  const u = String(unit).toLowerCase().trim();
+  if(u==='g') return amount;
+  if(u==='kg') return amount*1000;
+  if(u==='mg') return amount/1000;
+  if(u==='ml') return amount;
+  if(u==='cl') return amount*10;
+  if(u==='l') return amount*1000;
+  return 0;
+}
+function findIngredientByName(name){
+  if(!name) return null;
+  const n = name.toLowerCase().trim();
+  let ing = state.ingredients.find(i => i.name.toLowerCase()===n);
+  if(ing) return ing;
+  ing = state.ingredients.find(i => n.includes(i.name.toLowerCase()) || i.name.toLowerCase().includes(n));
+  return ing || null;
+}
+function recipeNutrition(recipe){
+  let kcal=0, totalG=0;
+  if(!recipe) return {kcal:0, totalG:0, kcalPerG:0};
+  recipe.ingredients.forEach(ing=>{
+    if(ing.unit==='au goût') return;
+    const g = toGrams(ing.amount, ing.unit);
+    if(!g) return;
+    totalG += g;
+    const dbIng = findIngredientByName(ing.name);
+    if(dbIng && dbIng.kcal100) kcal += g * dbIng.kcal100 / 100;
+  });
+  return { kcal: Math.round(kcal), totalG: Math.round(totalG), kcalPerG: totalG > 0 ? kcal/totalG : 0 };
+}
+function ficheNutrition(fiche){
+  let total=0;
+  const breakdown = [];
+  (fiche.components||[]).forEach(c=>{
+    let kcalContribution = null;
+    let label = c.label || '';
+    if(c.type==='ingredient'){
+      const ing = state.ingredients.find(i=>i.id===c.refId);
+      if(ing){
+        if(!label) label = ing.name;
+        if(ing.kcal100){
+          const g = toGrams(c.amount, c.unit);
+          kcalContribution = g * ing.kcal100 / 100;
+        }
+      }
+    } else if(c.type==='recipe'){
+      const r = state.recipes.find(x=>x.id===c.refId);
+      if(r){
+        if(!label) label = r.name;
+        const n = recipeNutrition(r);
+        if(n.kcalPerG > 0){
+          const g = toGrams(c.amount, c.unit);
+          kcalContribution = g * n.kcalPerG;
+        }
+      }
+    }
+    breakdown.push({ type:c.type, refId:c.refId, label, amount:c.amount, unit:c.unit, kcal: kcalContribution!=null?Math.round(kcalContribution):null });
+    if(kcalContribution!=null) total += kcalContribution;
+  });
+  return { total: Math.round(total), breakdown };
+}
+async function compressImage(file, maxDim=1000, quality=0.75){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let { width, height } = img;
+        if(width > height && width > maxDim){ height = Math.round(height * maxDim/width); width = maxDim; }
+        else if(height >= width && height > maxDim){ width = Math.round(width * maxDim/height); height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img,0,0,width,height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function photoFieldHtml(photo){
+  if(photo){
+    return `<div class="photo-preview" data-photo-preview>
+      <img src="${photo}" alt="">
+      <div class="photo-actions">
+        <button type="button" data-photo-change aria-label="Changer">📷</button>
+        <button type="button" data-photo-remove aria-label="Supprimer">×</button>
+      </div>
+      <input type="file" accept="image/*" capture="environment" data-photo-input style="display:none">
+      <input type="hidden" name="photo" value="${escHtml(photo)}">
+    </div>`;
+  }
+  return `<div class="photo-empty" data-photo-empty>
+    <span>📷  Touche pour ajouter une photo</span>
+    <input type="file" accept="image/*" capture="environment" data-photo-input style="display:none">
+    <input type="hidden" name="photo" value="">
+  </div>`;
+}
+function fmtAmount(n,unit){
+  if(n===0||n==null) return unit==='au goût'?'<span class="ing-amount faded">au goût</span>':'<span class="ing-amount faded">—</span>';
+  let v;
+  if(n<1) v = (Math.round(n*1000)/1000).toString();
+  else if(n<10) v = (Math.round(n*100)/100).toString();
+  else if(n<100) v = (Math.round(n*10)/10).toString();
+  else v = Math.round(n).toString();
+  v = v.replace('.',',');
+  return `<span class="ing-amount">${v}<span class="unit">${escHtml(unit||'')}</span></span>`;
+}
+function toast(msg){
+  const ex = $('.toast'); if(ex) ex.remove();
+  const t = document.createElement('div'); t.className='toast'; t.textContent=msg;
+  document.body.appendChild(t);
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ t.style.opacity='0'; setTimeout(()=>t.remove(),250); },1800);
+}
+
+async function persist(){ await Storage.save(state); }
+
+/* ---------- Router ---------- */
+function navigate(hash){
+  if(hash && hash.charAt(0)!=='#') hash='#'+hash;
+  window.location.hash = hash || '#home';
+}
+function parseRoute(){
+  const h = (window.location.hash || '#home').slice(1);
+  const parts = h.split('/');
+  return { path: parts[0]||'home', id: parts[1]||null, action: parts[2]||null };
+}
+
+/* ---------- Render dispatch ---------- */
+function render(){
+  const route = parseRoute();
+  currentRoute = window.location.hash || '#home';
+  const root = $('#app');
+  let html = '';
+  switch(route.path){
+    case 'home': html = renderHome(); break;
+    case 'recipes': html = renderRecipesList(); break;
+    case 'recipe':
+      if(route.action==='edit') html = renderRecipeEdit(route.id);
+      else if(route.id==='new') html = renderRecipeEdit(null);
+      else html = renderRecipeDetail(route.id);
+      break;
+    case 'fiches': html = renderFichesList(); break;
+    case 'fiche':
+      if(route.action==='edit') html = renderFicheEdit(route.id);
+      else if(route.id==='new') html = renderFicheEdit(null);
+      else html = renderFicheDetail(route.id);
+      break;
+    case 'tasks': html = renderTasks(); break;
+    case 'routine':
+      if(route.action==='edit') html = renderRoutineEdit(route.id);
+      else if(route.id==='new') html = renderRoutineEdit(null);
+      else html = renderRoutineDetail(route.id);
+      break;
+    case 'ingredients': html = renderIngredients(); break;
+    case 'ingredient':
+      if(route.action==='edit') html = renderIngredientEdit(route.id);
+      else if(route.id==='new') html = renderIngredientEdit(null);
+      else html = renderIngredientEdit(route.id);
+      break;
+    case 'stock':
+      if(route.id && route.action==='edit') html = renderStockEdit(route.id);
+      else html = renderStock();
+      break;
+    case 'settings': html = renderSettings(); break;
+    default: html = renderHome();
+  }
+  root.innerHTML = html + renderBottomNav(route.path);
+  attachHandlers();
+  window.scrollTo(0,0);
+}
+
+/* ---------- Bottom nav ---------- */
+function renderBottomNav(active){
+  const items = [
+    {key:'home',ico:'⌂',label:'Accueil'},
+    {key:'recipes',ico:'☰',label:'Recettes'},
+    {key:'fiches',ico:'❑',label:'Fiches'},
+    {key:'tasks',ico:'✓',label:'Tâches'},
+    {key:'stock',ico:'🛒',label:'Stock'},
+    {key:'settings',ico:'⚙',label:'Réglages'}
+  ];
+  const map = {recipe:'recipes',fiche:'fiches',ingredient:'ingredients',routine:'tasks'};
+  const cur = map[active] || active;
+  return `<nav class="bottomnav">${items.map(i=>`
+    <button data-nav="${i.key}" class="${cur===i.key?'active':''}">
+      <span class="nav-ico">${i.ico}</span>
+      <span>${i.label}</span>
+    </button>`).join('')}</nav>`;
+}
+
+/* ---------- HOME ---------- */
+function renderHome(){
+  const recCount = state.recipes.length;
+  const fiCount = state.fiches.length;
+  const taskCount = state.tasks.filter(t=>!t.done).length;
+  const ingCount = state.ingredients.length;
+  const rouCount = (state.routines||[]).length;
+  const stock = state.stock||[];
+  const toBuy = stock.filter(s=>s.toBuy).length;
+  return `
+    <div class="view">
+      <div class="hero">
+        <div class="brand">Mon resto<span class="accent">tool</span></div>
+        <div class="tag">Cuisine · Service · Stock</div>
+      </div>
+      <div class="grid-home">
+        <button class="tile gold" data-go="recipes">
+          <div class="tile-ico">📖</div>
+          <div>
+            <div class="tile-name">Recettes</div>
+            <div class="tile-sub">${recCount} recette${recCount>1?'s':''}</div>
+          </div>
+        </button>
+        <button class="tile" data-go="fiches">
+          <div class="tile-ico">❑</div>
+          <div>
+            <div class="tile-name">Fiches</div>
+            <div class="tile-sub">${fiCount} plat${fiCount>1?'s':''}</div>
+          </div>
+        </button>
+        <button class="tile cyan" data-go="tasks">
+          <div class="tile-ico">✓</div>
+          <div>
+            <div class="tile-name">Tâches</div>
+            <div class="tile-sub">${taskCount} en cours</div>
+          </div>
+        </button>
+        <button class="tile" data-go="ingredients">
+          <div class="tile-ico">🥬</div>
+          <div>
+            <div class="tile-name">Ingrédients</div>
+            <div class="tile-sub">${ingCount} référencés</div>
+          </div>
+        </button>
+        <button class="tile wide gold" data-go="tasks">
+          <div class="tile-ico">⌚</div>
+          <div class="tile-info">
+            <div class="tile-name">Routines service</div>
+            <div class="tile-sub">${rouCount} checklist${rouCount>1?'s':''} (ouverture / fermeture)</div>
+          </div>
+        </button>
+        <button class="tile wide" data-go="stock" style="background:linear-gradient(135deg,${toBuy>0?'#E45A40':'var(--navy)'} 0%,${toBuy>0?'#a83d2a':'var(--navy-2)'} 100%);${toBuy>0?'border-color:var(--danger)':''}">
+          <div class="tile-ico">🛒</div>
+          <div class="tile-info">
+            <div class="tile-name" style="${toBuy>0?'color:var(--cream)':''}">Stock & courses</div>
+            <div class="tile-sub" style="${toBuy>0?'color:var(--cream-dim)':''}">${stock.length} produit${stock.length>1?'s':''} · ${toBuy} à racheter</div>
+          </div>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- RECIPES LIST ---------- */
+let recipesCuisineFilter = 'all';
+let fichesCuisineFilter = 'all';
+
+function renderRecipesList(){
+  const cuisines = state.settings.cuisines || ['burger','mexicain'];
+  let items = [...state.recipes].sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  if(recipesCuisineFilter !== 'all'){
+    items = items.filter(r => (r.cuisine||'') === recipesCuisineFilter);
+  }
+  const list = items.length ? items.map(r=>{
+    const ingCount = r.ingredients.filter(i=>i.unit!=='au goût').length;
+    const photoStyle = r.photo ? `style="background-image:url(${r.photo})"` : '';
+    return `
+      <button class="card" data-go="recipe/${r.id}">
+        <div class="card-thumb ${r.photo?'has-photo':''}" ${photoStyle}>${r.photo?'':'📖'}</div>
+        <div class="card-body">
+          <div class="card-title">${escHtml(r.name)}</div>
+          <div class="card-meta">${escHtml(r.type||r.category||'—')} · ${ingCount} ingr.${r.prepTime?` · ${fmtMin(r.prepTime)}`:''}</div>
+          <div class="card-tags">
+            ${r.cuisine?`<span class="tag cuisine-${r.cuisine}">${escHtml(r.cuisine)}</span>`:''}
+            <span class="tag gold">Base : ${r.baseAmount}${r.baseUnit} ${escHtml(r.baseLabel||'')}</span>
+          </div>
+        </div>
+        <div class="card-arrow">›</div>
+      </button>`;
+  }).join('') : `<div class="empty"><div class="empty-ico">📖</div><p>Aucune recette dans cette catégorie.<br>Touche le <b>+</b> pour en ajouter une.</p></div>`;
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Recettes</h1>
+    </div>
+    <div class="view">
+      <div class="seg-tabs gold">
+        <button data-rec-cuisine="all" class="${recipesCuisineFilter==='all'?'gold active':''}">Toutes</button>
+        ${cuisines.map(c=>`<button data-rec-cuisine="${escHtml(c)}" class="${recipesCuisineFilter===c?'gold active':''}">${escHtml(c)}</button>`).join('')}
+      </div>
+      <div class="section-head">
+        <h2>${recipesCuisineFilter==='all'?'Toutes':escHtml(recipesCuisineFilter)}</h2>
+        <span class="count">${items.length} recette${items.length>1?'s':''}</span>
+      </div>
+      <div class="list">${list}</div>
+    </div>
+    <button class="fab" data-go="recipe/new" aria-label="Ajouter une recette">+</button>
+  `;
+}
+
+/* ---------- RECIPE DETAIL ---------- */
+function renderRecipeDetail(id){
+  const r = state.recipes.find(x=>x.id===id);
+  if(!r) return notFound('Recette introuvable','recipes');
+
+  const cookingHtml = (r.prepTime || r.cookTemp || r.cookTime) ? `
+    <div class="cooking-info">
+      ${r.prepTime ? `<div class="cooking-pill cyan"><span class="lbl">Préparation</span><span class="val">${fmtMin(r.prepTime)}</span></div>`:''}
+      ${r.cookTemp ? `<div class="cooking-pill"><span class="lbl">Temp.</span><span class="val">${r.cookTemp}°C</span></div>`:''}
+      ${r.cookTime ? `<div class="cooking-pill"><span class="lbl">Cuisson</span><span class="val">${fmtMin(r.cookTime)}</span></div>`:''}
+    </div>` : '';
+
+  const ingsHtml = r.ingredients.map((ing,idx)=>{
+    const spice = isSpiceLike(ing.name, ing.unit);
+    return `
+      <div class="ing-row ${spice?'spice':''}" data-idx="${idx}">
+        <div class="ing-name">${escHtml(ing.name)}</div>
+        <div class="ing-amt-cell" data-base="${ing.amount}" data-unit="${escHtml(ing.unit||'')}">
+          ${fmtAmount(ing.amount,ing.unit)}
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Recette</h1>
+      <div class="actions">
+        <button class="iconbtn" data-go="recipe/${r.id}/edit" aria-label="Éditer">✎</button>
+      </div>
+    </div>
+    <div class="view">
+      <div class="recipe-hero">
+        ${r.photo ? `<div class="photo-banner" style="background-image:url(${r.photo})"></div>` : ''}
+        <h2>${escHtml(r.name)}</h2>
+        <div class="cat">${escHtml(r.category||'Recette')}</div>
+        ${cookingHtml}
+        <div class="scaler" id="scaler" data-base="${r.baseAmount}" data-unit="${r.baseUnit}">
+          <div class="scaler-label">Règle de 3 — adapte la quantité</div>
+          <div class="scaler-row">
+            <div class="scaler-name">${escHtml(r.baseLabel||'Base')}</div>
+            <div class="scaler-input">
+              <button data-step="-1">−</button>
+              <input id="scalerVal" type="number" inputmode="decimal" value="${r.baseAmount}" min="0" step="any">
+              <span class="unit">${escHtml(r.baseUnit)}</span>
+              <button data-step="1">+</button>
+            </div>
+          </div>
+          <div class="scaler-multi">Multiplicateur : <b id="scalerMult">×1</b></div>
+        </div>
+      </div>
+
+      <div class="section-block">
+        <div class="block-title">Ingrédients</div>
+        <div class="ing-list" id="ingList">${ingsHtml}</div>
+      </div>
+
+      ${r.instructions ? `
+      <div class="section-block">
+        <div class="block-title">Préparation</div>
+        <div class="instructions">${escHtml(r.instructions)}</div>
+      </div>`:''}
+
+      ${r.notes ? `
+      <div class="section-block">
+        <div class="block-title">Remarques</div>
+        <div class="notes">${escHtml(r.notes)}</div>
+      </div>`:''}
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" data-go="recipe/${r.id}/edit">Éditer</button>
+        <button class="btn btn-danger" data-del-recipe="${r.id}">Supprimer</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- RECIPE EDIT ---------- */
+function renderRecipeEdit(id){
+  const isNew = !id;
+  const r = isNew ? {
+    id:'',name:'',category:'',cuisine:'',type:'',photo:null,
+    baseAmount:1,baseUnit:'kg',baseLabel:'',
+    ingredients:[{name:'',amount:0,unit:''}],
+    instructions:'',prepTime:null,cookTemp:null,cookTime:null,notes:''
+  } : JSON.parse(JSON.stringify(state.recipes.find(x=>x.id===id)||{}));
+  if(!r.id && !isNew) return notFound('Recette introuvable','recipes');
+
+  const cuisines = state.settings.cuisines || ['burger','mexicain'];
+  const types = state.settings.types || [];
+
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>${isNew?'Nouvelle recette':'Éditer'}</h1>
+    </div>
+    <div class="view">
+      <form id="recipeForm" data-edit-id="${escHtml(r.id||'')}">
+        <div class="form-group">
+          <label>Photo</label>
+          ${photoFieldHtml(r.photo)}
+        </div>
+        <div class="form-group">
+          <label>Nom de la recette</label>
+          <input name="name" value="${escHtml(r.name)}" required placeholder="Ex : Poulet mariné">
+        </div>
+
+        <div class="form-group">
+          <label>Cuisine</label>
+          <input type="hidden" name="cuisine" value="${escHtml(r.cuisine||'')}">
+          <div class="type-pill-row" data-pill-group="cuisine">
+            <button type="button" class="type-pill cuisine ${!r.cuisine?'active':''}" data-pill="">— Aucune —</button>
+            ${cuisines.map(c=>`<button type="button" class="type-pill cuisine ${r.cuisine===c?'active':''}" data-pill="${escHtml(c)}">${escHtml(c)}</button>`).join('')}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Type</label>
+          <input type="hidden" name="type" value="${escHtml(r.type||'')}">
+          <div class="type-pill-row" data-pill-group="type">
+            <button type="button" class="type-pill ${!r.type?'active':''}" data-pill="">— Aucun —</button>
+            ${types.map(t=>`<button type="button" class="type-pill ${r.type===t?'active':''}" data-pill="${escHtml(t)}">${escHtml(t)}</button>`).join('')}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Étiquette libre (catégorie texte, optionnel)</label>
+          <input name="category" value="${escHtml(r.category||'')}" placeholder="Marinade, Sauce…">
+        </div>
+
+        <div class="settings-group">
+          <div class="sg-head">Base de la règle de 3</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Quantité</label>
+              <input name="baseAmount" type="number" inputmode="decimal" step="any" value="${r.baseAmount}" required>
+            </div>
+            <div class="form-group">
+              <label>Unité</label>
+              <input name="baseUnit" value="${escHtml(r.baseUnit||'kg')}" required placeholder="kg, L…">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Ingrédient principal (libellé affiché)</label>
+            <input name="baseLabel" value="${escHtml(r.baseLabel||'')}" placeholder="Ex : Poulet">
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="sg-head">Ingrédients</div>
+          <div class="muted" style="margin-bottom:8px">Astuce : place les épices et "au goût" en bas. Utilise les flèches ▲ ▼ pour réordonner.</div>
+          <div class="dynamic-list" id="ingFields">
+            ${r.ingredients.map((ing,i)=>ingFieldRow(ing,i,r.ingredients.length)).join('')}
+          </div>
+          <button type="button" class="add-btn" data-add-ing>+ Ajouter un ingrédient</button>
+        </div>
+
+        <div class="settings-group">
+          <div class="sg-head">Temps</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Préparation (min)</label>
+              <input name="prepTime" type="number" inputmode="numeric" value="${r.prepTime==null?'':r.prepTime}" placeholder="20">
+            </div>
+            <div class="form-group">
+              <label>Cuisson (min)</label>
+              <input name="cookTime" type="number" inputmode="numeric" value="${r.cookTime==null?'':r.cookTime}" placeholder="40">
+            </div>
+            <div class="form-group">
+              <label>Temp. (°C)</label>
+              <input name="cookTemp" type="number" inputmode="numeric" value="${r.cookTemp==null?'':r.cookTemp}" placeholder="200">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Préparation / instructions</label>
+          <textarea name="instructions" rows="5" placeholder="Étape par étape…">${escHtml(r.instructions||'')}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Remarques</label>
+          <textarea name="notes" rows="3" placeholder="Notes perso, astuces, variantes…">${escHtml(r.notes||'')}</textarea>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">${isNew?'Créer':'Enregistrer'}</button>
+          <button type="button" class="btn btn-ghost" data-back>Annuler</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function ingFieldRow(ing,i,total){
+  const spice = isSpiceLike(ing.name||'', ing.unit||'');
+  const isFirst = i===0;
+  const isLast = total!=null && i===total-1;
+  return `<div class="dynamic-item ${spice?'spice-row':''}" data-row="${i}">
+    <div class="reorder">
+      <button type="button" data-move-ing="up" ${isFirst?'disabled':''} aria-label="Monter">▲</button>
+      <button type="button" data-move-ing="down" ${isLast?'disabled':''} aria-label="Descendre">▼</button>
+    </div>
+    <input class="ing-name-i" name="ing_name" value="${escHtml(ing.name||'')}" placeholder="Ingrédient">
+    <input class="ing-amt-i" name="ing_amount" type="number" inputmode="decimal" step="any" value="${ing.amount==null||ing.unit==='au goût'?'':ing.amount}" placeholder="Qté">
+    <input class="ing-unit-i" name="ing_unit" value="${escHtml(ing.unit||'')}" placeholder="g, ml…">
+    <button type="button" class="rm" data-rm-ing>×</button>
+  </div>`;
+}
+
+/* ---------- FICHES ---------- */
+function renderFichesList(){
+  const cuisines = state.settings.cuisines || ['burger','mexicain'];
+  let items = [...state.fiches].sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  if(fichesCuisineFilter !== 'all'){
+    items = items.filter(f => (f.cuisine||'') === fichesCuisineFilter);
+  }
+  const list = items.length ? items.map(f=>{
+    const photoStyle = f.photo ? `style="background-image:url(${f.photo})"` : '';
+    const nut = ficheNutrition(f);
+    return `<button class="card" data-go="fiche/${f.id}">
+      <div class="card-thumb ${f.photo?'has-photo':''}" ${photoStyle}>${f.photo?'':'❑'}</div>
+      <div class="card-body">
+        <div class="card-title">${escHtml(f.name)}</div>
+        <div class="card-meta">${escHtml(f.category||'Plat')}${f.prepTime?` · ${fmtMin(f.prepTime)}`:''}${nut.total>0?` · ~${nut.total} kcal`:''}</div>
+        <div class="card-tags">
+          ${f.cuisine?`<span class="tag cuisine-${f.cuisine}">${escHtml(f.cuisine)}</span>`:''}
+          ${f.type?`<span class="tag type">${escHtml(f.type)}</span>`:''}
+          ${(f.components||[]).length?`<span class="tag">⌁ ${(f.components||[]).length} composants</span>`:''}
+        </div>
+      </div>
+      <div class="card-arrow">›</div>
+    </button>`;
+  }).join('') : `<div class="empty"><div class="empty-ico">❑</div><p>Aucune fiche dans cette catégorie.<br>Touche le <b>+</b> pour créer un plat.</p></div>`;
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Fiches techniques</h1>
+    </div>
+    <div class="view">
+      <div class="seg-tabs gold">
+        <button data-fic-cuisine="all" class="${fichesCuisineFilter==='all'?'gold active':''}">Toutes</button>
+        ${cuisines.map(c=>`<button data-fic-cuisine="${escHtml(c)}" class="${fichesCuisineFilter===c?'gold active':''}">${escHtml(c)}</button>`).join('')}
+      </div>
+      <div class="section-head">
+        <h2>${fichesCuisineFilter==='all'?'Plats':escHtml(fichesCuisineFilter)}</h2>
+        <span class="count">${items.length} fiche${items.length>1?'s':''}</span>
+      </div>
+      <div class="list">${list}</div>
+    </div>
+    <button class="fab" data-go="fiche/new" aria-label="Ajouter une fiche">+</button>
+  `;
+}
+
+function renderFicheDetail(id){
+  const f = state.fiches.find(x=>x.id===id);
+  if(!f) return notFound('Fiche introuvable','fiches');
+  const showCal = state.settings.showCalories;
+  const nut = ficheNutrition(f);
+
+  const compHtml = (f.components||[]).length ? `
+    <div class="comp-table">
+      ${nut.breakdown.map(b=>`
+        <div class="comp-row">
+          <div class="comp-name ${b.type==='recipe'?'recipe-link':''}" ${b.type==='recipe'?`data-go="recipe/${b.refId}"`:''}>
+            <span class="comp-tag">${b.type==='recipe'?'recette':'ingr.'}</span>${escHtml(b.label)}
+          </div>
+          <div class="comp-amt">${escHtml(String(b.amount).replace('.',','))}<span class="unit">${escHtml(b.unit||'')}</span></div>
+          ${showCal?`<div class="comp-kcal">${b.kcal!=null?`${b.kcal} kcal`:'<span style="opacity:.4">—</span>'}</div>`:''}
+        </div>`).join('')}
+      ${showCal && nut.total>0 ? `
+        <div class="comp-row total">
+          <div class="comp-name">Total</div>
+          <div class="comp-amt"></div>
+          <div class="comp-kcal">${nut.total} kcal</div>
+        </div>`:''}
+    </div>` : `<div class="kcal-empty">Aucun composant quantifié — édite la fiche pour en ajouter.</div>`;
+
+  const linkedLegacy = (f.linkedRecipes||[]).map(rid=>state.recipes.find(r=>r.id===rid)).filter(Boolean);
+
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Fiche</h1>
+      <div class="actions">
+        <button class="iconbtn" data-go="fiche/${f.id}/edit" aria-label="Éditer">✎</button>
+      </div>
+    </div>
+    <div class="view">
+      <div class="recipe-hero">
+        ${f.photo ? `<div class="photo-banner" style="background-image:url(${f.photo})"></div>` : ''}
+        <h2>${escHtml(f.name)}</h2>
+        <div class="cat">${escHtml(f.category||'Plat')}</div>
+        ${(f.prepTime || (showCal && nut.total>0)) ? `
+        <div class="cooking-info">
+          ${f.prepTime?`<div class="cooking-pill cyan"><span class="lbl">Préparation</span><span class="val">${fmtMin(f.prepTime)}</span></div>`:''}
+          ${(showCal && nut.total>0)?`<div class="cooking-pill"><span class="lbl">Calories</span><span class="val">${nut.total} kcal</span></div>`:''}
+        </div>`:''}
+      </div>
+
+      <div class="section-block">
+        <div class="block-title">Composition</div>
+        ${(f.sections||[]).map(sec=>`
+          <div class="fiche-section">
+            <div class="fs-title">${escHtml(sec.title)}</div>
+            <ul>${(sec.items||[]).map(it=>`<li>${escHtml(typeof it==='string'?it:it.text||'')}</li>`).join('')}</ul>
+          </div>`).join('')}
+      </div>
+
+      <div class="section-block">
+        <div class="block-title">Quantités${showCal?' & calories':''}</div>
+        ${compHtml}
+      </div>
+
+      ${f.variants && f.variants.length ? `
+      <div class="section-block">
+        <div class="block-title">Variantes / Service</div>
+        ${f.variants.map(v=>`
+          <div class="variant-card">
+            <div class="vc-title">${escHtml(v.title)}</div>
+            <div class="vc-desc">${escHtml(v.desc||'')}</div>
+          </div>`).join('')}
+      </div>`:''}
+
+      ${linkedLegacy.length ? `
+      <div class="section-block">
+        <div class="block-title">Recettes liées</div>
+        ${linkedLegacy.map(r=>`
+          <button class="linked-recipe" data-go="recipe/${r.id}" style="width:100%;text-align:left">
+            <span>${escHtml(r.name)}</span>
+            <span class="lr-arrow">›</span>
+          </button>`).join('')}
+      </div>`:''}
+
+      ${f.notes ? `
+      <div class="section-block">
+        <div class="block-title">Remarques</div>
+        <div class="notes">${escHtml(f.notes)}</div>
+      </div>`:''}
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" data-go="fiche/${f.id}/edit">Éditer</button>
+        <button class="btn btn-danger" data-del-fiche="${f.id}">Supprimer</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderFicheEdit(id){
+  const isNew = !id;
+  const f = isNew ? {
+    id:'',name:'',category:'Plat',cuisine:'',type:'',photo:null,prepTime:null,
+    sections:[{title:'Base',items:['']}],
+    components:[],
+    variants:[],
+    linkedRecipes:[],
+    notes:''
+  } : JSON.parse(JSON.stringify(state.fiches.find(x=>x.id===id)||{}));
+  if(!f.id && !isNew) return notFound('Fiche introuvable','fiches');
+
+  f.sections = (f.sections||[]).map(s=>({title:s.title||'',items:(s.items||[]).map(i=>typeof i==='string'?i:(i.text||''))}));
+  f.variants = f.variants||[];
+  f.components = f.components||[];
+  f.linkedRecipes = f.linkedRecipes||[];
+
+  const cuisines = state.settings.cuisines || ['burger','mexicain'];
+  const types = state.settings.types || [];
+
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>${isNew?'Nouvelle fiche':'Éditer'}</h1>
+    </div>
+    <div class="view">
+      <form id="ficheForm" data-edit-id="${escHtml(f.id||'')}">
+        <div class="form-group">
+          <label>Photo</label>
+          ${photoFieldHtml(f.photo)}
+        </div>
+        <div class="form-group">
+          <label>Nom du plat</label>
+          <input name="name" value="${escHtml(f.name)}" required placeholder="Ex : Burrito">
+        </div>
+
+        <div class="form-group">
+          <label>Cuisine</label>
+          <input type="hidden" name="cuisine" value="${escHtml(f.cuisine||'')}">
+          <div class="type-pill-row" data-pill-group="cuisine">
+            <button type="button" class="type-pill cuisine ${!f.cuisine?'active':''}" data-pill="">— Aucune —</button>
+            ${cuisines.map(c=>`<button type="button" class="type-pill cuisine ${f.cuisine===c?'active':''}" data-pill="${escHtml(c)}">${escHtml(c)}</button>`).join('')}
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Type</label>
+          <input type="hidden" name="type" value="${escHtml(f.type||'')}">
+          <div class="type-pill-row" data-pill-group="type">
+            <button type="button" class="type-pill ${!f.type?'active':''}" data-pill="">— Aucun —</button>
+            ${types.map(t=>`<button type="button" class="type-pill ${f.type===t?'active':''}" data-pill="${escHtml(t)}">${escHtml(t)}</button>`).join('')}
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Étiquette libre</label>
+            <input name="category" value="${escHtml(f.category||'Plat')}" placeholder="Plat, Bowl…">
+          </div>
+          <div class="form-group">
+            <label>Préparation (min)</label>
+            <input name="prepTime" type="number" inputmode="numeric" value="${f.prepTime==null?'':f.prepTime}" placeholder="5">
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <div class="sg-head">Sections de composition</div>
+          <div id="sectionFields">
+            ${f.sections.map((s,i)=>sectionFieldRow(s,i)).join('')}
+          </div>
+          <button type="button" class="add-btn" data-add-section>+ Ajouter une section</button>
+        </div>
+
+        <div class="settings-group">
+          <div class="sg-head">Composants quantifiés (pour calories)</div>
+          <div class="muted" style="margin-bottom:8px">Liste des recettes/ingrédients utilisés et leurs quantités. Permet le calcul des calories.</div>
+          <div id="componentFields">
+            ${f.components.map((c,i)=>componentFieldRow(c,i,f.components.length)).join('')}
+          </div>
+          <button type="button" class="add-btn" data-add-component>+ Ajouter un composant</button>
+        </div>
+
+        <div class="settings-group">
+          <div class="sg-head">Variantes (sur place / emporter…)</div>
+          <div id="variantFields">
+            ${f.variants.map((v,i)=>variantFieldRow(v,i)).join('')}
+          </div>
+          <button type="button" class="add-btn" data-add-variant>+ Ajouter une variante</button>
+        </div>
+
+        <div class="form-group">
+          <label>Remarques</label>
+          <textarea name="notes" rows="3" placeholder="Notes…">${escHtml(f.notes||'')}</textarea>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">${isNew?'Créer':'Enregistrer'}</button>
+          <button type="button" class="btn btn-ghost" data-back>Annuler</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function componentFieldRow(c,i,total){
+  const recOpts = state.recipes.map(r=>`<option value="${r.id}" ${c.type==='recipe'&&c.refId===r.id?'selected':''}>${escHtml(r.name)}</option>`).join('');
+  const ingOpts = state.ingredients.map(g=>`<option value="${g.id}" ${c.type==='ingredient'&&c.refId===g.id?'selected':''}>${escHtml(g.name)}</option>`).join('');
+  const isRecipe = c.type==='recipe' || !c.type;
+  const isFirst = i===0;
+  const isLast = total!=null && i===total-1;
+  return `<div class="dynamic-item" data-component="${i}" style="flex-wrap:wrap;gap:6px">
+    <div class="reorder">
+      <button type="button" data-move-comp="up" ${isFirst?'disabled':''} aria-label="Monter">▲</button>
+      <button type="button" data-move-comp="down" ${isLast?'disabled':''} aria-label="Descendre">▼</button>
+    </div>
+    <select class="comp-type" name="comp_type" style="flex:0 0 100px">
+      <option value="recipe" ${isRecipe?'selected':''}>Recette</option>
+      <option value="ingredient" ${c.type==='ingredient'?'selected':''}>Ingrédient</option>
+    </select>
+    <select class="comp-ref" name="comp_ref" style="flex:1;min-width:140px">
+      ${isRecipe ? recOpts : ingOpts}
+    </select>
+    <input name="comp_label" value="${escHtml(c.label||'')}" placeholder="Libellé (opt.)" style="flex:1;min-width:120px">
+    <input name="comp_amount" type="number" inputmode="decimal" step="any" value="${c.amount==null?'':c.amount}" placeholder="Qté" style="width:70px">
+    <input name="comp_unit" value="${escHtml(c.unit||'g')}" placeholder="g" style="width:60px">
+    <button type="button" class="rm" data-rm-component>×</button>
+  </div>`;
+}
+
+function sectionFieldRow(s,i){
+  return `<div class="fiche-section" data-section="${i}">
+    <div class="dynamic-item" style="border:none;background:transparent;padding:0;margin-bottom:8px">
+      <input class="ing-name-i" name="sec_title" value="${escHtml(s.title||'')}" placeholder="Titre de la section" style="font-weight:600">
+      <button type="button" class="rm" data-rm-section>×</button>
+    </div>
+    <div class="dynamic-list" data-items>
+      ${(s.items||[]).map((it,j)=>`
+        <div class="dynamic-item" data-row="${j}">
+          <input class="ing-name-i" name="sec_item" value="${escHtml(it||'')}" placeholder="Élément">
+          <button type="button" class="rm" data-rm-item>×</button>
+        </div>`).join('')}
+    </div>
+    <button type="button" class="add-btn" data-add-item>+ Élément</button>
+  </div>`;
+}
+
+function variantFieldRow(v,i){
+  return `<div class="dynamic-item" data-variant="${i}" style="flex-direction:column;align-items:stretch;gap:6px">
+    <div style="display:flex;gap:6px">
+      <input name="var_title" value="${escHtml(v.title||'')}" placeholder="Titre (ex: Sur place)">
+      <button type="button" class="rm" data-rm-variant>×</button>
+    </div>
+    <textarea name="var_desc" rows="2" placeholder="Description / consignes…">${escHtml(v.desc||'')}</textarea>
+  </div>`;
+}
+
+/* ---------- TASKS + ROUTINES ---------- */
+let tasksTab = 'today';
+let tasksTopTab = 'tasks'; // 'tasks' | 'routines'
+
+function renderTasks(){
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Tâches</h1>
+      ${tasksTopTab==='tasks' ? `<div class="actions"><button class="iconbtn" data-reset-tasks aria-label="Réinitialiser">↻</button></div>` : ''}
+    </div>
+    <div class="view">
+      <div class="toptab">
+        <button data-toptab="tasks" class="${tasksTopTab==='tasks'?'active':''}">Tâches</button>
+        <button data-toptab="routines" class="${tasksTopTab==='routines'?'active':''}">Routines</button>
+      </div>
+      ${tasksTopTab==='tasks' ? renderTasksContent() : renderRoutinesContent()}
+    </div>
+    ${tasksTopTab==='routines' ? `<button class="fab" data-go="routine/new" aria-label="Ajouter une routine">+</button>` : ''}
+  `;
+}
+
+function renderTasksContent(){
+  const today = new Date().getDay();
+  const filter = tasksTab;
+  const items = state.tasks.filter(t=>{
+    if(filter==='today') return t.frequency==='daily' || (t.frequency==='weekly' && t.day===today);
+    if(filter==='week') return t.frequency==='weekly' || t.frequency==='daily';
+    return true;
+  });
+  const dayNames = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  const list = items.length ? items.map(t=>`
+    <div class="task-row ${t.done?'done':''}" data-task="${t.id}">
+      <button class="task-check" data-toggle-task="${t.id}">${t.done?'✓':''}</button>
+      <div class="task-body">
+        <div class="task-title">${escHtml(t.title)}</div>
+        <div class="task-meta">${t.frequency==='daily'?'Quotidien':t.frequency==='weekly'?'Hebdo · '+(dayNames[t.day]||'?'):'Unique'}</div>
+      </div>
+      <button class="task-del" data-del-task="${t.id}">×</button>
+    </div>`).join('') : `<div class="empty"><div class="empty-ico">✓</div><p>Aucune tâche pour ce filtre.</p></div>`;
+  return `
+    <div class="task-tabs">
+      <button data-tab="today" class="${filter==='today'?'active':''}">Aujourd'hui</button>
+      <button data-tab="week" class="${filter==='week'?'active':''}">Cette semaine</button>
+      <button data-tab="all" class="${filter==='all'?'active':''}">Toutes</button>
+    </div>
+    <div class="list">${list}</div>
+    <div class="divider"></div>
+    <form id="taskForm" class="settings-group">
+      <div class="sg-head">Nouvelle tâche</div>
+      <div class="form-group">
+        <label>Intitulé</label>
+        <input name="title" required placeholder="Ex : Préparer la marinade">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Fréquence</label>
+          <select name="frequency">
+            <option value="daily">Quotidienne</option>
+            <option value="weekly">Hebdomadaire</option>
+            <option value="once">Unique</option>
+          </select>
+        </div>
+        <div class="form-group" id="dayWrap" style="display:none">
+          <label>Jour</label>
+          <select name="day">
+            <option value="1">Lundi</option><option value="2">Mardi</option><option value="3">Mercredi</option>
+            <option value="4">Jeudi</option><option value="5">Vendredi</option>
+            <option value="6">Samedi</option><option value="0">Dimanche</option>
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Ajouter</button>
+    </form>
+  `;
+}
+
+function renderRoutinesContent(){
+  const items = state.routines || [];
+  if(!items.length) return `<div class="empty"><div class="empty-ico">⌚</div><p>Aucune routine.<br>Touche le <b>+</b> pour en créer une (ouverture, fermeture…).</p></div>`;
+  const list = items.map(r=>{
+    const total = (r.sections||[]).reduce((acc,s)=>acc+(s.items||[]).length,0);
+    let done = 0;
+    Object.values(r.checked||{}).forEach(v=>{ if(v) done++; });
+    const pct = total ? Math.round(done/total*100) : 0;
+    return `<button class="routine-card" data-go="routine/${r.id}">
+      <div class="rc-body">
+        <div class="rc-title">${escHtml(r.name)}</div>
+        ${r.subtitle?`<div class="rc-sub">${escHtml(r.subtitle)}</div>`:''}
+        <div class="rc-progress">${done}/${total} étapes${pct?` · ${pct}%`:''}</div>
+        <div class="progressbar"><div class="progressbar-fill" style="width:${pct}%"></div></div>
+      </div>
+      <div class="card-arrow" style="color:var(--cyan);font-size:22px;align-self:center">›</div>
+    </button>`;
+  }).join('');
+  return `<div class="list">${list}</div>`;
+}
+
+function renderRoutineDetail(id){
+  const r = (state.routines||[]).find(x=>x.id===id);
+  if(!r) return notFound('Routine introuvable','tasks');
+  const total = (r.sections||[]).reduce((acc,s)=>acc+(s.items||[]).length,0);
+  let done = 0;
+  Object.values(r.checked||{}).forEach(v=>{ if(v) done++; });
+  const pct = total ? Math.round(done/total*100) : 0;
+
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Routine</h1>
+      <div class="actions">
+        <button class="iconbtn" data-reset-routine="${r.id}" aria-label="Réinitialiser">↻</button>
+        <button class="iconbtn" data-go="routine/${r.id}/edit" aria-label="Éditer">✎</button>
+      </div>
+    </div>
+    <div class="view">
+      <div class="recipe-hero">
+        <h2>${escHtml(r.name)}</h2>
+        ${r.subtitle?`<div class="cat">${escHtml(r.subtitle)}</div>`:''}
+        <div class="cooking-info">
+          <div class="cooking-pill"><span class="lbl">Avancement</span><span class="val">${done}/${total}</span></div>
+          <div class="cooking-pill cyan"><span class="lbl">Progression</span><span class="val">${pct}%</span></div>
+        </div>
+        <div class="progressbar" style="margin-top:12px;height:6px"><div class="progressbar-fill" style="width:${pct}%"></div></div>
+      </div>
+
+      ${(r.sections||[]).map((sec,si)=>{
+        const secDone = (sec.items||[]).filter((_,ii)=>r.checked && r.checked[`${si}-${ii}`]).length;
+        return `<div class="routine-section">
+          <div class="rs-title">
+            <span>${escHtml(sec.title)}</span>
+            <span class="rs-count">${secDone}/${(sec.items||[]).length}</span>
+          </div>
+          ${(sec.items||[]).map((it,ii)=>{
+            const isDone = !!(r.checked && r.checked[`${si}-${ii}`]);
+            return `<div class="routine-item ${isDone?'done':''}">
+              <button class="ri-check" data-toggle-routine="${r.id}" data-key="${si}-${ii}">${isDone?'✓':''}</button>
+              <div class="ri-text">${escHtml(it)}</div>
+            </div>`;
+          }).join('')}
+        </div>`;
+      }).join('')}
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" data-reset-routine="${r.id}">↻ Tout décocher</button>
+        <button class="btn btn-danger" data-del-routine="${r.id}">Supprimer</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderRoutineEdit(id){
+  const isNew = !id;
+  const r = isNew ? {id:'',name:'',subtitle:'',sections:[{title:'Étape 1',items:['']}],checked:{},lastReset:null}
+    : JSON.parse(JSON.stringify((state.routines||[]).find(x=>x.id===id)||{}));
+  if(!r.id && !isNew) return notFound('Routine introuvable','tasks');
+  r.sections = (r.sections||[]).map(s=>({title:s.title||'',items:(s.items||[]).map(i=>typeof i==='string'?i:(i.text||''))}));
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>${isNew?'Nouvelle routine':'Éditer'}</h1>
+    </div>
+    <div class="view">
+      <form id="routineForm" data-edit-id="${escHtml(r.id||'')}">
+        <div class="form-group">
+          <label>Nom</label>
+          <input name="name" value="${escHtml(r.name)}" required placeholder="Ex : Ouverture Soir">
+        </div>
+        <div class="form-group">
+          <label>Sous-titre (optionnel)</label>
+          <input name="subtitle" value="${escHtml(r.subtitle||'')}" placeholder="Ex : The Lab / Mexi Lab">
+        </div>
+        <div class="settings-group">
+          <div class="sg-head">Sections & étapes</div>
+          <div id="rouSections">
+            ${r.sections.map((s,i)=>sectionFieldRow(s,i)).join('')}
+          </div>
+          <button type="button" class="add-btn" data-add-rou-section>+ Ajouter une section</button>
+        </div>
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">${isNew?'Créer':'Enregistrer'}</button>
+          <button type="button" class="btn btn-ghost" data-back>Annuler</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+/* ---------- INGREDIENTS ---------- */
+function renderIngredients(){
+  const items = [...state.ingredients].sort((a,b)=>a.name.localeCompare(b.name));
+  const showPrice = state.settings.showPrices;
+  const showCal = state.settings.showCalories;
+  const showHal = state.settings.showHalal;
+  const list = items.length ? items.map(i=>`
+    <div class="card" data-go="ingredient/${i.id}/edit">
+      <div class="card-body">
+        <div class="card-title" style="font-size:18px">${escHtml(i.name)}</div>
+        <div class="card-meta">Unité : ${escHtml(i.unit||'—')}</div>
+        <div class="card-tags">
+          ${showHal && i.halal ? '<span class="tag halal">Halal</span>' : ''}
+          ${showHal && !i.halal ? '<span class="tag" style="background:rgba(228,90,64,.18);color:var(--danger)">Non halal</span>':''}
+          ${showCal && i.kcal100 ? `<span class="tag">${i.kcal100} kcal/100</span>` : ''}
+          ${showPrice && i.price ? `<span class="tag gold">${i.price}${state.settings.currency}/${i.unit}</span>` : ''}
+        </div>
+      </div>
+      <div class="card-arrow">›</div>
+    </div>`).join('') : `<div class="empty"><div class="empty-ico">🥬</div><p>Aucun ingrédient.</p></div>`;
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Ingrédients</h1>
+    </div>
+    <div class="view">
+      <div class="section-head">
+        <h2>Backend</h2>
+        <span class="count">${items.length} référencés</span>
+      </div>
+      <div class="list">${list}</div>
+    </div>
+    <button class="fab" data-go="ingredient/new" aria-label="Ajouter">+</button>
+  `;
+}
+
+function renderIngredientEdit(id){
+  const isNew = !id || id==='new';
+  const i = isNew ? {id:'',name:'',unit:'kg',price:null,halal:true,kcal100:null,protein100:null,fat100:null,carbs100:null,notes:''}
+    : JSON.parse(JSON.stringify(state.ingredients.find(x=>x.id===id)||{}));
+  if(!i.id && !isNew) return notFound('Ingrédient introuvable','ingredients');
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>${isNew?'Nouvel ingrédient':'Ingrédient'}</h1>
+    </div>
+    <div class="view">
+      <form id="ingForm" data-edit-id="${escHtml(i.id||'')}">
+        <div class="form-group">
+          <label>Nom</label>
+          <input name="name" value="${escHtml(i.name)}" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Unité de référence</label>
+            <input name="unit" value="${escHtml(i.unit||'kg')}" placeholder="kg, L, pièce…">
+          </div>
+          <div class="form-group">
+            <label>Prix / unité (${state.settings.currency})</label>
+            <input name="price" type="number" inputmode="decimal" step="any" value="${i.price==null?'':i.price}">
+          </div>
+        </div>
+
+        <label class="toggle" style="cursor:pointer">
+          <span class="toggle-label">Halal</span>
+          <input type="checkbox" name="halal" ${i.halal?'checked':''} style="width:auto;padding:0">
+        </label>
+
+        <div class="settings-group" style="margin-top:14px">
+          <div class="sg-head">Valeurs nutritionnelles / 100${(i.unit==='L'||i.unit==='ml')?'ml':'g'}</div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Calories (kcal)</label>
+              <input name="kcal100" type="number" inputmode="decimal" step="any" value="${i.kcal100==null?'':i.kcal100}">
+            </div>
+            <div class="form-group">
+              <label>Protéines (g)</label>
+              <input name="protein100" type="number" inputmode="decimal" step="any" value="${i.protein100==null?'':i.protein100}">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Lipides (g)</label>
+              <input name="fat100" type="number" inputmode="decimal" step="any" value="${i.fat100==null?'':i.fat100}">
+            </div>
+            <div class="form-group">
+              <label>Glucides (g)</label>
+              <input name="carbs100" type="number" inputmode="decimal" step="any" value="${i.carbs100==null?'':i.carbs100}">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea name="notes" rows="3">${escHtml(i.notes||'')}</textarea>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">${isNew?'Créer':'Enregistrer'}</button>
+          ${!isNew?`<button type="button" class="btn btn-danger" data-del-ing="${i.id}">Supprimer</button>`:''}
+          <button type="button" class="btn btn-ghost" data-back>Annuler</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+/* ---------- STOCK ---------- */
+let stockFilter = 'all'; // 'all' | 'tobuy'
+
+function renderStock(){
+  const all = state.stock || [];
+  const items = stockFilter==='tobuy' ? all.filter(s=>s.toBuy) : all;
+  const sorted = [...items].sort((a,b)=>{
+    if(a.toBuy && !b.toBuy) return -1;
+    if(!a.toBuy && b.toBuy) return 1;
+    return a.name.localeCompare(b.name,'fr');
+  });
+  const toBuyCount = all.filter(s=>s.toBuy).length;
+  const list = sorted.length ? sorted.map(s=>{
+    const isZero = (s.qty===0 || s.qty==null);
+    return `<div class="stock-row ${s.toBuy?'tobuy':''}" data-stock="${s.id}">
+      <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter">${s.toBuy?'!':''}</button>
+      <div class="stock-body">
+        <div class="stock-name">${escHtml(s.name)}</div>
+        <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span></div>
+        ${s.note?`<div class="stock-note">${escHtml(s.note)}</div>`:''}
+      </div>
+      <button class="stock-edit" data-edit-stock="${s.id}" aria-label="Éditer">✎</button>
+      <button class="stock-del" data-del-stock="${s.id}" aria-label="Supprimer">×</button>
+    </div>`;
+  }).join('') : `<div class="empty"><div class="empty-ico">🛒</div><p>Liste vide.<br>Touche le <b>+</b> pour ajouter un produit.</p></div>`;
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Stock & courses</h1>
+    </div>
+    <div class="view">
+      <div class="seg-tabs">
+        <button data-stock-filter="all" class="${stockFilter==='all'?'active':''}">Tous (${all.length})</button>
+        <button data-stock-filter="tobuy" class="${stockFilter==='tobuy'?'active':''}">À racheter (${toBuyCount})</button>
+      </div>
+      <div class="muted" style="margin-bottom:10px;font-size:11px;letter-spacing:.1em">Touche la case rouge à gauche pour marquer "à racheter". Touche ✎ pour éditer la quantité.</div>
+      <div class="list">${list}</div>
+      <div class="divider"></div>
+      <form id="stockForm" class="settings-group">
+        <div class="sg-head">Ajouter un produit</div>
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label>Nom</label>
+            <input name="name" required placeholder="Ex : Cheddar râpé">
+          </div>
+          <div class="form-group">
+            <label>Quantité</label>
+            <input name="qty" type="number" inputmode="decimal" step="any" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>Unité</label>
+            <input name="unit" placeholder="kg, L…">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Note (optionnel)</label>
+          <input name="note" placeholder="Ex : Pack de 100">
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Ajouter à la liste</button>
+      </form>
+    </div>
+  `;
+}
+
+function renderStockEdit(id){
+  const s = (state.stock||[]).find(x=>x.id===id);
+  if(!s) return notFound('Produit introuvable','stock');
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Produit</h1>
+    </div>
+    <div class="view">
+      <form id="stockEditForm" data-edit-id="${escHtml(s.id)}">
+        <div class="form-group">
+          <label>Nom</label>
+          <input name="name" value="${escHtml(s.name)}" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Quantité</label>
+            <input name="qty" type="number" inputmode="decimal" step="any" value="${s.qty==null?'':s.qty}">
+          </div>
+          <div class="form-group">
+            <label>Unité</label>
+            <input name="unit" value="${escHtml(s.unit||'')}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Note</label>
+          <input name="note" value="${escHtml(s.note||'')}">
+        </div>
+        <button type="button" class="toggle" data-toggle-form="toBuy">
+          <span class="toggle-label">À racheter</span>
+          <span class="toggle-switch ${s.toBuy?'on':''}"></span>
+        </button>
+        <input type="hidden" name="toBuy" value="${s.toBuy?'1':''}">
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+          <button type="button" class="btn btn-ghost" data-back>Annuler</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+/* ---------- SETTINGS ---------- */
+function renderSettings(){
+  const s = state.settings;
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Réglages</h1>
+    </div>
+    <div class="view">
+      <div class="settings-group">
+        <div class="sg-head">☁ Synchronisation GitHub</div>
+        <div class="sync-status" id="syncStatus">…</div>
+        <p class="muted" style="margin-bottom:12px;font-size:12px;line-height:1.5">
+          Synchronise tes données entre PC, iPhone et autres appareils via un repo GitHub privé.
+          <br><a href="#sync-help" id="syncHelpToggle" style="color:var(--cyan)">Comment configurer ?</a>
+        </p>
+        <div id="syncHelp" style="display:none;background:var(--dark-2);border-radius:8px;padding:12px;margin-bottom:12px;font-size:12px;line-height:1.6;color:var(--cream-dim)">
+          <b style="color:var(--gold)">1. Créer un repo privé</b><br>
+          Va sur <a href="https://github.com/new" target="_blank" style="color:var(--cyan)">github.com/new</a> → nomme-le <span class="kbd">resto-data</span> → coche <b>Private</b> → "Add README" coché → Create.
+          <br><br>
+          <b style="color:var(--gold)">2. Créer un Personal Access Token</b><br>
+          Va sur <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:var(--cyan)">Settings → Developer settings → Personal access tokens → Fine-grained</a> → "Generate new token" → durée 1 an → Repository access : "Only select repositories" → choisis <span class="kbd">resto-data</span> → Permissions : <b>Contents: Read & Write</b> → Generate. Copie le token (commence par <span class="kbd">github_pat_…</span>).
+          <br><br>
+          <b style="color:var(--gold)">3. Coller ci-dessous</b><br>
+          Owner = ton nom GitHub. Repo = <span class="kbd">resto-data</span>. Path = <span class="kbd">resto-data.json</span>. Branch = <span class="kbd">main</span>.
+          <br><br>
+          <b style="color:var(--gold)">4. Sur ton autre appareil</b><br>
+          Configure les mêmes infos, puis clique "Pull" pour récupérer les données.
+        </div>
+        <div class="form-group">
+          <label>GitHub username (owner)</label>
+          <input id="syncOwner" placeholder="Ex: tonpseudo">
+        </div>
+        <div class="form-group">
+          <label>Repo</label>
+          <input id="syncRepo" placeholder="resto-data">
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:2">
+            <label>Path (fichier)</label>
+            <input id="syncPath" placeholder="resto-data.json">
+          </div>
+          <div class="form-group">
+            <label>Branch</label>
+            <input id="syncBranch" placeholder="main">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Personal Access Token (fine-grained)</label>
+          <input id="syncToken" type="password" placeholder="github_pat_…">
+        </div>
+        <button class="toggle" data-toggle-sync-auto>
+          <span class="toggle-label">Push automatique à chaque modification</span>
+          <span class="toggle-switch" id="syncAutoSwitch"></span>
+        </button>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="syncTestBtn">Tester</button>
+          <button class="btn btn-secondary" id="syncSaveBtn">Enregistrer config</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="syncPullBtn">⬇ Pull (récupérer)</button>
+          <button class="btn btn-primary" id="syncPushBtn">⬆ Push (envoyer)</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-block" id="syncClearBtn">Effacer la config</button>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="sg-head">Catégories — Cuisines</div>
+        <div class="muted" style="margin-bottom:8px;font-size:11px">Onglets de filtrage pour les recettes et fiches.</div>
+        <div class="dynamic-list" id="cuisinesList">
+          ${(s.cuisines||[]).map((c,i)=>`<div class="dynamic-item" data-cuis-row="${i}">
+            <input class="ing-name-i" name="cuis_name" value="${escHtml(c)}" placeholder="Nom de cuisine">
+            <button type="button" class="rm" data-rm-cuis>×</button>
+          </div>`).join('')}
+        </div>
+        <button type="button" class="add-btn" id="addCuisineBtn">+ Ajouter une cuisine</button>
+      </div>
+
+      <div class="settings-group">
+        <div class="sg-head">Catégories — Types</div>
+        <div class="muted" style="margin-bottom:8px;font-size:11px">Pour classer recettes/fiches : viandes, garnitures, sides, suppléments…</div>
+        <div class="dynamic-list" id="typesList">
+          ${(s.types||[]).map((t,i)=>`<div class="dynamic-item" data-type-row="${i}">
+            <input class="ing-name-i" name="type_name" value="${escHtml(t)}" placeholder="Nom de type">
+            <button type="button" class="rm" data-rm-type>×</button>
+          </div>`).join('')}
+        </div>
+        <button type="button" class="add-btn" id="addTypeBtn">+ Ajouter un type</button>
+        <button type="button" class="btn btn-secondary btn-block" id="saveCategoriesBtn" style="margin-top:10px">Enregistrer les catégories</button>
+      </div>
+
+      <div class="settings-group">
+        <div class="sg-head">Affichage</div>
+        <button class="toggle" data-toggle-setting="showPrices">
+          <span class="toggle-label">Afficher les prix</span>
+          <span class="toggle-switch ${s.showPrices?'on':''}"></span>
+        </button>
+        <button class="toggle" data-toggle-setting="showCalories">
+          <span class="toggle-label">Afficher les calories</span>
+          <span class="toggle-switch ${s.showCalories?'on':''}"></span>
+        </button>
+        <button class="toggle" data-toggle-setting="showHalal">
+          <span class="toggle-label">Afficher les marqueurs halal</span>
+          <span class="toggle-switch ${s.showHalal?'on':''}"></span>
+        </button>
+      </div>
+
+      <div class="settings-group">
+        <div class="sg-head">Devise</div>
+        <div class="form-group">
+          <select id="currencySel">
+            <option value="€" ${s.currency==='€'?'selected':''}>Euro (€)</option>
+            <option value="$" ${s.currency==='$'?'selected':''}>Dollar ($)</option>
+            <option value="£" ${s.currency==='£'?'selected':''}>Livre (£)</option>
+            <option value="CHF" ${s.currency==='CHF'?'selected':''}>Franc suisse (CHF)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="sg-head">Données</div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="exportBtn">Exporter</button>
+          <button class="btn btn-secondary" id="importBtn">Importer</button>
+        </div>
+        <input id="importFile" type="file" accept="application/json" style="display:none">
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-block" id="restoreDefaultsBtn">↻ Restaurer recettes/fiches manquantes</button>
+        </div>
+        <p class="muted" style="margin-top:6px;font-size:11px;line-height:1.4">Ré-injecte les recettes/fiches d'origine qui ne seraient plus présentes (sans toucher à celles que tu as créées ou modifiées).</p>
+      </div>
+
+      <div class="settings-group">
+        <div class="sg-head">Installation iPhone</div>
+        <p class="muted" style="line-height:1.6;font-size:13px">
+          Ouvre cette page dans <b>Safari</b>, touche le bouton <b>Partager</b> puis <b>Sur l'écran d'accueil</b>. L'app fonctionnera comme une app native, hors-ligne, et tes données seront sauvegardées localement.
+        </p>
+      </div>
+
+      <div class="danger-zone">
+        <div class="dz-head">Zone dangereuse</div>
+        <div class="btn-row">
+          <button class="btn btn-danger btn-block" id="resetBtn">Tout réinitialiser</button>
+        </div>
+        <p class="muted" style="margin-top:8px;font-size:11px">Efface toutes les recettes, fiches, tâches, ingrédients et réglages.</p>
+      </div>
+
+      <div style="text-align:center;margin-top:32px;padding:14px">
+        <div style="font-family:var(--font-display);font-size:24px;color:var(--gold);letter-spacing:.04em">RESTO TOOL</div>
+        <div class="muted" style="margin-top:4px;font-size:11px;letter-spacing:.2em;text-transform:uppercase">v3 · sync GitHub</div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- Helpers ---------- */
+function notFound(msg,backTo){
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>—</h1>
+    </div>
+    <div class="view">
+      <div class="empty">
+        <div class="empty-ico">⌀</div>
+        <p>${escHtml(msg)}</p>
+        <button class="btn btn-secondary" style="margin-top:14px" data-go="${backTo}">Retour</button>
+      </div>
+    </div>`;
+}
+
+/* ---------- Event handlers ---------- */
+function refreshReorderButtons(containerSel, attrName){
+  const container = $(containerSel);
+  if(!container) return;
+  const rows = Array.from(container.children);
+  rows.forEach((row,i)=>{
+    const upBtn = row.querySelector(`[${attrName}="up"]`);
+    const downBtn = row.querySelector(`[${attrName}="down"]`);
+    if(upBtn) upBtn.disabled = i===0;
+    if(downBtn) downBtn.disabled = i===rows.length-1;
+  });
+}
+
+function bindSyncHandlers(){
+  const cfg = SyncConfig.load() || {};
+  const ownerEl = $('#syncOwner');
+  const repoEl = $('#syncRepo');
+  const pathEl = $('#syncPath');
+  const branchEl = $('#syncBranch');
+  const tokenEl = $('#syncToken');
+  const autoSwitch = $('#syncAutoSwitch');
+  const autoToggleBtn = $('[data-toggle-sync-auto]');
+
+  if(!ownerEl) return; // Not on settings page
+
+  if(cfg.owner) ownerEl.value = cfg.owner;
+  if(cfg.repo) repoEl.value = cfg.repo;
+  if(cfg.path) pathEl.value = cfg.path;
+  if(cfg.branch) branchEl.value = cfg.branch;
+  if(cfg.token) tokenEl.value = cfg.token;
+  if(autoSwitch && cfg.auto) autoSwitch.classList.add('on');
+
+  updateSyncStatusUI();
+
+  const helpToggle = $('#syncHelpToggle');
+  const helpEl = $('#syncHelp');
+  if(helpToggle && helpEl){
+    helpToggle.addEventListener('click',e=>{
+      e.preventDefault();
+      helpEl.style.display = helpEl.style.display==='none' ? 'block' : 'none';
+    });
+  }
+  if(autoToggleBtn && autoSwitch){
+    autoToggleBtn.addEventListener('click',()=>{
+      autoSwitch.classList.toggle('on');
+      const cur = SyncConfig.load() || {};
+      cur.auto = autoSwitch.classList.contains('on');
+      SyncConfig.save(cur);
+      toast(cur.auto ? 'Auto-push activé' : 'Auto-push désactivé');
+    });
+  }
+
+  const collect = ()=>({
+    owner: ownerEl.value.trim(),
+    repo: repoEl.value.trim(),
+    path: pathEl.value.trim() || 'resto-data.json',
+    branch: branchEl.value.trim() || 'main',
+    token: tokenEl.value.trim(),
+    auto: autoSwitch && autoSwitch.classList.contains('on'),
+    lastSync: cfg.lastSync || null
+  });
+
+  const saveBtn = $('#syncSaveBtn');
+  if(saveBtn) saveBtn.addEventListener('click',()=>{
+    const c = collect();
+    if(!c.owner || !c.repo || !c.token){ alert('Owner, repo et token requis'); return; }
+    SyncConfig.save(c);
+    toast('Config enregistrée');
+    updateSyncStatusUI();
+  });
+
+  const testBtn = $('#syncTestBtn');
+  if(testBtn) testBtn.addEventListener('click',async()=>{
+    const c = collect();
+    if(!c.owner || !c.repo || !c.token){ alert('Owner, repo et token requis'); return; }
+    testBtn.innerHTML = '<span class="spinner"></span> Test…';
+    testBtn.disabled = true;
+    try{
+      await GitHubSync.test(c);
+      toast('✓ Connexion GitHub OK');
+    }catch(err){
+      alert('Échec : '+err.message);
+    }finally{
+      testBtn.innerHTML = 'Tester';
+      testBtn.disabled = false;
+    }
+  });
+
+  const pullBtn = $('#syncPullBtn');
+  if(pullBtn) pullBtn.addEventListener('click',async()=>{
+    const c = collect();
+    if(!c.owner || !c.repo || !c.token){ alert('Configure et enregistre d\'abord'); return; }
+    if(!confirm('Récupérer les données depuis GitHub ?\nCela écrasera tes données locales actuelles.')) return;
+    SyncConfig.save(c);
+    await cloudPull(false);
+  });
+
+  const pushBtn = $('#syncPushBtn');
+  if(pushBtn) pushBtn.addEventListener('click',async()=>{
+    const c = collect();
+    if(!c.owner || !c.repo || !c.token){ alert('Configure et enregistre d\'abord'); return; }
+    SyncConfig.save(c);
+    await cloudPush(false);
+  });
+
+  const clearBtn = $('#syncClearBtn');
+  if(clearBtn) clearBtn.addEventListener('click',()=>{
+    if(!confirm('Effacer la config sync (les données locales et GitHub restent intactes) ?')) return;
+    SyncConfig.clear();
+    _currentSha = null;
+    toast('Config effacée');
+    render();
+  });
+}
+
+function bindCategoriesHandlers(){
+  const cuisinesList = $('#cuisinesList');
+  const typesList = $('#typesList');
+  const addCuisineBtn = $('#addCuisineBtn');
+  const addTypeBtn = $('#addTypeBtn');
+  const saveBtn = $('#saveCategoriesBtn');
+
+  if(!cuisinesList) return;
+
+  function bindRow(row, isType){
+    const rmAttr = isType ? '[data-rm-type]' : '[data-rm-cuis]';
+    const rm = row.querySelector(rmAttr);
+    if(rm) rm.addEventListener('click',()=>row.remove());
+  }
+  cuisinesList.querySelectorAll('[data-cuis-row]').forEach(r=>bindRow(r,false));
+  typesList.querySelectorAll('[data-type-row]').forEach(r=>bindRow(r,true));
+
+  if(addCuisineBtn) addCuisineBtn.addEventListener('click',()=>{
+    const idx = cuisinesList.children.length;
+    const div = document.createElement('div');
+    div.innerHTML = `<div class="dynamic-item" data-cuis-row="${idx}">
+      <input class="ing-name-i" name="cuis_name" placeholder="Nom de cuisine">
+      <button type="button" class="rm" data-rm-cuis>×</button>
+    </div>`;
+    const el = div.firstElementChild;
+    cuisinesList.appendChild(el);
+    bindRow(el,false);
+    el.querySelector('input').focus();
+  });
+  if(addTypeBtn) addTypeBtn.addEventListener('click',()=>{
+    const idx = typesList.children.length;
+    const div = document.createElement('div');
+    div.innerHTML = `<div class="dynamic-item" data-type-row="${idx}">
+      <input class="ing-name-i" name="type_name" placeholder="Nom de type">
+      <button type="button" class="rm" data-rm-type>×</button>
+    </div>`;
+    const el = div.firstElementChild;
+    typesList.appendChild(el);
+    bindRow(el,true);
+    el.querySelector('input').focus();
+  });
+
+  if(saveBtn) saveBtn.addEventListener('click',async()=>{
+    const cuisines = $$('#cuisinesList input[name="cuis_name"]').map(i=>i.value.trim()).filter(Boolean);
+    const types = $$('#typesList input[name="type_name"]').map(i=>i.value.trim()).filter(Boolean);
+    state.settings.cuisines = cuisines;
+    state.settings.types = types;
+    await persist();
+    toast('Catégories enregistrées');
+    render();
+  });
+}
+
+function attachHandlers(){
+  // Navigation
+  $$('[data-go]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    navigate('#'+b.getAttribute('data-go'));
+  }));
+  $$('[data-back]').forEach(b=>b.addEventListener('click',()=>{
+    if(history.length>1) history.back(); else navigate('#home');
+  }));
+  $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>navigate('#'+b.getAttribute('data-nav'))));
+
+  // Cuisine filter tabs (recipes/fiches)
+  $$('[data-rec-cuisine]').forEach(b=>b.addEventListener('click',()=>{
+    recipesCuisineFilter = b.getAttribute('data-rec-cuisine');
+    render();
+  }));
+  $$('[data-fic-cuisine]').forEach(b=>b.addEventListener('click',()=>{
+    fichesCuisineFilter = b.getAttribute('data-fic-cuisine');
+    render();
+  }));
+
+  // Pill groups (cuisine/type) — single-select
+  $$('[data-pill-group]').forEach(group=>{
+    const groupName = group.getAttribute('data-pill-group');
+    const hidden = group.parentElement.querySelector(`input[name="${groupName}"]`);
+    group.querySelectorAll('[data-pill]').forEach(pill=>{
+      pill.addEventListener('click',()=>{
+        const val = pill.getAttribute('data-pill');
+        if(hidden) hidden.value = val;
+        group.querySelectorAll('[data-pill]').forEach(p=>p.classList.remove('active'));
+        pill.classList.add('active');
+      });
+    });
+  });
+
+  // Reorder ingredient
+  $$('[data-move-ing]').forEach(b=>b.addEventListener('click',()=>{
+    const dir = b.getAttribute('data-move-ing');
+    const row = b.closest('.dynamic-item');
+    if(!row) return;
+    if(dir==='up'){
+      const prev = row.previousElementSibling;
+      if(prev) row.parentNode.insertBefore(row, prev);
+    } else {
+      const next = row.nextElementSibling;
+      if(next) row.parentNode.insertBefore(next, row);
+    }
+    refreshReorderButtons('#ingFields','data-move-ing');
+  }));
+  // Reorder component
+  $$('[data-move-comp]').forEach(b=>b.addEventListener('click',()=>{
+    const dir = b.getAttribute('data-move-comp');
+    const row = b.closest('.dynamic-item');
+    if(!row) return;
+    if(dir==='up'){
+      const prev = row.previousElementSibling;
+      if(prev) row.parentNode.insertBefore(row, prev);
+    } else {
+      const next = row.nextElementSibling;
+      if(next) row.parentNode.insertBefore(next, row);
+    }
+    refreshReorderButtons('#componentFields','data-move-comp');
+  }));
+
+  // Stock filter tabs
+  $$('[data-stock-filter]').forEach(b=>b.addEventListener('click',()=>{
+    stockFilter = b.getAttribute('data-stock-filter');
+    render();
+  }));
+  // Stock toggle to-buy
+  $$('[data-toggle-stock]').forEach(b=>b.addEventListener('click',async()=>{
+    const id = b.getAttribute('data-toggle-stock');
+    const s = (state.stock||[]).find(x=>x.id===id);
+    if(!s) return;
+    s.toBuy = !s.toBuy;
+    await persist();
+    render();
+  }));
+  $$('[data-edit-stock]').forEach(b=>b.addEventListener('click',()=>{
+    navigate('#stock/'+b.getAttribute('data-edit-stock')+'/edit');
+  }));
+  $$('[data-del-stock]').forEach(b=>b.addEventListener('click',async()=>{
+    const id = b.getAttribute('data-del-stock');
+    if(!confirm('Supprimer ce produit de la liste de stock ?')) return;
+    state.stock = (state.stock||[]).filter(s=>s.id!==id);
+    await persist();
+    render();
+  }));
+  // Stock add form
+  const stockForm = $('#stockForm');
+  if(stockForm){
+    stockForm.addEventListener('submit',async e=>{
+      e.preventDefault();
+      const fd = new FormData(stockForm);
+      const name = fd.get('name').toString().trim();
+      if(!name) return;
+      if(!state.stock) state.stock = [];
+      state.stock.push({
+        id: uid('s'),
+        name,
+        qty: fd.get('qty')!=='' ? parseFloat(fd.get('qty')) : null,
+        unit: fd.get('unit').toString().trim(),
+        toBuy: false,
+        note: fd.get('note').toString().trim()
+      });
+      await persist();
+      toast('Produit ajouté');
+      render();
+    });
+  }
+  // Stock edit form
+  const stockEditForm = $('#stockEditForm');
+  if(stockEditForm){
+    stockEditForm.addEventListener('submit',async e=>{
+      e.preventDefault();
+      const editId = stockEditForm.getAttribute('data-edit-id');
+      const s = (state.stock||[]).find(x=>x.id===editId);
+      if(!s) return;
+      const fd = new FormData(stockEditForm);
+      s.name = fd.get('name').toString().trim();
+      s.qty = fd.get('qty')!=='' ? parseFloat(fd.get('qty')) : null;
+      s.unit = fd.get('unit').toString().trim();
+      s.note = fd.get('note').toString().trim();
+      s.toBuy = !!fd.get('toBuy');
+      await persist();
+      toast('Enregistré');
+      navigate('#stock');
+    });
+  }
+
+  // Toggle in form (data-toggle-form)
+  $$('[data-toggle-form]').forEach(b=>b.addEventListener('click',()=>{
+    const name = b.getAttribute('data-toggle-form');
+    const sw = b.querySelector('.toggle-switch');
+    sw.classList.toggle('on');
+    const hidden = b.parentElement.querySelector(`input[name="${name}"]`);
+    if(hidden) hidden.value = sw.classList.contains('on') ? '1' : '';
+  }));
+
+  // Top tabs (tasks/routines)
+  $$('[data-toptab]').forEach(b=>b.addEventListener('click',()=>{
+    tasksTopTab = b.getAttribute('data-toptab');
+    render();
+  }));
+
+  // Photo handlers
+  bindPhotoHandlers();
+
+  // Sync settings handlers
+  bindSyncHandlers();
+  bindCategoriesHandlers();
+
+  // Routine toggle
+  $$('[data-toggle-routine]').forEach(b=>b.addEventListener('click',async()=>{
+    const id = b.getAttribute('data-toggle-routine');
+    const key = b.getAttribute('data-key');
+    const r = (state.routines||[]).find(x=>x.id===id);
+    if(!r) return;
+    if(!r.checked) r.checked = {};
+    r.checked[key] = !r.checked[key];
+    await persist();
+    render();
+  }));
+  $$('[data-reset-routine]').forEach(b=>b.addEventListener('click',async()=>{
+    const id = b.getAttribute('data-reset-routine');
+    const r = (state.routines||[]).find(x=>x.id===id);
+    if(!r) return;
+    r.checked = {};
+    r.lastReset = Date.now();
+    await persist();
+    toast('Routine réinitialisée');
+    render();
+  }));
+  $$('[data-del-routine]').forEach(b=>b.addEventListener('click',async()=>{
+    const id = b.getAttribute('data-del-routine');
+    if(!confirm('Supprimer cette routine ?')) return;
+    state.routines = (state.routines||[]).filter(r=>r.id!==id);
+    await persist();
+    toast('Routine supprimée');
+    navigate('#tasks');
+  }));
+
+  // Routine form
+  const routineForm = $('#routineForm');
+  if(routineForm){
+    bindSectionFieldHandlers('#rouSections');
+    $$('[data-add-rou-section]').forEach(b=>b.addEventListener('click',()=>{
+      const list = $('#rouSections');
+      const idx = list.children.length;
+      const div = document.createElement('div');
+      div.innerHTML = sectionFieldRow({title:'',items:['']},idx);
+      const el = div.firstElementChild;
+      list.appendChild(el);
+      rebindSectionRow(el);
+      el.querySelector('[name="sec_title"]').focus();
+    }));
+    routineForm.addEventListener('submit',handleRoutineSubmit);
+  }
+
+  // Recipe scaler
+  const scaler = $('#scaler');
+  if(scaler){
+    const base = parseFloat(scaler.getAttribute('data-base'));
+    const input = $('#scalerVal');
+    const multSpan = $('#scalerMult');
+    const update = ()=>{
+      const cur = parseFloat(input.value);
+      if(isNaN(cur) || cur<=0){ multSpan.textContent='×?'; return; }
+      const mult = cur/base;
+      multSpan.textContent = '×'+(Math.round(mult*100)/100).toString().replace('.',',');
+      $$('#ingList .ing-amt-cell').forEach(cell=>{
+        const b = parseFloat(cell.getAttribute('data-base'));
+        const u = cell.getAttribute('data-unit');
+        if(isNaN(b) || b===0){ /* keep "au goût" */ return; }
+        cell.innerHTML = fmtAmount(b*mult,u);
+      });
+    };
+    input.addEventListener('input',update);
+    $$('#scaler [data-step]').forEach(btn=>btn.addEventListener('click',()=>{
+      const step = parseFloat(btn.getAttribute('data-step'));
+      const cur = parseFloat(input.value)||0;
+      const inc = cur < 1 ? 0.1 : cur < 10 ? 0.5 : cur < 100 ? 1 : 5;
+      input.value = Math.max(0, Math.round((cur + step*inc)*100)/100);
+      update();
+    }));
+  }
+
+  // Recipe form
+  const recipeForm = $('#recipeForm');
+  if(recipeForm){
+    $$('#recipeForm [data-add-ing]').forEach(b=>b.addEventListener('click',()=>{
+      const list = $('#ingFields');
+      const idx = list.children.length;
+      const div = document.createElement('div');
+      div.innerHTML = ingFieldRow({name:'',amount:0,unit:''},idx);
+      const el = div.firstElementChild;
+      list.appendChild(el);
+      el.querySelector('[data-rm-ing]').addEventListener('click',()=>el.remove());
+      el.querySelector('.ing-name-i').focus();
+    }));
+    $$('#recipeForm [data-rm-ing]').forEach(b=>b.addEventListener('click',()=>b.closest('.dynamic-item').remove()));
+    recipeForm.addEventListener('submit',handleRecipeSubmit);
+  }
+  // Delete recipe
+  $$('[data-del-recipe]').forEach(b=>b.addEventListener('click',async()=>{
+    const id = b.getAttribute('data-del-recipe');
+    if(!confirm('Supprimer cette recette ?')) return;
+    state.recipes = state.recipes.filter(r=>r.id!==id);
+    state.fiches.forEach(f=>{ f.linkedRecipes = (f.linkedRecipes||[]).filter(x=>x!==id); });
+    await persist();
+    toast('Recette supprimée');
+    navigate('#recipes');
+  }));
+
+  // Fiche form
+  const ficheForm = $('#ficheForm');
+  if(ficheForm){
+    bindFicheFormHandlers();
+    ficheForm.addEventListener('submit',handleFicheSubmit);
+  }
+  $$('[data-del-fiche]').forEach(b=>b.addEventListener('click',async()=>{
+    const id = b.getAttribute('data-del-fiche');
+    if(!confirm('Supprimer cette fiche ?')) return;
+    state.fiches = state.fiches.filter(f=>f.id!==id);
+    await persist();
+    toast('Fiche supprimée');
+    navigate('#fiches');
+  }));
+
+  // Tasks
+  $$('[data-tab]').forEach(b=>b.addEventListener('click',()=>{
+    tasksTab = b.getAttribute('data-tab');
+    render();
+  }));
+  $$('[data-toggle-task]').forEach(b=>b.addEventListener('click',async()=>{
+    const id = b.getAttribute('data-toggle-task');
+    const t = state.tasks.find(x=>x.id===id);
+    if(t){ t.done = !t.done; t.lastDone = t.done ? Date.now() : null; await persist(); render(); }
+  }));
+  $$('[data-del-task]').forEach(b=>b.addEventListener('click',async(e)=>{
+    e.stopPropagation();
+    const id = b.getAttribute('data-del-task');
+    state.tasks = state.tasks.filter(t=>t.id!==id);
+    await persist();
+    render();
+  }));
+  const taskForm = $('#taskForm');
+  if(taskForm){
+    const freqSel = taskForm.querySelector('[name="frequency"]');
+    const dayWrap = $('#dayWrap');
+    const updateDayWrap = ()=>{ dayWrap.style.display = freqSel.value==='weekly'?'block':'none'; };
+    freqSel.addEventListener('change',updateDayWrap);
+    updateDayWrap();
+    taskForm.addEventListener('submit',async e=>{
+      e.preventDefault();
+      const fd = new FormData(taskForm);
+      const t = {
+        id: uid('t'),
+        title: fd.get('title').toString().trim(),
+        frequency: fd.get('frequency'),
+        day: parseInt(fd.get('day')||'1',10),
+        done:false,lastDone:null
+      };
+      if(!t.title) return;
+      state.tasks.push(t);
+      await persist();
+      toast('Tâche ajoutée');
+      render();
+    });
+  }
+  const resetTasksBtn = $('[data-reset-tasks]');
+  if(resetTasksBtn) resetTasksBtn.addEventListener('click',async()=>{
+    state.tasks.forEach(t=>{t.done=false;t.lastDone=null;});
+    await persist();
+    toast('Tâches réinitialisées');
+    render();
+  });
+
+  // Ingredient form
+  const ingForm = $('#ingForm');
+  if(ingForm){
+    ingForm.addEventListener('submit',handleIngSubmit);
+  }
+  $$('[data-del-ing]').forEach(b=>b.addEventListener('click',async()=>{
+    const id = b.getAttribute('data-del-ing');
+    if(!confirm('Supprimer cet ingrédient ?')) return;
+    state.ingredients = state.ingredients.filter(x=>x.id!==id);
+    await persist();
+    toast('Ingrédient supprimé');
+    navigate('#ingredients');
+  }));
+
+  // Settings
+  $$('[data-toggle-setting]').forEach(b=>b.addEventListener('click',async()=>{
+    const k = b.getAttribute('data-toggle-setting');
+    state.settings[k] = !state.settings[k];
+    await persist();
+    render();
+  }));
+  const cur = $('#currencySel');
+  if(cur) cur.addEventListener('change',async()=>{ state.settings.currency = cur.value; await persist(); toast('Devise mise à jour'); });
+  const exportBtn = $('#exportBtn');
+  if(exportBtn) exportBtn.addEventListener('click',()=>{
+    const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download='resto-tool-'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast('Export téléchargé');
+  });
+  const importBtn = $('#importBtn');
+  const importFile = $('#importFile');
+  if(importBtn) importBtn.addEventListener('click',()=>importFile.click());
+  if(importFile) importFile.addEventListener('change',async e=>{
+    const f = e.target.files[0]; if(!f) return;
+    try{
+      const txt = await f.text();
+      const data = JSON.parse(txt);
+      if(!data.recipes || !data.ingredients){ throw new Error('format invalide'); }
+      if(!confirm('Remplacer toutes tes données par celles du fichier ?')) return;
+      state = data;
+      await persist();
+      toast('Import réussi');
+      render();
+    }catch(err){
+      alert('Import impossible : '+err.message);
+    }
+  });
+  const restoreBtn = $('#restoreDefaultsBtn');
+  if(restoreBtn) restoreBtn.addEventListener('click',async()=>{
+    if(!confirm('Restaurer les recettes/fiches d\'origine manquantes ?\nCelles que tu as créées ou modifiées ne seront pas touchées.')) return;
+    const def = defaultData();
+    let added = 0;
+    // Recipes
+    def.recipes.forEach(d=>{
+      if(!state.recipes.find(r=>r.id===d.id)){
+        state.recipes.push(d); added++;
+      }
+    });
+    // Fiches
+    def.fiches.forEach(d=>{
+      if(!state.fiches.find(f=>f.id===d.id)){
+        state.fiches.push(d); added++;
+      }
+    });
+    // Ingredients
+    def.ingredients.forEach(d=>{
+      if(!state.ingredients.find(i=>i.id===d.id)){
+        state.ingredients.push(d); added++;
+      }
+    });
+    // Routines
+    def.routines.forEach(d=>{
+      if(!state.routines.find(r=>r.id===d.id)){
+        state.routines.push(d); added++;
+      }
+    });
+    await persist();
+    toast(added > 0 ? `${added} élément${added>1?'s':''} restauré${added>1?'s':''}` : 'Rien à restaurer');
+    render();
+  });
+  const resetBtn = $('#resetBtn');
+  if(resetBtn) resetBtn.addEventListener('click',async()=>{
+    if(!confirm('Tout effacer ? Cette action est définitive.')) return;
+    if(!confirm('Vraiment ? Toutes les recettes, fiches, tâches seront perdues.')) return;
+    await Storage.clear();
+    state = defaultData();
+    await persist();
+    toast('Réinitialisé');
+    navigate('#home');
+  });
+}
+
+/* ---------- Fiche form helpers ---------- */
+function bindFicheFormHandlers(){
+  $$('#ficheForm [data-add-section]').forEach(b=>b.addEventListener('click',()=>{
+    const list = $('#sectionFields');
+    const idx = list.children.length;
+    const div = document.createElement('div');
+    div.innerHTML = sectionFieldRow({title:'',items:['']},idx);
+    const el = div.firstElementChild;
+    list.appendChild(el);
+    rebindSectionRow(el);
+    el.querySelector('[name="sec_title"]').focus();
+  }));
+  $$('#ficheForm [data-add-variant]').forEach(b=>b.addEventListener('click',()=>{
+    const list = $('#variantFields');
+    const idx = list.children.length;
+    const div = document.createElement('div');
+    div.innerHTML = variantFieldRow({title:'',desc:''},idx);
+    const el = div.firstElementChild;
+    list.appendChild(el);
+    el.querySelector('[data-rm-variant]').addEventListener('click',()=>el.remove());
+  }));
+  // Components
+  $$('#ficheForm [data-add-component]').forEach(b=>b.addEventListener('click',()=>{
+    const list = $('#componentFields');
+    const idx = list.children.length;
+    const div = document.createElement('div');
+    div.innerHTML = componentFieldRow({type:'recipe',refId:'',amount:0,unit:'g',label:''},idx);
+    const el = div.firstElementChild;
+    list.appendChild(el);
+    bindComponentRow(el);
+  }));
+  $$('#componentFields > [data-component]').forEach(bindComponentRow);
+
+  $$('#sectionFields > [data-section]').forEach(rebindSectionRow);
+  $$('[data-rm-variant]').forEach(b=>b.addEventListener('click',()=>b.closest('[data-variant]').remove()));
+}
+
+function bindComponentRow(el){
+  const typeSel = el.querySelector('select.comp-type');
+  const refSel = el.querySelector('select.comp-ref');
+  if(typeSel && refSel){
+    typeSel.addEventListener('change',()=>{
+      const type = typeSel.value;
+      const opts = type==='recipe'
+        ? state.recipes.map(r=>`<option value="${r.id}">${escHtml(r.name)}</option>`).join('')
+        : state.ingredients.map(g=>`<option value="${g.id}">${escHtml(g.name)}</option>`).join('');
+      refSel.innerHTML = opts;
+    });
+  }
+  const rm = el.querySelector('[data-rm-component]');
+  if(rm) rm.addEventListener('click',()=>el.remove());
+}
+
+function bindSectionFieldHandlers(containerSel){
+  $$(`${containerSel} > .fiche-section`).forEach(rebindSectionRow);
+}
+
+function bindPhotoHandlers(){
+  // Empty state — click triggers file input
+  $$('[data-photo-empty]').forEach(empty=>{
+    const input = empty.querySelector('[data-photo-input]');
+    if(!input) return;
+    empty.addEventListener('click',e=>{
+      if(e.target.tagName==='INPUT') return;
+      input.click();
+    });
+    input.addEventListener('change',e=>handlePhotoChoose(e,empty,'empty'));
+  });
+  // Preview state — change / remove
+  $$('[data-photo-preview]').forEach(preview=>{
+    const input = preview.querySelector('[data-photo-input]');
+    const change = preview.querySelector('[data-photo-change]');
+    const remove = preview.querySelector('[data-photo-remove]');
+    if(change && input){
+      change.addEventListener('click',e=>{ e.preventDefault(); input.click(); });
+      input.addEventListener('change',e=>handlePhotoChoose(e,preview,'preview'));
+    }
+    if(remove){
+      remove.addEventListener('click',e=>{
+        e.preventDefault();
+        // Replace with empty state in place
+        const wrap = preview.parentElement;
+        preview.outerHTML = photoFieldHtml(null);
+        bindPhotoHandlers();
+      });
+    }
+  });
+}
+
+async function handlePhotoChoose(e,container,kind){
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  try{
+    const dataUrl = await compressImage(file, 1000, 0.75);
+    // Replace container content with new preview
+    const wrap = container.parentElement;
+    container.outerHTML = photoFieldHtml(dataUrl);
+    bindPhotoHandlers();
+  }catch(err){
+    alert('Impossible de lire l\'image : '+(err && err.message || err));
+  }
+}
+
+function rebindSectionRow(el){
+  const rmSec = el.querySelector('[data-rm-section]');
+  if(rmSec) rmSec.addEventListener('click',()=>el.remove());
+  el.querySelectorAll('[data-rm-item]').forEach(b=>b.addEventListener('click',()=>b.closest('.dynamic-item').remove()));
+  const addBtn = el.querySelector('[data-add-item]');
+  if(addBtn){
+    addBtn.addEventListener('click',()=>{
+      const items = el.querySelector('[data-items]');
+      const div = document.createElement('div');
+      div.className='dynamic-item';
+      div.innerHTML = `<input class="ing-name-i" name="sec_item" placeholder="Élément">
+        <button type="button" class="rm" data-rm-item>×</button>`;
+      items.appendChild(div);
+      div.querySelector('[data-rm-item]').addEventListener('click',()=>div.remove());
+      div.querySelector('input').focus();
+    });
+  }
+}
+
+/* ---------- Form submit handlers ---------- */
+async function handleRecipeSubmit(e){
+  e.preventDefault();
+  const f = e.target;
+  const fd = new FormData(f);
+  const editId = f.getAttribute('data-edit-id');
+
+  const ings = [];
+  $$('#ingFields .dynamic-item').forEach(row=>{
+    const name = row.querySelector('[name="ing_name"]').value.trim();
+    if(!name) return;
+    const amount = parseFloat(row.querySelector('[name="ing_amount"]').value)||0;
+    const unit = row.querySelector('[name="ing_unit"]').value.trim();
+    ings.push({name,amount,unit});
+  });
+
+  const photo = (fd.get('photo')||'').toString() || null;
+  const data = {
+    name: fd.get('name').toString().trim(),
+    category: fd.get('category').toString().trim(),
+    cuisine: (fd.get('cuisine')||'').toString().trim(),
+    type: (fd.get('type')||'').toString().trim(),
+    photo,
+    baseAmount: parseFloat(fd.get('baseAmount'))||1,
+    baseUnit: fd.get('baseUnit').toString().trim()||'kg',
+    baseLabel: fd.get('baseLabel').toString().trim(),
+    ingredients: ings,
+    instructions: fd.get('instructions').toString(),
+    prepTime: fd.get('prepTime')!=='' ? parseFloat(fd.get('prepTime')) : null,
+    cookTemp: fd.get('cookTemp')!=='' ? parseFloat(fd.get('cookTemp')) : null,
+    cookTime: fd.get('cookTime')!=='' ? parseFloat(fd.get('cookTime')) : null,
+    notes: fd.get('notes').toString()
+  };
+  if(!data.name){ alert('Le nom est requis'); return; }
+
+  try{
+    if(editId){
+      const r = state.recipes.find(x=>x.id===editId);
+      Object.assign(r, data);
+      await persist();
+      toast('Recette enregistrée');
+      navigate('#recipe/'+editId);
+    } else {
+      const id = uid('rec');
+      state.recipes.push({id, ...data});
+      await persist();
+      toast('Recette créée');
+      navigate('#recipe/'+id);
+    }
+  }catch(err){
+    alert('Erreur de sauvegarde : '+(err && err.message || err));
+  }
+}
+
+async function handleFicheSubmit(e){
+  e.preventDefault();
+  const f = e.target;
+  const fd = new FormData(f);
+  const editId = f.getAttribute('data-edit-id');
+
+  const sections = [];
+  $$('#sectionFields > [data-section]').forEach(secEl=>{
+    const title = secEl.querySelector('[name="sec_title"]').value.trim();
+    if(!title) return;
+    const items = [];
+    secEl.querySelectorAll('[data-items] [name="sec_item"]').forEach(inp=>{
+      const v = inp.value.trim(); if(v) items.push(v);
+    });
+    sections.push({title, items});
+  });
+
+  const variants = [];
+  $$('#variantFields > [data-variant]').forEach(vEl=>{
+    const title = vEl.querySelector('[name="var_title"]').value.trim();
+    if(!title) return;
+    const desc = vEl.querySelector('[name="var_desc"]').value.trim();
+    variants.push({title,desc});
+  });
+
+  const components = [];
+  $$('#componentFields > [data-component]').forEach(cEl=>{
+    const type = cEl.querySelector('[name="comp_type"]').value;
+    const refId = cEl.querySelector('[name="comp_ref"]').value;
+    if(!refId) return;
+    const label = cEl.querySelector('[name="comp_label"]').value.trim();
+    const amount = parseFloat(cEl.querySelector('[name="comp_amount"]').value)||0;
+    const unit = cEl.querySelector('[name="comp_unit"]').value.trim()||'g';
+    components.push({type, refId, label, amount, unit});
+  });
+
+  const photo = (fd.get('photo')||'').toString() || null;
+  const data = {
+    name: fd.get('name').toString().trim(),
+    category: fd.get('category').toString().trim()||'Plat',
+    cuisine: (fd.get('cuisine')||'').toString().trim(),
+    type: (fd.get('type')||'').toString().trim(),
+    photo,
+    prepTime: fd.get('prepTime')!=='' ? parseFloat(fd.get('prepTime')) : null,
+    sections,
+    components,
+    variants,
+    notes: fd.get('notes').toString()
+  };
+  if(!data.name){ alert('Le nom est requis'); return; }
+
+  try{
+    if(editId){
+      const fi = state.fiches.find(x=>x.id===editId);
+      Object.assign(fi, data);
+      await persist();
+      toast('Fiche enregistrée');
+      navigate('#fiche/'+editId);
+    } else {
+      const id = uid('fic');
+      state.fiches.push({id, ...data});
+      await persist();
+      toast('Fiche créée');
+      navigate('#fiche/'+id);
+    }
+  }catch(err){
+    alert('Erreur de sauvegarde : '+(err && err.message || err));
+  }
+}
+
+async function handleRoutineSubmit(e){
+  e.preventDefault();
+  const f = e.target;
+  const fd = new FormData(f);
+  const editId = f.getAttribute('data-edit-id');
+
+  const sections = [];
+  $$('#rouSections > [data-section]').forEach(secEl=>{
+    const title = secEl.querySelector('[name="sec_title"]').value.trim();
+    if(!title) return;
+    const items = [];
+    secEl.querySelectorAll('[data-items] [name="sec_item"]').forEach(inp=>{
+      const v = inp.value.trim(); if(v) items.push(v);
+    });
+    if(items.length) sections.push({title, items});
+  });
+
+  const data = {
+    name: fd.get('name').toString().trim(),
+    subtitle: fd.get('subtitle').toString().trim(),
+    sections
+  };
+  if(!data.name){ alert('Le nom est requis'); return; }
+  if(!sections.length){ alert('Ajoute au moins une section avec des étapes'); return; }
+
+  try{
+    if(!state.routines) state.routines = [];
+    if(editId){
+      const r = state.routines.find(x=>x.id===editId);
+      Object.assign(r, data);
+      // keep existing checked state
+      await persist();
+      toast('Routine enregistrée');
+      navigate('#routine/'+editId);
+    } else {
+      const id = uid('rou');
+      state.routines.push({id, ...data, checked:{}, lastReset:null});
+      await persist();
+      toast('Routine créée');
+      navigate('#routine/'+id);
+    }
+  }catch(err){
+    alert('Erreur de sauvegarde : '+(err && err.message || err));
+  }
+}
+
+async function handleIngSubmit(e){
+  e.preventDefault();
+  const f = e.target;
+  const fd = new FormData(f);
+  const editId = f.getAttribute('data-edit-id');
+  const num = k => fd.get(k)!=='' && fd.get(k)!=null ? parseFloat(fd.get(k)) : null;
+  const data = {
+    name: fd.get('name').toString().trim(),
+    unit: fd.get('unit').toString().trim()||'kg',
+    price: num('price'),
+    halal: !!fd.get('halal'),
+    kcal100: num('kcal100'),
+    protein100: num('protein100'),
+    fat100: num('fat100'),
+    carbs100: num('carbs100'),
+    notes: fd.get('notes').toString()
+  };
+  if(!data.name){ alert('Le nom est requis'); return; }
+  if(editId){
+    const ing = state.ingredients.find(x=>x.id===editId);
+    Object.assign(ing,data);
+    await persist();
+    toast('Ingrédient enregistré');
+  } else {
+    state.ingredients.push({id:uid('ing'),...data});
+    await persist();
+    toast('Ingrédient créé');
+  }
+  navigate('#ingredients');
+}
+
+/* ---------- Init ---------- */
+async function init(){
+  let loaded = await Storage.load();
+
+  // Migrate from v2 or v1 if no v3 found
+  if(!loaded){
+    let prev = null;
+    let prevVersion = null;
+    try{ const raw = localStorage.getItem('restoTool_v2'); if(raw){ prev = JSON.parse(raw); prevVersion='v2'; } }catch(e){}
+    if(!prev){
+      try{ const raw = localStorage.getItem('restoTool_v1'); if(raw){ prev = JSON.parse(raw); prevVersion='v1'; } }catch(e){}
+    }
+    if(prev){
+      loaded = defaultData();
+      if(Array.isArray(prev.recipes)) loaded.recipes = prev.recipes.map(r=>({photo:null,prepTime:null,cuisine:'',type:'',...r}));
+      if(Array.isArray(prev.fiches)) loaded.fiches = prev.fiches.map(f=>({photo:null,prepTime:null,components:[],cuisine:'',type:'',...f}));
+      if(Array.isArray(prev.tasks)) loaded.tasks = prev.tasks;
+      if(Array.isArray(prev.ingredients)) loaded.ingredients = prev.ingredients;
+      if(Array.isArray(prev.routines)) loaded.routines = prev.routines;
+      if(prev.settings) loaded.settings = Object.assign(loaded.settings, prev.settings);
+      toast('Données '+prevVersion+' migrées vers v3');
+    } else {
+      loaded = defaultData();
+    }
+    await Storage.save(loaded);
+  }
+
+  // Defensive defaults
+  loaded.settings = Object.assign({
+    showPrices:false, showCalories:true, showHalal:true, currency:'€',
+    cuisines: ['burger','mexicain'],
+    types: ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres']
+  }, loaded.settings||{});
+  if(!loaded.settings.cuisines || !loaded.settings.cuisines.length) loaded.settings.cuisines = ['burger','mexicain'];
+  if(!loaded.settings.types || !loaded.settings.types.length) loaded.settings.types = ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'];
+
+  loaded.fiches = loaded.fiches||[];
+  loaded.tasks = loaded.tasks||[];
+  loaded.ingredients = loaded.ingredients||[];
+  loaded.routines = loaded.routines||[];
+  loaded.recipes = loaded.recipes||[];
+  loaded.stock = loaded.stock||[];
+
+  loaded.recipes.forEach(r=>{
+    if(r.photo===undefined) r.photo = null;
+    if(r.prepTime===undefined) r.prepTime = null;
+    if(r.cuisine===undefined) r.cuisine = '';
+    if(r.type===undefined) r.type = '';
+  });
+  loaded.fiches.forEach(f=>{
+    if(f.photo===undefined) f.photo = null;
+    if(f.prepTime===undefined) f.prepTime = null;
+    if(!f.components) f.components = [];
+    if(f.cuisine===undefined) f.cuisine = '';
+    if(f.type===undefined) f.type = '';
+  });
+
+  state = loaded;
+  window.addEventListener('hashchange',render);
+  render();
+
+  // Auto-pull at startup if sync configured
+  const syncCfg = SyncConfig.load();
+  if(syncCfg && syncCfg.token && syncCfg.owner && syncCfg.repo && syncCfg.auto){
+    setTimeout(()=>{
+      cloudPull(true).then(success=>{ if(!success) updateSyncStatusUI(); });
+    }, 500);
+  }
+}
+init();
+</script>
+</body>
+</html>
