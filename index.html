@@ -343,7 +343,6 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 </head>
 <body>
 <div id="app"></div>
-<datalist id="ingredients-datalist"></datalist>
 <script>
 /* ============================================================
    RESTO TOOL — single file app
@@ -552,8 +551,7 @@ function defaultData(){
       showHalal:true,
       currency:'€',
       cuisines: ['burger','mexicain'],
-      types: ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'],
-      stores: ['Sligro','Carrefour','Magasins du monde']
+      types: ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres']
     }
   };
 }
@@ -1608,10 +1606,6 @@ function render(){
     default: html = renderHome();
   }
   root.innerHTML = html + renderBottomNav(route.path);
-  const dl = document.getElementById('ingredients-datalist');
-  if(dl){
-    dl.innerHTML = state.ingredients.map(i=>`<option value="${escHtml(i.name)}">`).join('');
-  }
   attachHandlers();
   window.scrollTo(0,0);
 }
@@ -1642,7 +1636,7 @@ function renderHome(){
   const taskCount = state.tasks.filter(t=>!t.done).length;
   const ingCount = state.ingredients.length;
   const rouCount = (state.routines||[]).length;
-  const stock = buildStockEntries();
+  const stock = state.stock||[];
   const toBuy = stock.filter(s=>s.toBuy).length;
   return `
     <div class="view">
@@ -1759,18 +1753,9 @@ function renderRecipeDetail(id){
 
   const ingsHtml = r.ingredients.map((ing,idx)=>{
     const spice = isSpiceLike(ing.name, ing.unit);
-    let displayName = ing.name;
-    let isLinked = false;
-    if(ing.ingredientId){
-      const linked = state.ingredients.find(x=>x.id===ing.ingredientId);
-      if(linked){ displayName = linked.name; isLinked = true; }
-    } else {
-      const found = state.ingredients.find(i=>i.name.toLowerCase()===(ing.name||'').toLowerCase());
-      if(found) isLinked = true;
-    }
     return `
       <div class="ing-row ${spice?'spice':''}" data-idx="${idx}">
-        <div class="ing-name">${isLinked?'<span style="color:var(--success);margin-right:4px" title="Ingrédient lié">⌁</span>':''}${escHtml(displayName)}</div>
+        <div class="ing-name">${escHtml(ing.name)}</div>
         <div class="ing-amt-cell" data-base="${ing.amount}" data-unit="${escHtml(ing.unit||'')}">
           ${fmtAmount(ing.amount,ing.unit)}
         </div>
@@ -1952,19 +1937,12 @@ function ingFieldRow(ing,i,total){
   const spice = isSpiceLike(ing.name||'', ing.unit||'');
   const isFirst = i===0;
   const isLast = total!=null && i===total-1;
-  const linkedIng = ing.ingredientId
-    ? state.ingredients.find(x=>x.id===ing.ingredientId)
-    : (ing.name ? state.ingredients.find(x=>x.name.toLowerCase()===(ing.name||'').toLowerCase()) : null);
-  const isLinked = !!linkedIng;
-  return `<div class="dynamic-item ${spice?'spice-row':''}" data-row="${i}" ${linkedIng?`data-linked-id="${linkedIng.id}"`:''}>
+  return `<div class="dynamic-item ${spice?'spice-row':''}" data-row="${i}">
     <div class="reorder">
       <button type="button" data-move-ing="up" ${isFirst?'disabled':''} aria-label="Monter">▲</button>
       <button type="button" data-move-ing="down" ${isLast?'disabled':''} aria-label="Descendre">▼</button>
     </div>
-    <div style="flex:2;display:flex;align-items:center;gap:4px;min-width:0">
-      <span class="link-badge" title="${isLinked?'Lié à un ingrédient':'Pas lié'}" style="font-size:14px;color:${isLinked?'var(--success)':'var(--cream-faint)'};flex-shrink:0">${isLinked?'⌁':'·'}</span>
-      <input class="ing-name-i" name="ing_name" list="ingredients-datalist" value="${escHtml(ing.name||'')}" placeholder="Ingrédient" style="flex:1;min-width:0">
-    </div>
+    <input class="ing-name-i" name="ing_name" value="${escHtml(ing.name||'')}" placeholder="Ingrédient">
     <input class="ing-amt-i" name="ing_amount" type="number" inputmode="decimal" step="any" value="${ing.amount==null||ing.unit==='au goût'?'':ing.amount}" placeholder="Qté">
     <input class="ing-unit-i" name="ing_unit" value="${escHtml(ing.unit||'')}" placeholder="g, ml…">
     <button type="button" class="rm" data-rm-ing>×</button>
@@ -2556,118 +2534,35 @@ function renderIngredientEdit(id){
           <button type="button" class="btn btn-ghost" data-back>Annuler</button>
         </div>
       </form>
-      ${!isNew ? renderIngredientUsage(i) : ''}
     </div>
   `;
 }
 
-function renderIngredientUsage(ing){
-  const ingNameLow = ing.name.toLowerCase();
-  const recipes = state.recipes.filter(r=>
-    r.ingredients.some(x => x.ingredientId===ing.id || (x.name||'').toLowerCase()===ingNameLow)
-  );
-  const fiches = state.fiches.filter(f=>
-    (f.components||[]).some(c => c.type==='ingredient' && c.refId===ing.id)
-  );
-  if(!recipes.length && !fiches.length){
-    return `<div class="section-block">
-      <div class="block-title">Utilisé dans</div>
-      <div class="kcal-empty">Pas encore utilisé dans une recette ou fiche.</div>
-    </div>`;
-  }
-  let html = `<div class="section-block"><div class="block-title">Utilisé dans (${recipes.length+fiches.length})</div>`;
-  if(recipes.length){
-    html += `<div class="muted" style="margin:6px 0 4px;font-size:11px;letter-spacing:.15em;text-transform:uppercase">Recettes</div>`;
-    html += recipes.map(r=>{
-      const ingMatch = r.ingredients.find(x => x.ingredientId===ing.id || (x.name||'').toLowerCase()===ingNameLow);
-      const qty = ingMatch && ingMatch.unit !== 'au goût' && ingMatch.amount > 0
-        ? `${ingMatch.amount}${ingMatch.unit||''}` : 'au goût';
-      return `<button class="linked-recipe" data-go="recipe/${r.id}" style="width:100%;text-align:left">
-        <span>${escHtml(r.name)}</span>
-        <span class="lr-amt">${qty}</span>
-        <span class="lr-arrow-after">›</span>
-      </button>`;
-    }).join('');
-  }
-  if(fiches.length){
-    html += `<div class="muted" style="margin:10px 0 4px;font-size:11px;letter-spacing:.15em;text-transform:uppercase">Fiches</div>`;
-    html += fiches.map(f=>{
-      const compMatch = (f.components||[]).find(c => c.type==='ingredient' && c.refId===ing.id);
-      const qty = compMatch ? `${compMatch.amount}${compMatch.unit||''}` : '';
-      return `<button class="linked-recipe" data-go="fiche/${f.id}" style="width:100%;text-align:left">
-        <span>${escHtml(f.name)}</span>
-        <span class="lr-amt">${qty}</span>
-        <span class="lr-arrow-after">›</span>
-      </button>`;
-    }).join('');
-  }
-  html += `</div>`;
-  return html;
-}
-
 /* ---------- STOCK ---------- */
-let stockFilter = 'all'; // 'all' | 'tobuy' | 'low'
-let stockStoreFilter = 'all'; // 'all' | store name | 'none'
-
-function buildStockEntries(){
-  const result = (state.stock||[]).map(s => ({...s, _virtual:false}));
-  state.ingredients.forEach(ing => {
-    if(!result.find(s => s.ingredientId === ing.id)){
-      result.push({
-        id: 's_v_'+ing.id,
-        ingredientId: ing.id,
-        name: ing.name,
-        qty: null,
-        unit: ing.unit,
-        toBuy: false,
-        note: '',
-        store: null,
-        _virtual: true
-      });
-    }
-  });
-  return result;
-}
-
-function getStockName(s){
-  if(s.ingredientId){
-    const ing = state.ingredients.find(i=>i.id===s.ingredientId);
-    if(ing) return ing.name;
-  }
-  return s.name || '?';
-}
+let stockFilter = 'all'; // 'all' | 'tobuy'
 
 function renderStock(){
-  const stores = state.settings.stores || [];
-  const all = buildStockEntries();
-  let items = [...all];
-  if(stockFilter==='tobuy') items = items.filter(s=>s.toBuy);
-  else if(stockFilter==='low') items = items.filter(s=>s.qty===0 || s.qty==null);
-  if(stockStoreFilter!=='all'){
-    if(stockStoreFilter==='none') items = items.filter(s=>!s.store);
-    else items = items.filter(s=>s.store===stockStoreFilter);
-  }
-  items.sort((a,b)=>{
+  const all = state.stock || [];
+  const items = stockFilter==='tobuy' ? all.filter(s=>s.toBuy) : all;
+  const sorted = [...items].sort((a,b)=>{
     if(a.toBuy && !b.toBuy) return -1;
     if(!a.toBuy && b.toBuy) return 1;
-    return getStockName(a).localeCompare(getStockName(b),'fr');
+    return a.name.localeCompare(b.name,'fr');
   });
   const toBuyCount = all.filter(s=>s.toBuy).length;
-  const lowCount = all.filter(s=>s.qty===0 || s.qty==null).length;
-  const list = items.length ? items.map(s=>{
+  const list = sorted.length ? sorted.map(s=>{
     const isZero = (s.qty===0 || s.qty==null);
-    const name = getStockName(s);
-    return `<div class="stock-row ${s.toBuy?'tobuy':''} ${s._virtual?'virtual':''}" data-stock="${s.id}">
+    return `<div class="stock-row ${s.toBuy?'tobuy':''}" data-stock="${s.id}">
       <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter">${s.toBuy?'!':''}</button>
       <div class="stock-body">
-        <div class="stock-name">${escHtml(name)}</div>
-        <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span>${s.store?` · <span style="color:var(--cyan);font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase">${escHtml(s.store)}</span>`:''}</div>
+        <div class="stock-name">${escHtml(s.name)}</div>
+        <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span></div>
         ${s.note?`<div class="stock-note">${escHtml(s.note)}</div>`:''}
       </div>
       <button class="stock-edit" data-edit-stock="${s.id}" aria-label="Éditer">✎</button>
-      ${!s._virtual && !s.ingredientId ? `<button class="stock-del" data-del-stock="${s.id}" aria-label="Supprimer">×</button>` : ''}
+      <button class="stock-del" data-del-stock="${s.id}" aria-label="Supprimer">×</button>
     </div>`;
-  }).join('') : `<div class="empty"><div class="empty-ico">🛒</div><p>Aucun produit dans ce filtre.</p></div>`;
+  }).join('') : `<div class="empty"><div class="empty-ico">🛒</div><p>Liste vide.<br>Touche le <b>+</b> pour ajouter un produit.</p></div>`;
   return `
     <div class="topbar">
       <button class="back" data-back>‹</button>
@@ -2676,24 +2571,17 @@ function renderStock(){
     <div class="view">
       <div class="seg-tabs">
         <button data-stock-filter="all" class="${stockFilter==='all'?'active':''}">Tous (${all.length})</button>
-        <button data-stock-filter="low" class="${stockFilter==='low'?'active':''}">Vide (${lowCount})</button>
         <button data-stock-filter="tobuy" class="${stockFilter==='tobuy'?'active':''}">À racheter (${toBuyCount})</button>
       </div>
-      ${stores.length ? `<div class="seg-tabs" style="margin-bottom:14px">
-        <button data-stock-store="all" class="${stockStoreFilter==='all'?'active':''}">Tous magasins</button>
-        ${stores.map(st=>`<button data-stock-store="${escHtml(st)}" class="${stockStoreFilter===st?'active':''}">${escHtml(st)}</button>`).join('')}
-        <button data-stock-store="none" class="${stockStoreFilter==='none'?'active':''}">Sans</button>
-      </div>` : ''}
-      <div class="muted" style="margin-bottom:10px;font-size:11px;letter-spacing:.1em">Touche la case rouge pour marquer "à racheter". ✎ pour modifier qté, magasin, note.</div>
+      <div class="muted" style="margin-bottom:10px;font-size:11px;letter-spacing:.1em">Touche la case rouge à gauche pour marquer "à racheter". Touche ✎ pour éditer la quantité.</div>
       <div class="list">${list}</div>
       <div class="divider"></div>
       <form id="stockForm" class="settings-group">
-        <div class="sg-head">Ajouter un produit hors ingrédients</div>
-        <div class="muted" style="margin-bottom:8px;font-size:11px">Pour des produits non-ingrédients (consommables, matériel…). Les ingrédients apparaissent automatiquement.</div>
+        <div class="sg-head">Ajouter un produit</div>
         <div class="form-row">
           <div class="form-group" style="flex:2">
             <label>Nom</label>
-            <input name="name" required placeholder="Ex : Papier alu">
+            <input name="name" required placeholder="Ex : Cheddar râpé">
           </div>
           <div class="form-group">
             <label>Quantité</label>
@@ -2704,13 +2592,6 @@ function renderStock(){
             <input name="unit" placeholder="kg, L…">
           </div>
         </div>
-        ${stores.length ? `<div class="form-group">
-          <label>Magasin</label>
-          <select name="store">
-            <option value="">— Aucun —</option>
-            ${stores.map(st=>`<option value="${escHtml(st)}">${escHtml(st)}</option>`).join('')}
-          </select>
-        </div>` : ''}
         <div class="form-group">
           <label>Note (optionnel)</label>
           <input name="note" placeholder="Ex : Pack de 100">
@@ -2722,32 +2603,22 @@ function renderStock(){
 }
 
 function renderStockEdit(id){
-  let s = (state.stock||[]).find(x=>x.id===id);
-  let isVirtual = false;
-  if(!s){
-    const all = buildStockEntries();
-    s = all.find(x=>x.id===id);
-    if(s) isVirtual = true;
-  }
+  const s = (state.stock||[]).find(x=>x.id===id);
   if(!s) return notFound('Produit introuvable','stock');
-  const stores = state.settings.stores || [];
-  const linkedIng = s.ingredientId ? state.ingredients.find(i=>i.id===s.ingredientId) : null;
-  const displayName = linkedIng ? linkedIng.name : s.name;
   return `
     <div class="topbar">
       <button class="back" data-back>‹</button>
       <h1>Produit</h1>
     </div>
     <div class="view">
-      <form id="stockEditForm" data-edit-id="${escHtml(s.id)}" data-virtual="${isVirtual?'1':''}">
+      <form id="stockEditForm" data-edit-id="${escHtml(s.id)}">
         <div class="form-group">
           <label>Nom</label>
-          ${linkedIng ? `<input value="${escHtml(displayName)}" disabled style="opacity:.6">
-          <p class="muted" style="margin-top:4px;font-size:11px">⌁ Lié à l'ingrédient. Pour changer le nom, modifie l'ingrédient.</p>` : `<input name="name" value="${escHtml(s.name||'')}" required>`}
+          <input name="name" value="${escHtml(s.name)}" required>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Quantité restante</label>
+            <label>Quantité</label>
             <input name="qty" type="number" inputmode="decimal" step="any" value="${s.qty==null?'':s.qty}">
           </div>
           <div class="form-group">
@@ -2755,13 +2626,6 @@ function renderStockEdit(id){
             <input name="unit" value="${escHtml(s.unit||'')}">
           </div>
         </div>
-        ${stores.length ? `<div class="form-group">
-          <label>Magasin où acheter</label>
-          <select name="store">
-            <option value="" ${!s.store?'selected':''}>— Aucun —</option>
-            ${stores.map(st=>`<option value="${escHtml(st)}" ${s.store===st?'selected':''}>${escHtml(st)}</option>`).join('')}
-          </select>
-        </div>` : ''}
         <div class="form-group">
           <label>Note</label>
           <input name="note" value="${escHtml(s.note||'')}">
@@ -2773,7 +2637,6 @@ function renderStockEdit(id){
         <input type="hidden" name="toBuy" value="${s.toBuy?'1':''}">
         <div class="btn-row">
           <button type="submit" class="btn btn-primary">Enregistrer</button>
-          ${!isVirtual && !s.ingredientId ? `<button type="button" class="btn btn-danger" data-del-stock="${s.id}">Supprimer</button>` : ''}
           <button type="button" class="btn btn-ghost" data-back>Annuler</button>
         </div>
       </form>
@@ -2872,19 +2735,6 @@ function renderSettings(){
         </div>
         <button type="button" class="add-btn" id="addTypeBtn">+ Ajouter un type</button>
         <button type="button" class="btn btn-secondary btn-block" id="saveCategoriesBtn" style="margin-top:10px">Enregistrer les catégories</button>
-      </div>
-
-      <div class="settings-group">
-        <div class="sg-head">Catégories — Magasins</div>
-        <div class="muted" style="margin-bottom:8px;font-size:11px">Pour la liste de stock : où acheter chaque produit.</div>
-        <div class="dynamic-list" id="storesList">
-          ${(s.stores||[]).map((st,i)=>`<div class="dynamic-item" data-store-row="${i}">
-            <input class="ing-name-i" name="store_name" value="${escHtml(st)}" placeholder="Nom de magasin">
-            <button type="button" class="rm" data-rm-store>×</button>
-          </div>`).join('')}
-        </div>
-        <button type="button" class="add-btn" id="addStoreBtn">+ Ajouter un magasin</button>
-        <button type="button" class="btn btn-secondary btn-block" id="saveStoresBtn" style="margin-top:10px">Enregistrer les magasins</button>
       </div>
 
       <div class="settings-group">
@@ -2997,10 +2847,6 @@ function bindSyncHandlers(){
   if(cfg.path) pathEl.value = cfg.path;
   if(cfg.branch) branchEl.value = cfg.branch;
   if(cfg.token) tokenEl.value = cfg.token;
-  // Prefill defaults if empty (everything except owner & token)
-  if(!repoEl.value) repoEl.value = 'resto-data';
-  if(!pathEl.value) pathEl.value = 'resto-data.json';
-  if(!branchEl.value) branchEl.value = 'main';
   if(autoSwitch && cfg.auto) autoSwitch.classList.add('on');
 
   updateSyncStatusUI();
@@ -3089,23 +2935,19 @@ function bindSyncHandlers(){
 function bindCategoriesHandlers(){
   const cuisinesList = $('#cuisinesList');
   const typesList = $('#typesList');
-  const storesList = $('#storesList');
   const addCuisineBtn = $('#addCuisineBtn');
   const addTypeBtn = $('#addTypeBtn');
-  const addStoreBtn = $('#addStoreBtn');
   const saveBtn = $('#saveCategoriesBtn');
-  const saveStoresBtn = $('#saveStoresBtn');
 
   if(!cuisinesList) return;
 
-  function bindRow(row, kind){
-    const sel = kind==='type' ? '[data-rm-type]' : kind==='store' ? '[data-rm-store]' : '[data-rm-cuis]';
-    const rm = row.querySelector(sel);
+  function bindRow(row, isType){
+    const rmAttr = isType ? '[data-rm-type]' : '[data-rm-cuis]';
+    const rm = row.querySelector(rmAttr);
     if(rm) rm.addEventListener('click',()=>row.remove());
   }
-  cuisinesList.querySelectorAll('[data-cuis-row]').forEach(r=>bindRow(r,'cuis'));
-  typesList.querySelectorAll('[data-type-row]').forEach(r=>bindRow(r,'type'));
-  if(storesList) storesList.querySelectorAll('[data-store-row]').forEach(r=>bindRow(r,'store'));
+  cuisinesList.querySelectorAll('[data-cuis-row]').forEach(r=>bindRow(r,false));
+  typesList.querySelectorAll('[data-type-row]').forEach(r=>bindRow(r,true));
 
   if(addCuisineBtn) addCuisineBtn.addEventListener('click',()=>{
     const idx = cuisinesList.children.length;
@@ -3116,7 +2958,7 @@ function bindCategoriesHandlers(){
     </div>`;
     const el = div.firstElementChild;
     cuisinesList.appendChild(el);
-    bindRow(el,'cuis');
+    bindRow(el,false);
     el.querySelector('input').focus();
   });
   if(addTypeBtn) addTypeBtn.addEventListener('click',()=>{
@@ -3128,19 +2970,7 @@ function bindCategoriesHandlers(){
     </div>`;
     const el = div.firstElementChild;
     typesList.appendChild(el);
-    bindRow(el,'type');
-    el.querySelector('input').focus();
-  });
-  if(addStoreBtn) addStoreBtn.addEventListener('click',()=>{
-    const idx = storesList.children.length;
-    const div = document.createElement('div');
-    div.innerHTML = `<div class="dynamic-item" data-store-row="${idx}">
-      <input class="ing-name-i" name="store_name" placeholder="Nom de magasin">
-      <button type="button" class="rm" data-rm-store>×</button>
-    </div>`;
-    const el = div.firstElementChild;
-    storesList.appendChild(el);
-    bindRow(el,'store');
+    bindRow(el,true);
     el.querySelector('input').focus();
   });
 
@@ -3151,13 +2981,6 @@ function bindCategoriesHandlers(){
     state.settings.types = types;
     await persist();
     toast('Catégories enregistrées');
-    render();
-  });
-  if(saveStoresBtn) saveStoresBtn.addEventListener('click',async()=>{
-    const stores = $$('#storesList input[name="store_name"]').map(i=>i.value.trim()).filter(Boolean);
-    state.settings.stores = stores;
-    await persist();
-    toast('Magasins enregistrés');
     render();
   });
 }
@@ -3197,29 +3020,6 @@ function attachHandlers(){
     });
   });
 
-  // Live update of link badge in recipe edit
-  $$('#ingFields .dynamic-item').forEach(row=>{
-    const nameInput = row.querySelector('[name="ing_name"]');
-    if(!nameInput) return;
-    const badge = row.querySelector('.link-badge');
-    if(!badge) return;
-    const update = ()=>{
-      const v = nameInput.value.trim().toLowerCase();
-      const found = v ? state.ingredients.find(i=>i.name.toLowerCase()===v) : null;
-      if(found){
-        badge.textContent = '⌁';
-        badge.style.color = 'var(--success)';
-        badge.title = 'Lié à : '+found.name;
-      } else {
-        badge.textContent = '·';
-        badge.style.color = 'var(--cream-faint)';
-        badge.title = 'Pas lié à un ingrédient connu';
-      }
-    };
-    nameInput.addEventListener('input',update);
-    nameInput.addEventListener('change',update);
-  });
-
   // Reorder ingredient
   $$('[data-move-ing]').forEach(b=>b.addEventListener('click',()=>{
     const dir = b.getAttribute('data-move-ing');
@@ -3254,24 +3054,12 @@ function attachHandlers(){
     stockFilter = b.getAttribute('data-stock-filter');
     render();
   }));
-  $$('[data-stock-store]').forEach(b=>b.addEventListener('click',()=>{
-    stockStoreFilter = b.getAttribute('data-stock-store');
-    render();
-  }));
-  // Stock toggle to-buy (handles virtual entries by materializing)
+  // Stock toggle to-buy
   $$('[data-toggle-stock]').forEach(b=>b.addEventListener('click',async()=>{
     const id = b.getAttribute('data-toggle-stock');
-    let s = (state.stock||[]).find(x=>x.id===id);
-    if(!s){
-      const all = buildStockEntries();
-      const v = all.find(x=>x.id===id);
-      if(!v) return;
-      s = { id: uid('s'), ingredientId: v.ingredientId, name: v.name, qty: null, unit: v.unit, toBuy: true, note: '', store: null };
-      if(!state.stock) state.stock = [];
-      state.stock.push(s);
-    } else {
-      s.toBuy = !s.toBuy;
-    }
+    const s = (state.stock||[]).find(x=>x.id===id);
+    if(!s) return;
+    s.toBuy = !s.toBuy;
     await persist();
     render();
   }));
@@ -3283,10 +3071,9 @@ function attachHandlers(){
     if(!confirm('Supprimer ce produit de la liste de stock ?')) return;
     state.stock = (state.stock||[]).filter(s=>s.id!==id);
     await persist();
-    if(window.location.hash.startsWith('#stock/')) navigate('#stock');
-    else render();
+    render();
   }));
-  // Stock add form (custom non-ingredient products)
+  // Stock add form
   const stockForm = $('#stockForm');
   if(stockForm){
     stockForm.addEventListener('submit',async e=>{
@@ -3297,45 +3084,31 @@ function attachHandlers(){
       if(!state.stock) state.stock = [];
       state.stock.push({
         id: uid('s'),
-        ingredientId: null,
         name,
         qty: fd.get('qty')!=='' ? parseFloat(fd.get('qty')) : null,
         unit: fd.get('unit').toString().trim(),
         toBuy: false,
-        note: fd.get('note').toString().trim(),
-        store: (fd.get('store')||'').toString().trim() || null
+        note: fd.get('note').toString().trim()
       });
       await persist();
       toast('Produit ajouté');
       render();
     });
   }
-  // Stock edit form (handles virtual materialization)
+  // Stock edit form
   const stockEditForm = $('#stockEditForm');
   if(stockEditForm){
     stockEditForm.addEventListener('submit',async e=>{
       e.preventDefault();
       const editId = stockEditForm.getAttribute('data-edit-id');
-      const isVirtual = stockEditForm.getAttribute('data-virtual')==='1';
+      const s = (state.stock||[]).find(x=>x.id===editId);
+      if(!s) return;
       const fd = new FormData(stockEditForm);
-      let s;
-      if(isVirtual){
-        const all = buildStockEntries();
-        const v = all.find(x=>x.id===editId);
-        if(!v){ alert('Entrée introuvable'); return; }
-        s = { id: uid('s'), ingredientId: v.ingredientId, name: v.name };
-        if(!state.stock) state.stock = [];
-        state.stock.push(s);
-      } else {
-        s = (state.stock||[]).find(x=>x.id===editId);
-        if(!s) return;
-      }
-      if(!s.ingredientId) s.name = fd.get('name').toString().trim();
+      s.name = fd.get('name').toString().trim();
       s.qty = fd.get('qty')!=='' ? parseFloat(fd.get('qty')) : null;
       s.unit = fd.get('unit').toString().trim();
       s.note = fd.get('note').toString().trim();
       s.toBuy = !!fd.get('toBuy');
-      s.store = (fd.get('store')||'').toString().trim() || null;
       await persist();
       toast('Enregistré');
       navigate('#stock');
@@ -3761,10 +3534,7 @@ async function handleRecipeSubmit(e){
     if(!name) return;
     const amount = parseFloat(row.querySelector('[name="ing_amount"]').value)||0;
     const unit = row.querySelector('[name="ing_unit"]').value.trim();
-    const matched = state.ingredients.find(i=>i.name.toLowerCase()===name.toLowerCase());
-    const ingObj = {name, amount, unit};
-    if(matched) ingObj.ingredientId = matched.id;
-    ings.push(ingObj);
+    ings.push({name,amount,unit});
   });
 
   const photo = (fd.get('photo')||'').toString() || null;
@@ -3983,12 +3753,10 @@ async function init(){
   loaded.settings = Object.assign({
     showPrices:false, showCalories:true, showHalal:true, currency:'€',
     cuisines: ['burger','mexicain'],
-    types: ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'],
-    stores: ['Sligro','Carrefour','Magasins du monde']
+    types: ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres']
   }, loaded.settings||{});
   if(!loaded.settings.cuisines || !loaded.settings.cuisines.length) loaded.settings.cuisines = ['burger','mexicain'];
   if(!loaded.settings.types || !loaded.settings.types.length) loaded.settings.types = ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'];
-  if(!loaded.settings.stores) loaded.settings.stores = ['Sligro','Carrefour','Magasins du monde'];
 
   loaded.fiches = loaded.fiches||[];
   loaded.tasks = loaded.tasks||[];
