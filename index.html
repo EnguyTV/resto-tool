@@ -488,9 +488,13 @@ const SyncConfig = {
 };
 
 const GitHubSync = {
-  async fetchFile(cfg){
-    const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${cfg.path}?ref=${encodeURIComponent(cfg.branch||'main')}`;
-    const r = await fetch(url, { headers: { 'Authorization': 'token ' + cfg.token, 'Accept': 'application/vnd.github.v3+json' }});
+  async fetchFile(cfg, path, etag){
+    path = path || cfg.path || LIBRARY_FILE;
+    const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${path}?ref=${encodeURIComponent(cfg.branch||'main')}`;
+    const headers = { 'Authorization': 'token ' + cfg.token, 'Accept': 'application/vnd.github.v3+json' };
+    if(etag) headers['If-None-Match'] = etag;
+    const r = await fetch(url, { headers });
+    if(r.status===304) return { notModified:true };
     if(r.status===404) return { exists:false };
     if(!r.ok) throw new Error('GitHub fetch HTTP '+r.status);
     const j = await r.json();
@@ -498,15 +502,16 @@ const GitHubSync = {
     const text = decodeURIComponent(escape(bytes));
     let data = null;
     try{ data = JSON.parse(text); }catch(e){ throw new Error('Fichier corrompu sur GitHub'); }
-    return { exists:true, data, sha: j.sha };
+    return { exists:true, data, sha: j.sha, etag: r.headers.get('ETag') };
   },
-  async putFile(cfg, dataObj, sha){
-    const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${cfg.path}`;
+  async putFile(cfg, dataObj, sha, path){
+    path = path || cfg.path || LIBRARY_FILE;
+    const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${path}`;
     const text = JSON.stringify(dataObj, null, 2);
     const bytes = unescape(encodeURIComponent(text));
     let b64 = '';
     try{ b64 = btoa(bytes); }catch(e){ throw new Error('Encodage base64 impossible'); }
-    const body = { message: 'Resto Tool sync ' + new Date().toISOString(), content: b64, branch: cfg.branch || 'main' };
+    const body = { message: 'Resto Tool sync '+path+' '+ new Date().toISOString(), content: b64, branch: cfg.branch || 'main' };
     if(sha) body.sha = sha;
     const r = await fetch(url, {
       method: 'PUT',
@@ -515,7 +520,9 @@ const GitHubSync = {
     });
     if(!r.ok){
       const err = await r.json().catch(()=>({}));
-      throw new Error('GitHub push: '+(err.message||r.status));
+      const e = new Error('GitHub push: '+(err.message||r.status));
+      e.status = r.status;
+      throw e;
     }
     const j = await r.json();
     return { sha: j.content.sha };
@@ -530,10 +537,96 @@ const GitHubSync = {
   }
 };
 
-let _currentSha = null;
+let _currentSha = null; // legacy, kept for backward compat
+let _libSha = null;
+let _sharedSha = null;
+let _sharedETag = null;
+let _libETag = null;
 let _pushTimer = null;
+let _pollTimer = null;
 let _syncStatus = 'idle';
 let _syncError = '';
+let _lastPushedLibHash = null;
+let _lastPushedSharedHash = null;
+const POLL_INTERVAL_MS = 30000; // 30s
+const LIBRARY_FILE = 'resto-data.json';
+const SHARED_FILE  = 'resto-shared.json';
+
+function splitState(){
+  // Returns { library, shared }
+  const library = {
+    version: 4,
+    schema: 'library',
+    recipes: state.recipes || [],
+    fiches: state.fiches || [],
+    ingredients: state.ingredients || [],
+    tasks: (state.tasks||[]).map(t => {
+      const { done, lastDone, ...def } = t;
+      return def;
+    }),
+    routines: (state.routines||[]).map(r => {
+      const { checked, ...def } = r;
+      return def;
+    }),
+    settings: state.settings || {},
+    updatedAt: Date.now()
+  };
+  const shared = {
+    version: 4,
+    schema: 'shared',
+    stock: state.stock || [],
+    taskDone: {},
+    routineChecked: {},
+    updatedAt: Date.now()
+  };
+  (state.tasks||[]).forEach(t => { if(t.done) shared.taskDone[t.id] = true; });
+  (state.routines||[]).forEach(r => {
+    if(r.checked && Object.keys(r.checked).length){
+      shared.routineChecked[r.id] = r.checked;
+    }
+  });
+  return { library, shared };
+}
+
+function applyLibraryFromCloud(lib){
+  if(!lib) return;
+  state.recipes = lib.recipes || [];
+  state.fiches = lib.fiches || [];
+  state.ingredients = lib.ingredients || [];
+  state.settings = Object.assign(state.settings||{}, lib.settings||{});
+  // Tasks: replace definitions, preserve local done state by id
+  const preservedDone = {};
+  (state.tasks||[]).forEach(t => { if(t.done) preservedDone[t.id] = true; });
+  state.tasks = (lib.tasks||[]).map(t => ({
+    ...t,
+    done: !!preservedDone[t.id]
+  }));
+  // Routines: replace definitions, preserve checked state by id
+  const preservedChecked = {};
+  (state.routines||[]).forEach(r => { preservedChecked[r.id] = r.checked||{}; });
+  state.routines = (lib.routines||[]).map(r => ({
+    ...r,
+    checked: preservedChecked[r.id] || {}
+  }));
+}
+
+function applySharedFromCloud(sh){
+  if(!sh) return;
+  state.stock = sh.stock || [];
+  if(sh.taskDone){
+    (state.tasks||[]).forEach(t => { t.done = !!sh.taskDone[t.id]; });
+  }
+  if(sh.routineChecked){
+    (state.routines||[]).forEach(r => {
+      if(sh.routineChecked[r.id]) r.checked = sh.routineChecked[r.id];
+    });
+  }
+}
+
+function getRole(){
+  return (state.settings && state.settings.role) || 'chef';
+}
+function isChef(){ return getRole() === 'chef'; }
 
 const Storage = {
   async load(){
@@ -567,7 +660,7 @@ const Storage = {
     const cfg = SyncConfig.load();
     if(cfg && cfg.token && cfg.owner && cfg.repo && cfg.auto){
       if(_pushTimer) clearTimeout(_pushTimer);
-      _pushTimer = setTimeout(()=>cloudPush(true), 2000);
+      _pushTimer = setTimeout(()=>autoPushIfDirty(), 2000);
     }
   },
   async clear(){
@@ -582,21 +675,50 @@ async function cloudPull(silent){
   if(!cfg || !cfg.token){ if(!silent) toast('Sync non configurée'); return false; }
   _syncStatus = 'syncing'; updateSyncStatusUI();
   try{
-    const res = await GitHubSync.fetchFile(cfg);
-    if(!res.exists){
-      _syncStatus = 'ok'; _syncError = '';
-      if(!silent) toast('Aucun fichier sur GitHub — fais "Push" pour créer.');
-      updateSyncStatusUI();
-      return false;
+    // Fetch both files
+    const [libRes, sharedRes] = await Promise.all([
+      GitHubSync.fetchFile(cfg, LIBRARY_FILE).catch(e=>({error:e})),
+      GitHubSync.fetchFile(cfg, SHARED_FILE).catch(e=>({error:e}))
+    ]);
+    if(libRes.error && sharedRes.error) throw libRes.error;
+
+    let libData = null;
+    if(libRes.exists){
+      libData = libRes.data;
+      _libSha = libRes.sha;
+      _libETag = libRes.etag;
     }
-    state = res.data;
-    _currentSha = res.sha;
+    let sharedData = null;
+    if(sharedRes.exists){
+      sharedData = sharedRes.data;
+      _sharedSha = sharedRes.sha;
+      _sharedETag = sharedRes.etag;
+    }
+
+    // Detect old single-file format on library path (pre-v4): full state in resto-data.json
+    if(libData && libData.schema !== 'library'){
+      // Old format: contains everything mashed together
+      // Apply it wholesale as the state, but mark as "needs republish in new format"
+      state = libData;
+      ensureDefaults();
+      _lastPushedLibHash = null; // force fresh push to upgrade format
+      _lastPushedSharedHash = null;
+    } else {
+      if(libData) applyLibraryFromCloud(libData);
+      if(sharedData) applySharedFromCloud(sharedData);
+    }
+
     cfg.lastSync = Date.now();
     SyncConfig.save(cfg);
+    // Save locally without retriggering push
     const oldAuto = cfg.auto;
     cfg.auto = false; SyncConfig.save(cfg);
     await Storage.save(state);
     cfg.auto = oldAuto; SyncConfig.save(cfg);
+    // Mark current cloud state as "last pushed" so we don't push back immediately
+    const split = splitState();
+    _lastPushedLibHash = JSON.stringify(split.library);
+    _lastPushedSharedHash = JSON.stringify(split.shared);
     _syncStatus = 'ok'; _syncError = '';
     if(!silent) toast('Données récupérées depuis GitHub');
     render();
@@ -610,31 +732,57 @@ async function cloudPull(silent){
 }
 
 async function cloudPush(silent){
+  // Manual full push: try both files according to role
   const cfg = SyncConfig.load();
   if(!cfg || !cfg.token){ if(!silent) toast('Sync non configurée'); return false; }
   _syncStatus = 'syncing'; updateSyncStatusUI();
   try{
-    if(!_currentSha){
-      const res = await GitHubSync.fetchFile(cfg);
-      if(res.exists) _currentSha = res.sha;
+    const split = splitState();
+    // Push library only if chef
+    if(isChef()){
+      if(!_libSha){
+        try{
+          const res = await GitHubSync.fetchFile(cfg, LIBRARY_FILE);
+          if(res.exists){ _libSha = res.sha; _libETag = res.etag; }
+        }catch(e){}
+      }
+      const lr = await GitHubSync.putFile(cfg, split.library, _libSha, LIBRARY_FILE);
+      _libSha = lr.sha;
+      _lastPushedLibHash = JSON.stringify(split.library);
     }
-    const r = await GitHubSync.putFile(cfg, state, _currentSha);
-    _currentSha = r.sha;
+    // Push shared (everyone)
+    if(!_sharedSha){
+      try{
+        const res = await GitHubSync.fetchFile(cfg, SHARED_FILE);
+        if(res.exists){ _sharedSha = res.sha; _sharedETag = res.etag; }
+      }catch(e){}
+    }
+    const sr = await GitHubSync.putFile(cfg, split.shared, _sharedSha, SHARED_FILE);
+    _sharedSha = sr.sha;
+    _lastPushedSharedHash = JSON.stringify(split.shared);
+
     cfg.lastSync = Date.now();
     SyncConfig.save(cfg);
     _syncStatus = 'ok'; _syncError = '';
-    if(!silent) toast('Données envoyées sur GitHub');
+    if(!silent){
+      toast(isChef() ? 'Bibliothèque + état envoyés' : 'État partagé envoyé');
+    }
     updateSyncStatusUI();
     return true;
   }catch(err){
     _syncStatus = 'error'; _syncError = err.message || String(err);
-    if(/sha/i.test(_syncError) || /409/.test(_syncError)){
+    if(err.status===403 && !isChef()){
+      if(!silent) alert("Ton rôle 'Service' n'autorise pas cette action. Bascule en 'Cuisinier' pour modifier la bibliothèque.");
+    } else if(/sha/i.test(_syncError) || /409/.test(_syncError) || err.status===409 || err.status===422){
+      // Conflict: refresh SHAs
       try{
-        const res = await GitHubSync.fetchFile(cfg);
-        if(res.exists){
-          _currentSha = res.sha;
-          if(!silent) alert('Conflit : un autre appareil a modifié les données. Fais "Pull" puis renouvelle ton "Push".');
+        if(isChef()){
+          const r1 = await GitHubSync.fetchFile(cfg, LIBRARY_FILE);
+          if(r1.exists){ _libSha = r1.sha; _libETag = r1.etag; }
         }
+        const r2 = await GitHubSync.fetchFile(cfg, SHARED_FILE);
+        if(r2.exists){ _sharedSha = r2.sha; _sharedETag = r2.etag; }
+        if(!silent) alert('Conflit détecté. Fais "Pull" pour fusionner, puis renouvelle ton "Push".');
       }catch(e){}
     } else if(!silent) alert('Erreur de push : '+_syncError);
     updateSyncStatusUI();
@@ -642,16 +790,142 @@ async function cloudPush(silent){
   }
 }
 
+// Auto-push: only pushes what has changed since last push, respecting role
+async function autoPushIfDirty(){
+  const cfg = SyncConfig.load();
+  if(!cfg || !cfg.token || !cfg.owner || !cfg.repo) return;
+  if(!cfg.auto) return;
+  const split = splitState();
+  const libHash = JSON.stringify(split.library);
+  const sharedHash = JSON.stringify(split.shared);
+  const libDirty = isChef() && libHash !== _lastPushedLibHash;
+  const sharedDirty = sharedHash !== _lastPushedSharedHash;
+  if(!libDirty && !sharedDirty) return;
+  _syncStatus = 'syncing'; updateSyncStatusUI();
+  try{
+    if(libDirty){
+      const lr = await GitHubSync.putFile(cfg, split.library, _libSha, LIBRARY_FILE);
+      _libSha = lr.sha;
+      _lastPushedLibHash = libHash;
+    }
+    if(sharedDirty){
+      const sr = await GitHubSync.putFile(cfg, split.shared, _sharedSha, SHARED_FILE);
+      _sharedSha = sr.sha;
+      _lastPushedSharedHash = sharedHash;
+    }
+    cfg.lastSync = Date.now();
+    SyncConfig.save(cfg);
+    _syncStatus = 'ok'; _syncError = '';
+    updateSyncStatusUI();
+  }catch(err){
+    _syncStatus = 'error'; _syncError = err.message || String(err);
+    if(err.status===409 || err.status===422 || /sha/i.test(_syncError)){
+      // Stale SHA: refresh and try once more
+      try{
+        const r2 = await GitHubSync.fetchFile(cfg, SHARED_FILE);
+        if(r2.exists){ _sharedSha = r2.sha; _sharedETag = r2.etag; }
+        if(isChef()){
+          const r1 = await GitHubSync.fetchFile(cfg, LIBRARY_FILE);
+          if(r1.exists){ _libSha = r1.sha; _libETag = r1.etag; }
+        }
+      }catch(e){}
+    }
+    updateSyncStatusUI();
+  }
+}
+
+// Poll shared file (everyone) — and library if older than ~5 min (chef less often, service often)
+async function pollSync(){
+  const cfg = SyncConfig.load();
+  if(!cfg || !cfg.token || !cfg.owner || !cfg.repo) return;
+  try{
+    // Shared first (most frequent change)
+    const r = await GitHubSync.fetchFile(cfg, SHARED_FILE, _sharedETag);
+    if(r.notModified){ /* no change */ }
+    else if(r.exists){
+      _sharedSha = r.sha;
+      _sharedETag = r.etag;
+      // Apply only if it differs from what we last pushed
+      const remoteHash = JSON.stringify(r.data);
+      if(remoteHash !== _lastPushedSharedHash){
+        applySharedFromCloud(r.data);
+        _lastPushedSharedHash = JSON.stringify(splitState().shared);
+        // Save locally without retriggering push
+        const oldAuto = cfg.auto;
+        cfg.auto = false; SyncConfig.save(cfg);
+        await Storage.save(state);
+        cfg.auto = oldAuto; SyncConfig.save(cfg);
+        render();
+      }
+    }
+    // Library: throttled - every ~5 polls (~2.5 min)
+    if(!_libPollCount) _libPollCount = 0;
+    _libPollCount++;
+    if(_libPollCount >= 5){
+      _libPollCount = 0;
+      const rl = await GitHubSync.fetchFile(cfg, LIBRARY_FILE, _libETag);
+      if(rl.notModified){ /* unchanged */ }
+      else if(rl.exists && rl.data && rl.data.schema === 'library'){
+        _libSha = rl.sha;
+        _libETag = rl.etag;
+        const remoteHash = JSON.stringify(rl.data);
+        if(remoteHash !== _lastPushedLibHash){
+          applyLibraryFromCloud(rl.data);
+          _lastPushedLibHash = JSON.stringify(splitState().library);
+          const oldAuto = cfg.auto;
+          cfg.auto = false; SyncConfig.save(cfg);
+          await Storage.save(state);
+          cfg.auto = oldAuto; SyncConfig.save(cfg);
+          render();
+        }
+      }
+    }
+    if(_syncStatus !== 'syncing'){ _syncStatus = 'ok'; _syncError = ''; }
+    updateSyncStatusUI();
+  }catch(err){
+    // Don't alert on poll errors, just update status
+    _syncStatus = 'error'; _syncError = (err.message||String(err));
+    updateSyncStatusUI();
+  }
+}
+
+let _libPollCount = 0;
+
+function startPolling(){
+  stopPolling();
+  const cfg = SyncConfig.load();
+  if(!cfg || !cfg.token || !cfg.owner || !cfg.repo) return;
+  _pollTimer = setInterval(()=>pollSync(), POLL_INTERVAL_MS);
+}
+function stopPolling(){
+  if(_pollTimer){ clearInterval(_pollTimer); _pollTimer = null; }
+}
+
 function updateSyncStatusUI(){
   const el = document.getElementById('syncStatus');
   if(!el) return;
   const cfg = SyncConfig.load();
-  if(!cfg || !cfg.token){ el.textContent='Non configurée'; el.style.color='var(--cream-faint)'; return; }
-  if(_syncStatus==='syncing'){ el.innerHTML='<span class="spinner"></span> Synchronisation…'; el.style.color='var(--cyan)'; return; }
-  if(_syncStatus==='error'){ el.textContent='⚠ '+_syncError; el.style.color='var(--danger)'; return; }
+  const role = getRole();
+  const roleLabel = role==='service' ? '🛎 Service' : '🍳 Cuisinier';
+  if(!cfg || !cfg.token){
+    el.textContent = 'Non configurée · '+roleLabel;
+    el.style.color = 'var(--cream-faint)';
+    return;
+  }
+  if(_syncStatus==='syncing'){
+    el.innerHTML = '<span class="spinner"></span> Synchronisation… · '+roleLabel;
+    el.style.color = 'var(--cyan)';
+    return;
+  }
+  if(_syncStatus==='error'){
+    el.textContent = '⚠ '+_syncError+' · '+roleLabel;
+    el.style.color = 'var(--danger)';
+    return;
+  }
   const t = cfg.lastSync ? new Date(cfg.lastSync).toLocaleString('fr-FR',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}) : '—';
-  el.textContent='✓ Sync : '+t;
-  el.style.color='var(--success)';
+  const polling = _pollTimer ? ' · 🟢 live' : '';
+  el.textContent = '✓ Sync : '+t+polling+' · '+roleLabel;
+  el.style.color = 'var(--success)';
 }
 
 
@@ -2988,6 +3262,19 @@ function renderSettings(){
           <label>Personal Access Token (fine-grained)</label>
           <input id="syncToken" type="password" placeholder="github_pat_…">
         </div>
+
+        <div class="form-group">
+          <label>Rôle sur cet appareil</label>
+          <div class="role-pills" style="display:flex;gap:8px;margin-top:6px">
+            <button type="button" class="role-pill ${(s.role==='chef'||!s.role)?'active':''}" data-role="chef" style="flex:1;padding:10px;background:${(s.role==='chef'||!s.role)?'var(--gold)':'var(--dark-2)'};color:${(s.role==='chef'||!s.role)?'var(--dark)':'var(--cream-dim)'};border-radius:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px">🍳 Cuisinier</button>
+            <button type="button" class="role-pill ${s.role==='service'?'active':''}" data-role="service" style="flex:1;padding:10px;background:${s.role==='service'?'var(--cyan)':'var(--dark-2)'};color:${s.role==='service'?'var(--dark)':'var(--cream-dim)'};border-radius:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px">🛎 Service</button>
+          </div>
+          <p class="muted" style="margin-top:6px;font-size:11px;line-height:1.5">
+            <b>Cuisinier</b> : peut modifier recettes, fiches, ingrédients, tâches/routines, paramètres.<br>
+            <b>Service</b> : lecture seule sur la bibliothèque. Peut modifier stock + cocher tâches/routines. Pratique pour l'équipe de salle.
+          </p>
+        </div>
+
         <button class="toggle" data-toggle-sync-auto>
           <span class="toggle-label">Push automatique à chaque modification</span>
           <span class="toggle-switch" id="syncAutoSwitch"></span>
@@ -3179,6 +3466,17 @@ function bindSyncHandlers(){
     });
   }
 
+  // Role pills
+  $$('.role-pill').forEach(btn=>{
+    btn.addEventListener('click',async()=>{
+      const role = btn.getAttribute('data-role');
+      state.settings.role = role;
+      await persist();
+      toast('Rôle : '+(role==='chef'?'Cuisinier':'Service'));
+      render();
+    });
+  });
+
   const collect = ()=>({
     owner: ownerEl.value.trim(),
     repo: repoEl.value.trim(),
@@ -3196,6 +3494,7 @@ function bindSyncHandlers(){
     SyncConfig.save(c);
     toast('Config enregistrée');
     updateSyncStatusUI();
+    startPolling();
   });
 
   const testBtn = $('#syncTestBtn');
@@ -3225,18 +3524,31 @@ function bindSyncHandlers(){
   });
 
   const pushBtn = $('#syncPushBtn');
-  if(pushBtn) pushBtn.addEventListener('click',async()=>{
-    const c = collect();
-    if(!c.owner || !c.repo || !c.token){ alert('Configure et enregistre d\'abord'); return; }
-    SyncConfig.save(c);
-    await cloudPush(false);
-  });
+  if(pushBtn){
+    if(getRole()==='service'){
+      pushBtn.textContent = '⬆ Push état partagé';
+      pushBtn.title = "Pousse uniquement le stock + tâches cochées (lecture seule sur la bibliothèque)";
+    } else {
+      pushBtn.textContent = '⬆ Push (envoyer)';
+    }
+    pushBtn.addEventListener('click',async()=>{
+      const c = collect();
+      if(!c.owner || !c.repo || !c.token){ alert('Configure et enregistre d\'abord'); return; }
+      SyncConfig.save(c);
+      await cloudPush(false);
+    });
+  }
 
   const clearBtn = $('#syncClearBtn');
   if(clearBtn) clearBtn.addEventListener('click',()=>{
     if(!confirm('Effacer la config sync (les données locales et GitHub restent intactes) ?')) return;
     SyncConfig.clear();
     _currentSha = null;
+    _libSha = null;
+    _sharedSha = null;
+    _libETag = null;
+    _sharedETag = null;
+    stopPolling();
     toast('Config effacée');
     render();
   });
@@ -4519,11 +4831,13 @@ async function init(){
     showPrices:false, showCalories:true, showHalal:true, currency:'€',
     cuisines: ['burger','mexicain'],
     types: ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'],
-    stores: ['Sligro','Carrefour','Magasins du monde']
+    stores: ['Sligro','Carrefour','Magasins du monde'],
+    role: 'chef'
   }, loaded.settings||{});
   if(!loaded.settings.cuisines || !loaded.settings.cuisines.length) loaded.settings.cuisines = ['burger','mexicain'];
   if(!loaded.settings.types || !loaded.settings.types.length) loaded.settings.types = ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'];
   if(!loaded.settings.stores) loaded.settings.stores = ['Sligro','Carrefour','Magasins du monde'];
+  if(!loaded.settings.role) loaded.settings.role = 'chef';
 
   loaded.fiches = loaded.fiches||[];
   loaded.tasks = loaded.tasks||[];
@@ -4550,14 +4864,33 @@ async function init(){
   window.addEventListener('hashchange',render);
   render();
 
-  // Auto-pull at startup if sync configured
+  // Auto-pull at startup if sync configured + start polling
   const syncCfg = SyncConfig.load();
-  if(syncCfg && syncCfg.token && syncCfg.owner && syncCfg.repo && syncCfg.auto){
+  if(syncCfg && syncCfg.token && syncCfg.owner && syncCfg.repo){
     setTimeout(()=>{
-      cloudPull(true).then(success=>{ if(!success) updateSyncStatusUI(); });
+      cloudPull(true).then(()=>{
+        updateSyncStatusUI();
+        startPolling();
+      });
     }, 500);
   }
 }
+
+function ensureDefaults(){
+  if(!state) return;
+  state.settings = state.settings || {};
+  if(!state.settings.role) state.settings.role = 'chef';
+  if(!state.settings.cuisines) state.settings.cuisines = ['burger','mexicain'];
+  if(!state.settings.types) state.settings.types = ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'];
+  if(!state.settings.stores) state.settings.stores = ['Sligro','Carrefour','Magasins du monde'];
+  if(!state.recipes) state.recipes = [];
+  if(!state.fiches) state.fiches = [];
+  if(!state.ingredients) state.ingredients = [];
+  if(!state.tasks) state.tasks = [];
+  if(!state.routines) state.routines = [];
+  if(!state.stock) state.stock = [];
+}
+
 init();
 </script>
 </body>
