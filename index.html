@@ -476,10 +476,28 @@ const STORAGE_KEY = 'restoTool_v3';
 const SYNC_CONFIG_KEY = 'restoTool_syncConfig';
 const memStore = {};
 
+// Pre-filled defaults so colleagues only need to press "Start".
+// NOTE: this token is embedded in a public GitHub Pages file. Acceptable only
+// for a private internal tool. Revoke + replace if it ever leaks.
+const SYNC_DEFAULTS = {
+  owner: 'Enguytv',
+  repo: 'resto-data',
+  path: 'resto-data.json',
+  branch: 'main',
+  token: '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',
+  auto: true
+};
+
 const SyncConfig = {
   load(){
     try{ const v = localStorage.getItem(SYNC_CONFIG_KEY); if(v) return JSON.parse(v); }catch(e){}
     return null;
+  },
+  // Returns saved config OR the prefilled defaults (so the app is usable out of the box)
+  loadOrDefaults(){
+    const saved = this.load();
+    if(saved && saved.token && saved.owner && saved.repo) return saved;
+    return Object.assign({}, SYNC_DEFAULTS);
   },
   save(cfg){
     try{ localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(cfg)); }catch(e){}
@@ -575,6 +593,7 @@ function splitState(){
     version: 4,
     schema: 'shared',
     stock: state.stock || [],
+    prep: state.prep || {},
     taskDone: {},
     routineChecked: {},
     updatedAt: Date.now()
@@ -613,6 +632,7 @@ function applyLibraryFromCloud(lib){
 function applySharedFromCloud(sh){
   if(!sh) return;
   state.stock = sh.stock || [];
+  state.prep = sh.prep || {};
   if(sh.taskDone){
     (state.tasks||[]).forEach(t => { t.done = !!sh.taskDone[t.id]; });
   }
@@ -624,7 +644,7 @@ function applySharedFromCloud(sh){
 }
 
 function getRole(){
-  return (state.settings && state.settings.role) || 'chef';
+  return (state.settings && state.settings.role) || 'service';
 }
 function isChef(){ return getRole() === 'chef'; }
 
@@ -657,7 +677,7 @@ const Storage = {
       }
     }
     if(!saved){ memStore[STORAGE_KEY] = data; }
-    const cfg = SyncConfig.load();
+    const cfg = SyncConfig.loadOrDefaults();
     if(cfg && cfg.token && cfg.owner && cfg.repo && cfg.auto){
       if(_pushTimer) clearTimeout(_pushTimer);
       _pushTimer = setTimeout(()=>autoPushIfDirty(), 2000);
@@ -671,7 +691,7 @@ const Storage = {
 };
 
 async function cloudPull(silent){
-  const cfg = SyncConfig.load();
+  const cfg = SyncConfig.loadOrDefaults();
   if(!cfg || !cfg.token){ if(!silent) toast('Sync non configurée'); return false; }
   _syncStatus = 'syncing'; updateSyncStatusUI();
   try{
@@ -733,7 +753,7 @@ async function cloudPull(silent){
 
 async function cloudPush(silent){
   // Manual full push: try both files according to role
-  const cfg = SyncConfig.load();
+  const cfg = SyncConfig.loadOrDefaults();
   if(!cfg || !cfg.token){ if(!silent) toast('Sync non configurée'); return false; }
   _syncStatus = 'syncing'; updateSyncStatusUI();
   try{
@@ -792,7 +812,7 @@ async function cloudPush(silent){
 
 // Auto-push: only pushes what has changed since last push, respecting role
 async function autoPushIfDirty(){
-  const cfg = SyncConfig.load();
+  const cfg = SyncConfig.loadOrDefaults();
   if(!cfg || !cfg.token || !cfg.owner || !cfg.repo) return;
   if(!cfg.auto) return;
   const split = splitState();
@@ -836,7 +856,7 @@ async function autoPushIfDirty(){
 
 // Poll shared file (everyone) — and library if older than ~5 min (chef less often, service often)
 async function pollSync(){
-  const cfg = SyncConfig.load();
+  const cfg = SyncConfig.loadOrDefaults();
   if(!cfg || !cfg.token || !cfg.owner || !cfg.repo) return;
   try{
     // Shared first (most frequent change)
@@ -893,7 +913,7 @@ let _libPollCount = 0;
 
 function startPolling(){
   stopPolling();
-  const cfg = SyncConfig.load();
+  const cfg = SyncConfig.loadOrDefaults();
   if(!cfg || !cfg.token || !cfg.owner || !cfg.repo) return;
   _pollTimer = setInterval(()=>pollSync(), POLL_INTERVAL_MS);
 }
@@ -938,6 +958,7 @@ function defaultData(){
     fiches: defaultFiches(),
     routines: defaultRoutines(),
     stock: defaultStock(),
+    prep: {},
     tasks: [
       {id:'t1', title:'Vérifier stock cheddar', frequency:'weekly', day:5, done:false, lastDone:null},
       {id:'t2', title:'Commande légumes', frequency:'weekly', day:1, done:false, lastDone:null}
@@ -949,7 +970,8 @@ function defaultData(){
       currency:'€',
       cuisines: ['burger','mexicain'],
       types: ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'],
-      stores: ['Sligro','Carrefour','Magasins du monde']
+      stores: ['Sligro','Carrefour','Magasins du monde'],
+      role: 'service'
     }
   };
 }
@@ -2368,6 +2390,7 @@ function ingFieldRow(ing,i,total){
     <div style="flex:2;display:flex;align-items:center;gap:4px;min-width:0">
       <span class="link-badge" title="${isLinked?'Lié à un ingrédient':'Pas lié'}" style="font-size:14px;color:${isLinked?'var(--success)':'var(--cream-faint)'};flex-shrink:0">${isLinked?'⌁':'·'}</span>
       <input class="ing-name-i" name="ing_name" list="ingredients-datalist" value="${escHtml(ing.name||'')}" placeholder="Ingrédient" style="flex:1;min-width:0">
+      <button type="button" class="add-ing-db" title="Ajouter cet ingrédient au backend" style="flex-shrink:0;display:${isLinked?'none':'flex'};align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:rgba(124,196,124,.15);color:var(--success);font-size:15px;font-weight:700;line-height:1">＋</button>
     </div>
     <input class="ing-amt-i" name="ing_amount" type="number" inputmode="decimal" step="any" value="${ing.amount==null||ing.unit==='au goût'?'':ing.amount}" placeholder="Qté">
     <input class="ing-unit-i" name="ing_unit" value="${escHtml(ing.unit||'')}" placeholder="g, ml…">
@@ -2648,7 +2671,13 @@ function componentFieldRow(c,i,total){
   </div>`;
 }
 
-function sectionFieldRow(s,i){
+function sectionFieldRow(s,i,opts){
+  opts = opts || {};
+  const routineTools = opts.routine ? `
+    <div class="btn-row" style="margin-top:8px;gap:6px">
+      <button type="button" class="btn btn-ghost" data-dup-section style="flex:1;font-size:12px;padding:8px">⎘ Dupliquer</button>
+      <button type="button" class="btn btn-ghost" data-move-section style="flex:1;font-size:12px;padding:8px">➔ Déplacer vers…</button>
+    </div>` : '';
   return `<div class="fiche-section" data-section="${i}">
     <div class="dynamic-item" style="border:none;background:transparent;padding:0;margin-bottom:8px">
       <input class="ing-name-i" name="sec_title" value="${escHtml(s.title||'')}" placeholder="Titre de la section" style="font-weight:600">
@@ -2662,6 +2691,7 @@ function sectionFieldRow(s,i){
         </div>`).join('')}
     </div>
     <button type="button" class="add-btn" data-add-item>+ Élément</button>
+    ${routineTools}
   </div>`;
 }
 
@@ -2689,11 +2719,48 @@ function renderTasks(){
     <div class="view">
       <div class="toptab">
         <button data-toptab="tasks" class="${tasksTopTab==='tasks'?'active':''}">Tâches</button>
+        <button data-toptab="prep" class="${tasksTopTab==='prep'?'active':''}">Préparation</button>
         <button data-toptab="routines" class="${tasksTopTab==='routines'?'active':''}">Routines</button>
       </div>
-      ${tasksTopTab==='tasks' ? renderTasksContent() : renderRoutinesContent()}
+      ${tasksTopTab==='tasks' ? renderTasksContent() : tasksTopTab==='prep' ? renderPrepContent() : renderRoutinesContent()}
     </div>
     ${tasksTopTab==='routines' ? `<button class="fab" data-go="routine/new" aria-label="Ajouter une routine">+</button>` : ''}
+  `;
+}
+
+function renderPrepContent(){
+  const prep = state.prep || {}; // { recipeId: true }
+  const recipes = [...(state.recipes||[])].sort((a,b)=>{
+    const ap = !!prep[a.id], bp = !!prep[b.id];
+    if(ap && !bp) return -1;
+    if(!ap && bp) return 1;
+    return a.name.localeCompare(b.name,'fr');
+  });
+  const toDoCount = Object.values(prep).filter(Boolean).length;
+  const list = recipes.length ? recipes.map(r=>{
+    const on = !!prep[r.id];
+    const searchText = [r.name, r.category, r.cuisine, r.type].filter(Boolean).join(' ').toLowerCase();
+    return `<div class="stock-row ${on?'tobuy':''}" data-prep-row data-search="${escHtml(searchText)}">
+      <button class="stock-check" data-toggle-prep="${r.id}" aria-label="À préparer pour demain">${on?'!':''}</button>
+      <div class="stock-body" data-go="recipe/${r.id}">
+        <div class="stock-name">${escHtml(r.name)}</div>
+        <div class="stock-qty">${escHtml(r.type||r.category||'—')}${r.cuisine?` · ${escHtml(r.cuisine)}`:''}</div>
+      </div>
+      <button class="stock-edit" data-go="recipe/${r.id}" aria-label="Voir la recette">›</button>
+    </div>`;
+  }).join('') : `<div class="empty"><div class="empty-ico">📖</div><p>Aucune recette.</p></div>`;
+  return `
+    <div class="muted" style="margin-bottom:10px;font-size:12px;line-height:1.5">
+      Coche les recettes <b>à préparer pour le lendemain</b>. La case rouge = à faire. Touche le nom pour ouvrir la recette.
+      ${toDoCount>0?`<br><b style="color:var(--gold)">${toDoCount} préparation${toDoCount>1?'s':''} en attente</b>`:''}
+    </div>
+    <div class="search-wrap">
+      <input class="search-input" id="searchPrep" placeholder="Rechercher une recette…" autocomplete="off">
+      <button class="search-clear" aria-label="Effacer">×</button>
+    </div>
+    ${toDoCount>0?`<div class="btn-row" style="margin-bottom:12px"><button class="btn btn-secondary btn-block" data-clear-prep>↻ Tout décocher (préparations faites)</button></div>`:''}
+    <div class="list">${list}</div>
+    <div class="search-empty" id="searchPrep-empty">Aucune recette ne correspond.</div>
   `;
 }
 
@@ -2807,10 +2874,12 @@ function renderRoutineDetail(id){
       ${(r.sections||[]).map((sec,si)=>{
         const secDone = (sec.items||[]).filter((_,ii)=>r.checked && r.checked[`${si}-${ii}`]).length;
         const itemsCount = (sec.items||[]).length;
+        const allDone = itemsCount>0 && secDone===itemsCount;
         return `<div class="routine-section" data-section-idx="${si}">
           <div class="rs-title-row">
             <span class="rs-title-text">${escHtml(sec.title)}</span>
             <span class="rs-count">${secDone}/${itemsCount}</span>
+            <button class="iconbtn rs-toggle-all" data-section-toggle="${r.id}" data-si="${si}" aria-label="Tout cocher ou décocher la section" title="Tout cocher / décocher" style="font-size:18px;padding:2px 6px">${allDone?'☑':'☐'}</button>
           </div>
           <div class="routine-items" data-rou-id="${r.id}" data-si="${si}">
           ${(sec.items||[]).map((it,ii)=>{
@@ -2857,7 +2926,7 @@ function renderRoutineEdit(id){
         <div class="settings-group">
           <div class="sg-head">Sections & étapes</div>
           <div id="rouSections">
-            ${r.sections.map((s,i)=>sectionFieldRow(s,i)).join('')}
+            ${r.sections.map((s,i)=>sectionFieldRow(s,i,{routine:true})).join('')}
           </div>
           <button type="button" class="add-btn" data-add-rou-section>+ Ajouter une section</button>
         </div>
@@ -3221,74 +3290,65 @@ function renderSettings(){
     </div>
     <div class="view">
       <div class="settings-group">
-        <div class="sg-head">☁ Synchronisation GitHub</div>
+        <div class="sg-head">☁ Synchronisation</div>
         <div class="sync-status" id="syncStatus">…</div>
-        <p class="muted" style="margin-bottom:12px;font-size:12px;line-height:1.5">
-          Synchronise tes données entre PC, iPhone et autres appareils via un repo GitHub privé.
-          <br><a href="#sync-help" id="syncHelpToggle" style="color:var(--cyan)">Comment configurer ?</a>
+        <p class="muted" style="margin:10px 0 14px;font-size:13px;line-height:1.5">
+          Appuie sur le bouton ci-dessous pour lancer la synchronisation et récupérer les dernières données de l'équipe.
         </p>
-        <div id="syncHelp" style="display:none;background:var(--dark-2);border-radius:8px;padding:12px;margin-bottom:12px;font-size:12px;line-height:1.6;color:var(--cream-dim)">
-          <b style="color:var(--gold)">1. Créer un repo privé</b><br>
-          Va sur <a href="https://github.com/new" target="_blank" style="color:var(--cyan)">github.com/new</a> → nomme-le <span class="kbd">resto-data</span> → coche <b>Private</b> → "Add README" coché → Create.
-          <br><br>
-          <b style="color:var(--gold)">2. Créer un Personal Access Token</b><br>
-          Va sur <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:var(--cyan)">Settings → Developer settings → Personal access tokens → Fine-grained</a> → "Generate new token" → durée 1 an → Repository access : "Only select repositories" → choisis <span class="kbd">resto-data</span> → Permissions : <b>Contents: Read & Write</b> → Generate. Copie le token (commence par <span class="kbd">github_pat_…</span>).
-          <br><br>
-          <b style="color:var(--gold)">3. Coller ci-dessous</b><br>
-          Owner = ton nom GitHub. Repo = <span class="kbd">resto-data</span>. Path = <span class="kbd">resto-data.json</span>. Branch = <span class="kbd">main</span>.
-          <br><br>
-          <b style="color:var(--gold)">4. Sur ton autre appareil</b><br>
-          Configure les mêmes infos, puis clique "Pull" pour récupérer les données.
-        </div>
-        <div class="form-group">
-          <label>GitHub username (owner)</label>
-          <input id="syncOwner" placeholder="Ex: tonpseudo">
-        </div>
-        <div class="form-group">
-          <label>Repo</label>
-          <input id="syncRepo" placeholder="resto-data">
-        </div>
-        <div class="form-row">
-          <div class="form-group" style="flex:2">
-            <label>Path (fichier)</label>
-            <input id="syncPath" placeholder="resto-data.json">
-          </div>
-          <div class="form-group">
-            <label>Branch</label>
-            <input id="syncBranch" placeholder="main">
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Personal Access Token (fine-grained)</label>
-          <input id="syncToken" type="password" placeholder="github_pat_…">
-        </div>
+        <button class="btn btn-primary btn-block" id="syncStartBtn" style="font-size:16px;padding:16px;letter-spacing:.05em">▶ DÉMARRER LA SYNCHRO</button>
+        <div class="muted" id="syncStartHint" style="text-align:center;margin-top:8px;font-size:12px"></div>
 
-        <div class="form-group">
+        <div class="form-group" style="margin-top:18px">
           <label>Rôle sur cet appareil</label>
           <div class="role-pills" style="display:flex;gap:8px;margin-top:6px">
-            <button type="button" class="role-pill ${(s.role==='chef'||!s.role)?'active':''}" data-role="chef" style="flex:1;padding:10px;background:${(s.role==='chef'||!s.role)?'var(--gold)':'var(--dark-2)'};color:${(s.role==='chef'||!s.role)?'var(--dark)':'var(--cream-dim)'};border-radius:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px">🍳 Cuisinier</button>
-            <button type="button" class="role-pill ${s.role==='service'?'active':''}" data-role="service" style="flex:1;padding:10px;background:${s.role==='service'?'var(--cyan)':'var(--dark-2)'};color:${s.role==='service'?'var(--dark)':'var(--cream-dim)'};border-radius:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px">🛎 Service</button>
+            <button type="button" class="role-pill ${s.role==='chef'?'active':''}" data-role="chef" style="flex:1;padding:10px;background:${s.role==='chef'?'var(--gold)':'var(--dark-2)'};color:${s.role==='chef'?'var(--dark)':'var(--cream-dim)'};border-radius:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px">🍳 Cuisinier</button>
+            <button type="button" class="role-pill ${s.role!=='chef'?'active':''}" data-role="service" style="flex:1;padding:10px;background:${s.role!=='chef'?'var(--cyan)':'var(--dark-2)'};color:${s.role!=='chef'?'var(--dark)':'var(--cream-dim)'};border-radius:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px">🛎 Service</button>
           </div>
           <p class="muted" style="margin-top:6px;font-size:11px;line-height:1.5">
-            <b>Cuisinier</b> : peut modifier recettes, fiches, ingrédients, tâches/routines, paramètres.<br>
-            <b>Service</b> : lecture seule sur la bibliothèque. Peut modifier stock + cocher tâches/routines. Pratique pour l'équipe de salle.
+            <b>Service</b> (par défaut) : pour l'équipe. Peut cocher tâches/routines, gérer le stock.<br>
+            <b>Cuisinier</b> : peut aussi modifier recettes, fiches, ingrédients.
           </p>
         </div>
 
-        <button class="toggle" data-toggle-sync-auto>
-          <span class="toggle-label">Push automatique à chaque modification</span>
-          <span class="toggle-switch" id="syncAutoSwitch"></span>
-        </button>
-        <div class="btn-row">
-          <button class="btn btn-secondary" id="syncTestBtn">Tester</button>
-          <button class="btn btn-secondary" id="syncSaveBtn">Enregistrer config</button>
-        </div>
-        <div class="btn-row">
-          <button class="btn btn-primary" id="syncPullBtn">⬇ Pull (récupérer)</button>
-          <button class="btn btn-primary" id="syncPushBtn">⬆ Push (envoyer)</button>
-        </div>
-        <div class="btn-row">
-          <button class="btn btn-ghost btn-block" id="syncClearBtn">Effacer la config</button>
+        <button class="btn btn-ghost btn-block" id="syncAdvToggle" style="margin-top:10px;font-size:12px">⚙ Réglages avancés</button>
+        <div id="syncAdvanced" style="display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:14px">
+          <div class="form-group">
+            <label>GitHub owner</label>
+            <input id="syncOwner" placeholder="Enguytv">
+          </div>
+          <div class="form-group">
+            <label>Repo</label>
+            <input id="syncRepo" placeholder="resto-data">
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:2">
+              <label>Path</label>
+              <input id="syncPath" placeholder="resto-data.json">
+            </div>
+            <div class="form-group">
+              <label>Branch</label>
+              <input id="syncBranch" placeholder="main">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Token</label>
+            <input id="syncToken" type="password" placeholder="github_pat_…">
+          </div>
+          <button class="toggle" data-toggle-sync-auto>
+            <span class="toggle-label">Push automatique</span>
+            <span class="toggle-switch" id="syncAutoSwitch"></span>
+          </button>
+          <div class="btn-row">
+            <button class="btn btn-secondary" id="syncTestBtn">Tester</button>
+            <button class="btn btn-secondary" id="syncSaveBtn">Enregistrer</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-secondary" id="syncPullBtn">⬇ Pull</button>
+            <button class="btn btn-secondary" id="syncPushBtn">⬆ Push</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-ghost btn-block" id="syncClearBtn">Réinitialiser config sync</button>
+          </div>
         </div>
       </div>
 
@@ -3359,31 +3419,41 @@ function renderSettings(){
       </div>
 
       <div class="settings-group">
-        <div class="sg-head">Données</div>
-        <div class="btn-row">
-          <button class="btn btn-secondary" id="exportBtn">Exporter</button>
-          <button class="btn btn-secondary" id="importBtn">Importer</button>
-        </div>
-        <input id="importFile" type="file" accept="application/json" style="display:none">
-        <div class="btn-row">
-          <button class="btn btn-ghost btn-block" id="restoreDefaultsBtn">↻ Restaurer recettes/fiches manquantes</button>
-        </div>
-        <p class="muted" style="margin-top:6px;font-size:11px;line-height:1.4">Ré-injecte les recettes/fiches d'origine qui ne seraient plus présentes (sans toucher à celles que tu as créées ou modifiées).</p>
+        <div class="sg-head">📲 Installer l'app</div>
+        <p class="muted" style="line-height:1.6;font-size:13px;margin-bottom:12px">
+          Ajoute Resto Tool sur ton écran d'accueil pour l'ouvrir comme une vraie app.
+        </p>
+        <button class="btn btn-primary btn-block" id="addHomeBtn" style="padding:14px">📲 Ajouter à l'écran d'accueil</button>
       </div>
 
       <div class="settings-group">
-        <div class="sg-head">Installation iPhone</div>
-        <p class="muted" style="line-height:1.6;font-size:13px">
-          Ouvre cette page dans <b>Safari</b>, touche le bouton <b>Partager</b> puis <b>Sur l'écran d'accueil</b>. L'app fonctionnera comme une app native, hors-ligne, et tes données seront sauvegardées localement.
-        </p>
-      </div>
-
-      <div class="danger-zone">
-        <div class="dz-head">Zone dangereuse</div>
-        <div class="btn-row">
-          <button class="btn btn-danger btn-block" id="resetBtn">Tout réinitialiser</button>
+        <div class="sg-head">🔒 Zone administrateur</div>
+        <p class="muted" style="font-size:12px;margin-bottom:10px">Réservé au responsable. Entre le code d'accès.</p>
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-group" style="flex:1;margin-bottom:0">
+            <label>Code</label>
+            <input id="adminCode" type="tel" inputmode="numeric" placeholder="••••" maxlength="6" autocomplete="off">
+          </div>
+          <button class="btn btn-secondary" id="adminUnlockBtn" style="white-space:nowrap">Déverrouiller</button>
         </div>
-        <p class="muted" style="margin-top:8px;font-size:11px">Efface toutes les recettes, fiches, tâches, ingrédients et réglages.</p>
+        <div id="adminPanel" style="display:none;margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+          <div class="btn-row">
+            <button class="btn btn-secondary" id="exportBtn">Exporter</button>
+            <button class="btn btn-secondary" id="importBtn">Importer</button>
+          </div>
+          <input id="importFile" type="file" accept="application/json" style="display:none">
+          <div class="btn-row">
+            <button class="btn btn-ghost btn-block" id="restoreDefaultsBtn">↻ Restaurer recettes/fiches manquantes</button>
+          </div>
+          <p class="muted" style="margin:6px 0 14px;font-size:11px;line-height:1.4">Ré-injecte les recettes/fiches d'origine manquantes (sans toucher à celles modifiées).</p>
+          <div class="danger-zone">
+            <div class="dz-head">Zone dangereuse</div>
+            <div class="btn-row">
+              <button class="btn btn-danger btn-block" id="resetBtn">Tout réinitialiser</button>
+            </div>
+            <p class="muted" style="margin-top:8px;font-size:11px">Efface TOUTES les données locales (recettes, fiches, tâches, ingrédients, réglages).</p>
+          </div>
+        </div>
       </div>
 
       <div style="text-align:center;margin-top:32px;padding:14px">
@@ -3423,6 +3493,36 @@ function refreshReorderButtons(containerSel, attrName){
   });
 }
 
+function showInstallInstructions(){
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const body = isIOS
+    ? `<p style="line-height:1.7;font-size:14px;color:var(--cream-dim)">
+         1. En bas de Safari, touche le bouton <b>Partager</b> (carré avec une flèche vers le haut).<br><br>
+         2. Fais défiler et touche <b>« Sur l'écran d'accueil »</b>.<br><br>
+         3. Touche <b>Ajouter</b> en haut à droite.<br><br>
+         L'icône Resto Tool apparaît sur ton écran d'accueil comme une vraie app.
+       </p>`
+    : `<p style="line-height:1.7;font-size:14px;color:var(--cream-dim)">
+         Ouvre le menu de ton navigateur (les 3 points en haut à droite) puis choisis
+         <b>« Installer l'application »</b> ou <b>« Ajouter à l'écran d'accueil »</b>.
+       </p>`;
+  const ov = document.createElement('div');
+  ov.className = 'modal-bg';
+  ov.innerHTML = `<div class="modal">
+    <div style="font-family:var(--font-display);font-size:22px;color:var(--gold);letter-spacing:.04em;margin-bottom:14px">📲 Installer l'app</div>
+    ${body}
+    <button class="btn btn-primary btn-block" style="margin-top:18px" data-close-install>Compris</button>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e=>{ if(e.target===ov || e.target.closest('[data-close-install]')) ov.remove(); });
+}
+
+// Capture install prompt (Android/Chrome) for the "Ajouter à l'écran d'accueil" button
+window.addEventListener('beforeinstallprompt', e=>{
+  e.preventDefault();
+  window._deferredInstallPrompt = e;
+});
+
 function bindSyncHandlers(){
   const cfg = SyncConfig.load() || {};
   const ownerEl = $('#syncOwner');
@@ -3433,40 +3533,7 @@ function bindSyncHandlers(){
   const autoSwitch = $('#syncAutoSwitch');
   const autoToggleBtn = $('[data-toggle-sync-auto]');
 
-  if(!ownerEl) return; // Not on settings page
-
-  if(cfg.owner) ownerEl.value = cfg.owner;
-  if(cfg.repo) repoEl.value = cfg.repo;
-  if(cfg.path) pathEl.value = cfg.path;
-  if(cfg.branch) branchEl.value = cfg.branch;
-  if(cfg.token) tokenEl.value = cfg.token;
-  // Prefill defaults if empty (everything except owner & token)
-  if(!repoEl.value) repoEl.value = 'resto-data';
-  if(!pathEl.value) pathEl.value = 'resto-data.json';
-  if(!branchEl.value) branchEl.value = 'main';
-  if(autoSwitch && cfg.auto) autoSwitch.classList.add('on');
-
-  updateSyncStatusUI();
-
-  const helpToggle = $('#syncHelpToggle');
-  const helpEl = $('#syncHelp');
-  if(helpToggle && helpEl){
-    helpToggle.addEventListener('click',e=>{
-      e.preventDefault();
-      helpEl.style.display = helpEl.style.display==='none' ? 'block' : 'none';
-    });
-  }
-  if(autoToggleBtn && autoSwitch){
-    autoToggleBtn.addEventListener('click',()=>{
-      autoSwitch.classList.toggle('on');
-      const cur = SyncConfig.load() || {};
-      cur.auto = autoSwitch.classList.contains('on');
-      SyncConfig.save(cur);
-      toast(cur.auto ? 'Auto-push activé' : 'Auto-push désactivé');
-    });
-  }
-
-  // Role pills
+  // Always wire role pills + Start + admin even if advanced fields not present
   $$('.role-pill').forEach(btn=>{
     btn.addEventListener('click',async()=>{
       const role = btn.getAttribute('data-role');
@@ -3476,6 +3543,111 @@ function bindSyncHandlers(){
       render();
     });
   });
+
+  // ── Big "Démarrer la synchro" button ──
+  const startBtn = $('#syncStartBtn');
+  const startHint = $('#syncStartHint');
+  if(startBtn){
+    startBtn.addEventListener('click', async ()=>{
+      // Ensure a config exists: use saved, else defaults
+      let c = SyncConfig.load();
+      if(!c || !c.token || !c.owner || !c.repo){
+        c = Object.assign({}, SYNC_DEFAULTS);
+        c.lastSync = null;
+        SyncConfig.save(c);
+      }
+      startBtn.disabled = true;
+      startBtn.innerHTML = '<span class="spinner"></span> Connexion…';
+      if(startHint) startHint.textContent = 'Récupération des données…';
+      const ok = await cloudPull(false);
+      if(ok){
+        startPolling();
+        startBtn.innerHTML = '✓ SYNCHRO ACTIVE';
+        startBtn.style.background = 'var(--success)';
+        if(startHint) startHint.textContent = 'Mise à jour automatique toutes les 30 s.';
+        toast('Synchronisation lancée');
+      } else {
+        startBtn.disabled = false;
+        startBtn.innerHTML = '▶ DÉMARRER LA SYNCHRO';
+        if(startHint) startHint.textContent = 'Échec — vérifie ta connexion internet et réessaie.';
+      }
+      updateSyncStatusUI();
+    });
+    // Reflect already-running state
+    if(_pollTimer){
+      startBtn.innerHTML = '✓ SYNCHRO ACTIVE';
+      startBtn.style.background = 'var(--success)';
+      startBtn.disabled = true;
+      if(startHint) startHint.textContent = 'Mise à jour automatique toutes les 30 s.';
+    }
+  }
+
+  // ── Advanced toggle ──
+  const advToggle = $('#syncAdvToggle');
+  const advBox = $('#syncAdvanced');
+  if(advToggle && advBox){
+    advToggle.addEventListener('click', ()=>{
+      advBox.style.display = advBox.style.display==='none' ? 'block' : 'none';
+    });
+  }
+
+  // ── Admin code unlock (code: 5854) ──
+  const adminCodeEl = $('#adminCode');
+  const adminUnlockBtn = $('#adminUnlockBtn');
+  const adminPanel = $('#adminPanel');
+  if(adminUnlockBtn && adminPanel){
+    const tryUnlock = ()=>{
+      if((adminCodeEl.value||'').trim() === '5854'){
+        adminPanel.style.display = 'block';
+        adminUnlockBtn.textContent = '✓ Déverrouillé';
+        adminUnlockBtn.disabled = true;
+        toast('Zone admin déverrouillée');
+      } else {
+        toast('Code incorrect');
+        adminCodeEl.value = '';
+      }
+    };
+    adminUnlockBtn.addEventListener('click', tryUnlock);
+    adminCodeEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); tryUnlock(); } });
+  }
+
+  // ── Add to home screen ──
+  const addHomeBtn = $('#addHomeBtn');
+  if(addHomeBtn){
+    addHomeBtn.addEventListener('click', async ()=>{
+      if(window._deferredInstallPrompt){
+        window._deferredInstallPrompt.prompt();
+        const choice = await window._deferredInstallPrompt.userChoice.catch(()=>null);
+        window._deferredInstallPrompt = null;
+        if(choice && choice.outcome==='accepted') toast('App installée');
+        return;
+      }
+      // iOS / fallback: show instructions
+      showInstallInstructions();
+    });
+  }
+
+  if(!ownerEl) return; // Advanced fields not in DOM (collapsed section absent)
+
+  // Prefill advanced fields from saved cfg OR defaults
+  ownerEl.value  = cfg.owner  || SYNC_DEFAULTS.owner;
+  repoEl.value   = cfg.repo   || SYNC_DEFAULTS.repo;
+  pathEl.value   = cfg.path   || SYNC_DEFAULTS.path;
+  branchEl.value = cfg.branch || SYNC_DEFAULTS.branch;
+  tokenEl.value  = cfg.token  || SYNC_DEFAULTS.token;
+  if(autoSwitch && (cfg.auto || SYNC_DEFAULTS.auto)) autoSwitch.classList.add('on');
+
+  updateSyncStatusUI();
+
+  if(autoToggleBtn && autoSwitch){
+    autoToggleBtn.addEventListener('click',()=>{
+      autoSwitch.classList.toggle('on');
+      const cur = SyncConfig.load() || Object.assign({},SYNC_DEFAULTS);
+      cur.auto = autoSwitch.classList.contains('on');
+      SyncConfig.save(cur);
+      toast(cur.auto ? 'Auto-push activé' : 'Auto-push désactivé');
+    });
+  }
 
   const collect = ()=>({
     owner: ownerEl.value.trim(),
@@ -3910,11 +4082,12 @@ function attachHandlers(){
     });
   });
 
-  // Live update of link badge in recipe edit
+  // Live update of link badge in recipe edit + quick-add ingredient
   $$('#ingFields .dynamic-item').forEach(row=>{
     const nameInput = row.querySelector('[name="ing_name"]');
     if(!nameInput) return;
     const badge = row.querySelector('.link-badge');
+    const addBtn = row.querySelector('.add-ing-db');
     if(!badge) return;
     const update = ()=>{
       const v = nameInput.value.trim().toLowerCase();
@@ -3923,14 +4096,45 @@ function attachHandlers(){
         badge.textContent = '⌁';
         badge.style.color = 'var(--success)';
         badge.title = 'Lié à : '+found.name;
+        if(addBtn) addBtn.style.display = 'none';
       } else {
         badge.textContent = '·';
         badge.style.color = 'var(--cream-faint)';
         badge.title = 'Pas lié à un ingrédient connu';
+        if(addBtn) addBtn.style.display = (v ? 'flex' : 'none');
       }
     };
     nameInput.addEventListener('input',update);
     nameInput.addEventListener('change',update);
+    if(addBtn){
+      addBtn.addEventListener('click', async ()=>{
+        const name = (nameInput.value||'').trim();
+        if(!name){ toast('Renseigne d\'abord le nom'); return; }
+        const exists = state.ingredients.find(i=>i.name.toLowerCase()===name.toLowerCase());
+        if(exists){ toast('Cet ingrédient existe déjà'); update(); return; }
+        const unitInput = row.querySelector('[name="ing_unit"]');
+        let unit = (unitInput && unitInput.value.trim()) || 'kg';
+        // Normalize a few common cooking units to a sensible stock unit
+        if(['g','gr','gramme','grammes'].includes(unit.toLowerCase())) unit='kg';
+        if(['ml','cl'].includes(unit.toLowerCase())) unit='L';
+        const newIng = {
+          id: uid('ing'),
+          name,
+          unit,
+          price: null,
+          halal: true,
+          kcal100: 0, protein100: 0, fat100: 0, carbs100: 0,
+          notes: 'Ajouté depuis une recette'
+        };
+        state.ingredients.push(newIng);
+        await persist();
+        // refresh datalist so other rows autocomplete it
+        const dl = document.getElementById('ingredients-datalist');
+        if(dl) dl.innerHTML = state.ingredients.map(i=>`<option value="${escHtml(i.name)}">`).join('');
+        toast('« '+name+' » ajouté aux ingrédients');
+        update();
+      });
+    }
   });
 
   // Reorder ingredient
@@ -4070,6 +4274,25 @@ function attachHandlers(){
     render();
   }));
 
+  // Préparation: toggle "à faire pour demain"
+  $$('[data-toggle-prep]').forEach(b=>b.addEventListener('click',async(e)=>{
+    e.stopPropagation();
+    const rid = b.getAttribute('data-toggle-prep');
+    if(!state.prep) state.prep = {};
+    if(state.prep[rid]) delete state.prep[rid];
+    else state.prep[rid] = true;
+    await persist();
+    render();
+  }));
+  const clearPrepBtn = document.querySelector('[data-clear-prep]');
+  if(clearPrepBtn) clearPrepBtn.addEventListener('click',async()=>{
+    if(!confirm('Marquer toutes les préparations comme faites (tout décocher) ?')) return;
+    state.prep = {};
+    await persist();
+    toast('Préparations réinitialisées');
+    render();
+  });
+
   // Photo handlers
   bindPhotoHandlers();
 
@@ -4078,6 +4301,19 @@ function attachHandlers(){
   bindCategoriesHandlers();
 
   // Routine toggle
+  $$('[data-section-toggle]').forEach(b=>b.addEventListener('click',async()=>{
+    const id = b.getAttribute('data-section-toggle');
+    const si = parseInt(b.getAttribute('data-si'),10);
+    const r = (state.routines||[]).find(x=>x.id===id);
+    if(!r || !r.sections || !r.sections[si]) return;
+    if(!r.checked) r.checked = {};
+    const items = r.sections[si].items || [];
+    // Are all currently checked?
+    const allChecked = items.length>0 && items.every((_,ii)=>r.checked[`${si}-${ii}`]);
+    items.forEach((_,ii)=>{ r.checked[`${si}-${ii}`] = !allChecked; });
+    await persist();
+    render();
+  }));
   $$('[data-toggle-routine]').forEach(b=>b.addEventListener('click',async()=>{
     const id = b.getAttribute('data-toggle-routine');
     const key = b.getAttribute('data-key');
@@ -4111,14 +4347,16 @@ function attachHandlers(){
   const routineForm = $('#routineForm');
   if(routineForm){
     bindSectionFieldHandlers('#rouSections');
+    $$('#rouSections > [data-section]').forEach(el=>bindRoutineSectionTools(el));
     $$('[data-add-rou-section]').forEach(b=>b.addEventListener('click',()=>{
       const list = $('#rouSections');
       const idx = list.children.length;
       const div = document.createElement('div');
-      div.innerHTML = sectionFieldRow({title:'',items:['']},idx);
+      div.innerHTML = sectionFieldRow({title:'',items:['']},idx,{routine:true});
       const el = div.firstElementChild;
       list.appendChild(el);
       rebindSectionRow(el);
+      bindRoutineSectionTools(el);
       el.querySelector('[name="sec_title"]').focus();
     }));
     routineForm.addEventListener('submit',handleRoutineSubmit);
@@ -4342,7 +4580,8 @@ function attachHandlers(){
   bindSearch('searchRecipes', '#app [data-go^="recipe/"][data-search]');
   bindSearch('searchFiches',  '#app [data-go^="fiche/"][data-search]');
   bindSearch('searchIngredients', '#app [data-go^="ingredient/"][data-search]');
-  bindSearch('searchStock', '#app .stock-row[data-search]');
+  bindSearch('searchStock', '#app .stock-row[data-search]:not([data-prep-row])');
+  bindSearch('searchPrep', '#app .stock-row[data-prep-row][data-search]');
 
   // ===== Drag-to-reorder bindings =====
 
@@ -4722,6 +4961,103 @@ async function handleFicheSubmit(e){
   }
 }
 
+function readOneSectionFromEl(secEl){
+  const title = (secEl.querySelector('[name="sec_title"]')?.value || '').trim();
+  const items = [];
+  secEl.querySelectorAll('[data-items] [name="sec_item"]').forEach(inp=>{
+    const v = inp.value.trim(); if(v) items.push(v);
+  });
+  return { title, items };
+}
+
+function readWholeRoutineForm(){
+  const f = document.getElementById('routineForm');
+  if(!f) return null;
+  const fd = new FormData(f);
+  const sections = [];
+  document.querySelectorAll('#rouSections > [data-section]').forEach(secEl=>{
+    const sec = readOneSectionFromEl(secEl);
+    if(sec.title && sec.items.length) sections.push(sec);
+  });
+  return {
+    editId: f.getAttribute('data-edit-id') || '',
+    name: (fd.get('name')||'').toString().trim(),
+    subtitle: (fd.get('subtitle')||'').toString().trim(),
+    sections
+  };
+}
+
+function bindRoutineSectionTools(secEl){
+  // Duplicate: clone this section's DOM node right after it (keeps unsaved edits)
+  const dupBtn = secEl.querySelector('[data-dup-section]');
+  if(dupBtn) dupBtn.addEventListener('click',()=>{
+    const data = readOneSectionFromEl(secEl);
+    const list = document.getElementById('rouSections');
+    const idx = list.children.length;
+    const div = document.createElement('div');
+    div.innerHTML = sectionFieldRow({title: data.title ? data.title+' (copie)' : '', items: data.items.length?data.items:['']}, idx, {routine:true});
+    const el = div.firstElementChild;
+    secEl.parentNode.insertBefore(el, secEl.nextSibling);
+    rebindSectionRow(el);
+    bindRoutineSectionTools(el);
+    toast('Section dupliquée');
+  });
+
+  // Move to another routine
+  const moveBtn = secEl.querySelector('[data-move-section]');
+  if(moveBtn) moveBtn.addEventListener('click',()=>{
+    const form = readWholeRoutineForm();
+    if(!form){ return; }
+    if(!form.name){ alert('Donne d\'abord un nom à cette routine, puis réessaie.'); return; }
+    const targets = (state.routines||[]).filter(r=>r.id !== form.editId);
+    if(!targets.length){ alert('Aucune autre routine disponible. Crée d\'abord une autre routine.'); return; }
+    const section = readOneSectionFromEl(secEl);
+    if(!section.title || !section.items.length){ alert('Cette section est vide.'); return; }
+
+    // Build a modal to pick the target routine
+    const ov = document.createElement('div');
+    ov.className = 'modal-bg';
+    ov.innerHTML = `<div class="modal">
+      <div style="font-family:var(--font-display);font-size:20px;color:var(--gold);letter-spacing:.04em;margin-bottom:6px">Déplacer la section</div>
+      <p class="muted" style="font-size:13px;margin-bottom:14px">« ${escHtml(section.title)} » sera déplacée vers :</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${targets.map(t=>`<button class="btn btn-secondary" data-target="${t.id}" style="text-align:left">${escHtml(t.name)}</button>`).join('')}
+      </div>
+      <button class="btn btn-ghost btn-block" style="margin-top:14px" data-cancel-move>Annuler</button>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', async e=>{
+      if(e.target===ov || e.target.closest('[data-cancel-move]')){ ov.remove(); return; }
+      const tbtn = e.target.closest('[data-target]');
+      if(!tbtn) return;
+      const targetId = tbtn.getAttribute('data-target');
+      const target = (state.routines||[]).find(r=>r.id===targetId);
+      if(!target) { ov.remove(); return; }
+      if(!confirm(`Déplacer « ${section.title} » vers « ${target.name} » ?\nLa routine actuelle sera enregistrée.`)){ return; }
+
+      // Save current routine WITHOUT the moved section
+      const remaining = form.sections.filter(s=>!(s.title===section.title && JSON.stringify(s.items)===JSON.stringify(section.items)));
+      if(form.editId){
+        const cur = state.routines.find(x=>x.id===form.editId);
+        if(cur){
+          cur.name = form.name;
+          cur.subtitle = form.subtitle;
+          cur.sections = remaining;
+          // Drop checked entries that referenced removed sections (simplest: reset)
+          cur.checked = cur.checked || {};
+        }
+      }
+      // Append section to target
+      target.sections = target.sections || [];
+      target.sections.push({ title: section.title, items: section.items });
+      await persist();
+      ov.remove();
+      toast('Section déplacée vers '+target.name);
+      navigate('#routine/'+ (form.editId||target.id));
+    });
+  });
+}
+
 async function handleRoutineSubmit(e){
   e.preventDefault();
   const f = e.target;
@@ -4832,12 +5168,12 @@ async function init(){
     cuisines: ['burger','mexicain'],
     types: ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'],
     stores: ['Sligro','Carrefour','Magasins du monde'],
-    role: 'chef'
+    role: 'service'
   }, loaded.settings||{});
   if(!loaded.settings.cuisines || !loaded.settings.cuisines.length) loaded.settings.cuisines = ['burger','mexicain'];
   if(!loaded.settings.types || !loaded.settings.types.length) loaded.settings.types = ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'];
   if(!loaded.settings.stores) loaded.settings.stores = ['Sligro','Carrefour','Magasins du monde'];
-  if(!loaded.settings.role) loaded.settings.role = 'chef';
+  if(!loaded.settings.role) loaded.settings.role = 'service';
 
   loaded.fiches = loaded.fiches||[];
   loaded.tasks = loaded.tasks||[];
@@ -4845,6 +5181,7 @@ async function init(){
   loaded.routines = loaded.routines||[];
   loaded.recipes = loaded.recipes||[];
   loaded.stock = loaded.stock||[];
+  loaded.prep = loaded.prep||{};
 
   loaded.recipes.forEach(r=>{
     if(r.photo===undefined) r.photo = null;
@@ -4879,7 +5216,7 @@ async function init(){
 function ensureDefaults(){
   if(!state) return;
   state.settings = state.settings || {};
-  if(!state.settings.role) state.settings.role = 'chef';
+  if(!state.settings.role) state.settings.role = 'service';
   if(!state.settings.cuisines) state.settings.cuisines = ['burger','mexicain'];
   if(!state.settings.types) state.settings.types = ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'];
   if(!state.settings.stores) state.settings.stores = ['Sligro','Carrefour','Magasins du monde'];
@@ -4889,6 +5226,7 @@ function ensureDefaults(){
   if(!state.tasks) state.tasks = [];
   if(!state.routines) state.routines = [];
   if(!state.stock) state.stock = [];
+  if(!state.prep) state.prep = {};
 }
 
 init();
