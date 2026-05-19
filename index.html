@@ -471,6 +471,20 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .resto-pills{display:flex;flex-wrap:wrap;gap:8px}
 .resto-pill{padding:9px 14px;border-radius:20px;background:var(--dark-2);border:1px solid var(--line);color:var(--cream-dim);font-size:13px;font-weight:600;transition:all .15s}
 .resto-pill.on{background:var(--gold);color:var(--dark);border-color:var(--gold)}
+.bulk-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.bulk-bar.on{background:var(--navy-2);border:1px solid var(--line-strong);border-radius:10px;padding:8px 12px}
+.bulk-btn{padding:8px 14px;border-radius:8px;background:var(--dark-2);border:1px solid var(--line);color:var(--cyan);font-size:12px;font-weight:600;letter-spacing:.06em}
+.bulk-btn.ghost{color:var(--cream-faint)}
+.bulk-count{flex:1;font-size:12px;color:var(--cream-dim);text-align:center}
+.bulk-check{position:absolute;top:8px;left:8px;width:26px;height:26px;border-radius:50%;border:2px solid var(--cyan);background:rgba(15,17,22,.7);display:flex;align-items:center;justify-content:center;color:var(--cyan);font-size:14px;font-weight:700;z-index:5}
+.bulk-check.on{background:var(--cyan);color:var(--dark)}
+.bulk-actionbar{position:fixed;left:0;right:0;bottom:0;z-index:60;padding:12px 16px calc(12px + var(--safe-bot));background:linear-gradient(180deg,transparent,var(--dark) 30%);pointer-events:none}
+.bulk-actionbar-inner{pointer-events:auto;max-width:560px;margin:0 auto;background:var(--navy);border:1px solid var(--gold);border-radius:14px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.bulk-actionbar-inner>span{font-size:13px;font-weight:600;color:var(--cream)}
+.bulk-acts{display:flex;gap:8px;flex-wrap:wrap}
+.bulk-act{padding:10px 14px;border-radius:9px;background:var(--gold);color:var(--dark);font-size:13px;font-weight:700;letter-spacing:.03em}
+.bulk-act+.bulk-act{background:var(--cyan)}
+.card,.task-row,.stock-row,.routine-card{position:relative}
 .seg-tabs::-webkit-scrollbar{display:none}
 .seg-tabs button{flex:1;min-width:max-content;padding:10px 14px;border-radius:7px;color:var(--cream-dim);font-size:11px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;transition:all .15s;white-space:nowrap}
 .seg-tabs button.active{background:var(--cyan);color:var(--dark)}
@@ -848,6 +862,201 @@ function restoSelectorHtml(selected){
 function readRestosFromForm(form){
   const cbs = form.querySelectorAll('input[name="resto_apply"]:checked');
   return Array.from(cbs).map(c=>c.value);
+}
+
+/* ---------- Bulk edit engine (multi-select + group actions) ---------- */
+// kind: 'recipes' | 'fiches' | 'ingredients' | 'tasks' | 'routines'
+let bulkMode = null;          // currently active list kind, or null
+let bulkSelected = new Set(); // selected item ids
+
+function bulkActive(kind){ return bulkMode === kind; }
+function bulkToggle(kind){
+  if(bulkMode === kind){ bulkMode = null; bulkSelected.clear(); }
+  else { bulkMode = kind; bulkSelected.clear(); }
+  render();
+}
+function bulkClear(){ bulkMode = null; bulkSelected.clear(); }
+function bulkArrayFor(kind){
+  if(kind==='recipes') return state.recipes||[];
+  if(kind==='fiches') return state.fiches||[];
+  if(kind==='ingredients') return state.ingredients||[];
+  if(kind==='tasks') return state.tasks||[];
+  if(kind==='routines') return state.routines||[];
+  return [];
+}
+// Toolbar shown at top of a list when entering/leaving select mode
+function bulkToolbarHtml(kind){
+  const on = bulkActive(kind);
+  if(!on){
+    return `<div class="bulk-bar"><button class="bulk-btn" data-bulk-toggle="${kind}">☑ Sélectionner</button></div>`;
+  }
+  return `<div class="bulk-bar on">
+    <button class="bulk-btn" data-bulk-all="${kind}">Tout</button>
+    <button class="bulk-btn" data-bulk-none="${kind}">Aucun</button>
+    <span class="bulk-count">${bulkSelected.size} sélectionné${bulkSelected.size>1?'s':''}</span>
+    <button class="bulk-btn ghost" data-bulk-toggle="${kind}">✕ Quitter</button>
+  </div>`;
+}
+// Floating action bar at the bottom when items are selected
+function bulkActionBarHtml(kind){
+  if(!bulkActive(kind) || bulkSelected.size===0) return '';
+  const dietBtn = kind==='ingredients'
+    ? `<button class="bulk-act" data-bulk-diet="${kind}">🥗 Propriétés</button>` : '';
+  return `<div class="bulk-actionbar">
+    <div class="bulk-actionbar-inner">
+      <span>${bulkSelected.size} élément${bulkSelected.size>1?'s':''}</span>
+      <div class="bulk-acts">
+        <button class="bulk-act" data-bulk-resto="${kind}">🏪 Restaurants</button>
+        ${dietBtn}
+      </div>
+    </div>
+  </div>`;
+}
+// A small checkbox overlay to prepend inside each card/row when in select mode
+function bulkCheckHtml(kind, id){
+  if(!bulkActive(kind)) return '';
+  const sel = bulkSelected.has(id);
+  return `<span class="bulk-check ${sel?'on':''}" data-bulk-pick="${id}">${sel?'✓':''}</span>`;
+}
+
+function bindBulkHandlers(kind){
+  $$(`[data-bulk-toggle="${kind}"]`).forEach(b=>b.addEventListener('click',()=>bulkToggle(kind)));
+  if(!bulkActive(kind)) return;
+  const arr = bulkArrayFor(kind);
+  $$(`[data-bulk-all="${kind}"]`).forEach(b=>b.addEventListener('click',()=>{
+    filterByResto(arr).forEach(it=>bulkSelected.add(it.id)); render();
+  }));
+  $$(`[data-bulk-none="${kind}"]`).forEach(b=>b.addEventListener('click',()=>{
+    bulkSelected.clear(); render();
+  }));
+  $$('[data-bulk-pick]').forEach(el=>el.addEventListener('click',(e)=>{
+    e.stopPropagation(); e.preventDefault();
+    const id = el.getAttribute('data-bulk-pick');
+    if(bulkSelected.has(id)) bulkSelected.delete(id); else bulkSelected.add(id);
+    render();
+  }));
+  $$(`[data-bulk-resto="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkRestoModal(kind)));
+  $$(`[data-bulk-diet="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkDietModal(kind)));
+}
+
+function openBulkRestoModal(kind){
+  const restos = getRestaurants();
+  const arr = bulkArrayFor(kind);
+  const ids = Array.from(bulkSelected);
+  const ov = document.createElement('div');
+  ov.className = 'modal-bg';
+  ov.innerHTML = `<div class="modal">
+    <div style="font-family:var(--font-display);font-size:21px;color:var(--gold);letter-spacing:.04em;margin-bottom:6px">🏪 Assigner aux restaurants</div>
+    <p class="muted" style="font-size:12px;margin-bottom:14px">${ids.length} élément${ids.length>1?'s':''} sélectionné${ids.length>1?'s':''}. Coche les restaurants concernés. Aucun coché = <b>tous les restos</b>.</p>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+      ${restos.map(r=>`<label class="diet-chip" style="justify-content:flex-start"><input type="checkbox" name="bulk_resto" value="${r.id}">${escHtml(r.name)}</label>`).join('')}
+    </div>
+    <div class="form-group">
+      <label>Mode</label>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <label class="diet-chip on" style="flex:1;justify-content:center"><input type="radio" name="bulk_mode" value="replace" checked style="display:none">Remplacer</label>
+        <label class="diet-chip" style="flex:1;justify-content:center"><input type="radio" name="bulk_mode" value="add" style="display:none">Ajouter</label>
+      </div>
+      <p class="muted" style="font-size:11px;margin-top:6px;line-height:1.5"><b>Remplacer</b> : écrase l'assignation actuelle.<br><b>Ajouter</b> : conserve les restos déjà assignés et ajoute les nouveaux.</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" data-bulk-resto-apply>Appliquer</button>
+      <button class="btn btn-ghost" data-bulk-cancel>Annuler</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  // radio chip visual toggle
+  ov.querySelectorAll('input[name="bulk_mode"]').forEach(r=>r.addEventListener('change',()=>{
+    ov.querySelectorAll('input[name="bulk_mode"]').forEach(x=>x.closest('label').classList.toggle('on',x.checked));
+  }));
+  ov.addEventListener('click', async e=>{
+    if(e.target===ov || e.target.closest('[data-bulk-cancel]')){ ov.remove(); return; }
+    if(e.target.closest('[data-bulk-resto-apply]')){
+      const picked = Array.from(ov.querySelectorAll('input[name="bulk_resto"]:checked')).map(c=>c.value);
+      const mode = (ov.querySelector('input[name="bulk_mode"]:checked')||{}).value || 'replace';
+      arr.forEach(it=>{
+        if(!ids.includes(it.id)) return;
+        const cur = it.restos || [];
+        if(mode==='add'){
+          const set = new Set(cur); picked.forEach(p=>set.add(p));
+          it.restos = Array.from(set);
+        } else {
+          it.restos = picked.slice();
+        }
+      });
+      await persist();
+      ov.remove();
+      toast(ids.length+' élément(s) mis à jour');
+      bulkClear();
+      render();
+    }
+  });
+}
+
+function openBulkDietModal(kind){
+  const arr = bulkArrayFor(kind);
+  const ids = Array.from(bulkSelected);
+  const ov = document.createElement('div');
+  ov.className = 'modal-bg';
+  ov.innerHTML = `<div class="modal">
+    <div style="font-family:var(--font-display);font-size:21px;color:var(--gold);letter-spacing:.04em;margin-bottom:6px">🥗 Propriétés diététiques</div>
+    <p class="muted" style="font-size:12px;margin-bottom:14px">Applique à ${ids.length} ingrédient${ids.length>1?'s':''}. Choisis une valeur pour ce que tu veux changer ; laisse sur « Ne pas changer » pour le reste.</p>
+    ${['vegetarian:Végétarien','vegan:Vegan','halal:Halal'].map(p=>{
+      const [k,lbl]=p.split(':');
+      return `<div class="form-group">
+        <label>${lbl}</label>
+        <select data-bd="${k}">
+          <option value="">Ne pas changer</option>
+          <option value="1">Oui</option>
+          <option value="0">Non</option>
+        </select>
+      </div>`;
+    }).join('')}
+    <div class="form-group">
+      <label>Allergènes</label>
+      <select data-bd-allergmode>
+        <option value="">Ne pas changer</option>
+        <option value="add">Ajouter ceux cochés</option>
+        <option value="remove">Retirer ceux cochés</option>
+        <option value="set">Remplacer par ceux cochés</option>
+      </select>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+        ${ALLERGENS.map(a=>`<label class="diet-chip allergen"><input type="checkbox" name="bd_allerg" value="${a.key}">${a.icon} ${a.label}</label>`).join('')}
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" data-bulk-diet-apply>Appliquer</button>
+      <button class="btn btn-ghost" data-bulk-cancel>Annuler</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click', async e=>{
+    if(e.target===ov || e.target.closest('[data-bulk-cancel]')){ ov.remove(); return; }
+    if(e.target.closest('[data-bulk-diet-apply]')){
+      const getSel = k => (ov.querySelector(`[data-bd="${k}"]`)||{}).value;
+      const vMode = getSel('vegetarian'), veMode = getSel('vegan'), hMode = getSel('halal');
+      const allergMode = (ov.querySelector('[data-bd-allergmode]')||{}).value;
+      const allergPicked = Array.from(ov.querySelectorAll('input[name="bd_allerg"]:checked')).map(c=>c.value);
+      arr.forEach(it=>{
+        if(!ids.includes(it.id)) return;
+        if(vMode!=='') it.vegetarian = vMode==='1';
+        if(veMode!=='') it.vegan = veMode==='1';
+        if(hMode!=='') it.halal = hMode==='1';
+        if(allergMode){
+          const cur = new Set(it.allergens||[]);
+          if(allergMode==='add') allergPicked.forEach(a=>cur.add(a));
+          else if(allergMode==='remove') allergPicked.forEach(a=>cur.delete(a));
+          else if(allergMode==='set'){ it.allergens = allergPicked.slice(); }
+          if(allergMode!=='set') it.allergens = Array.from(cur);
+        }
+      });
+      await persist();
+      ov.remove();
+      toast(ids.length+' ingrédient(s) mis à jour');
+      bulkClear();
+      render();
+    }
+  });
 }
 
 const Storage = {
@@ -2181,6 +2390,8 @@ async function persist(){ await Storage.save(state); }
 /* ---------- Router ---------- */
 function navigate(hash){
   if(hash && hash.charAt(0)!=='#') hash='#'+hash;
+  // Leaving a list cancels any active bulk-select session
+  if(typeof bulkClear==='function') bulkClear();
   window.location.hash = hash || '#home';
 }
 function parseRoute(){
@@ -2269,10 +2480,14 @@ function renderHome(){
   const ar = activeResto();
   const restoBar = `
     <div class="resto-bar">
-      <div class="resto-bar-label">Gestion</div>
+      <div class="resto-bar-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Gestion ${restos.length>1?`· ${restos.length} restaurants`:''}</span>
+        <button data-manage-restos style="color:var(--cyan);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700">⚙ Gérer</button>
+      </div>
       <div class="resto-pills">
         <button class="resto-pill ${ar==='global'?'on':''}" data-resto-pick="global">🌐 Global</button>
         ${restos.map(r=>`<button class="resto-pill ${ar===r.id?'on':''}" data-resto-pick="${r.id}">${escHtml(r.name)}</button>`).join('')}
+        <button class="resto-pill" data-manage-restos style="border-style:dashed;color:var(--cyan)">＋ Restaurant</button>
       </div>
     </div>`;
   return `
@@ -2348,6 +2563,7 @@ function renderRecipesList(){
       .filter(Boolean).join(' ').toLowerCase();
     return `
       <button class="card" data-go="recipe/${r.id}" data-search="${escHtml(searchText)}">
+        ${bulkCheckHtml('recipes', r.id)}
         <div class="card-thumb ${r.photo?'has-photo':''}" ${photoStyle}>${r.photo?'':'📖'}</div>
         <div class="card-body">
           <div class="card-title">${escHtml(r.name)}</div>
@@ -2374,6 +2590,7 @@ function renderRecipesList(){
         <input class="search-input" id="searchRecipes" placeholder="Rechercher une préparation, un ingrédient…" autocomplete="off">
         <button class="search-clear" aria-label="Effacer">×</button>
       </div>
+      ${bulkToolbarHtml('recipes')}
       <div class="section-head">
         <h2>${recipesCuisineFilter==='all'?'Toutes':escHtml(recipesCuisineFilter)}</h2>
         <span class="count">${items.length} recette${items.length>1?'s':''}</span>
@@ -2381,7 +2598,8 @@ function renderRecipesList(){
       <div class="list">${list}</div>
       <div class="search-empty" id="searchRecipes-empty">Aucune préparation ne correspond à ta recherche.</div>
     </div>
-    <button class="fab" data-go="recipe/new" aria-label="Ajouter une recette">+</button>
+    ${bulkActionBarHtml('recipes')}
+    ${bulkActive('recipes')?'':`<button class="fab" data-go="recipe/new" aria-label="Ajouter une recette">+</button>`}
   `;
 }
 
@@ -2544,7 +2762,10 @@ function renderRecipeEdit(id){
 
         <div class="settings-group">
           <div class="sg-head">Ingrédients</div>
-          <div class="muted" style="margin-bottom:8px">Astuce : place les épices et "au goût" en bas. Utilise les flèches ▲ ▼ pour réordonner.</div>
+          <div class="muted" style="margin-bottom:8px;line-height:1.6">Astuce : place les épices et "au goût" en bas. Utilise les flèches ▲ ▼ pour réordonner.</div>
+          <div style="background:rgba(124,196,124,.1);border:1px solid rgba(124,196,124,.3);border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;line-height:1.6;color:var(--cream-dim)">
+            💡 Si un ingrédient n'existe pas encore, un bouton vert <b style="color:var(--success)">＋ Créer</b> apparaît à droite de son nom. En le touchant, il est <b>créé une seule fois</b> et devient automatiquement disponible dans <b>Ingrédients</b> ET dans <b>Stock</b>. Pas besoin de le ré-encoder ailleurs : les 3 onglets sont liés.
+          </div>
           <div class="dynamic-list" id="ingFields">
             ${r.ingredients.map((ing,i)=>ingFieldRow(ing,i,r.ingredients.length)).join('')}
           </div>
@@ -2606,7 +2827,7 @@ function ingFieldRow(ing,i,total){
     <div style="flex:2;display:flex;align-items:center;gap:4px;min-width:0">
       <span class="link-badge" title="${isLinked?'Lié à un ingrédient':'Pas lié'}" style="font-size:14px;color:${isLinked?'var(--success)':'var(--cream-faint)'};flex-shrink:0">${isLinked?'⌁':'·'}</span>
       <input class="ing-name-i" name="ing_name" list="ingredients-datalist" value="${escHtml(ing.name||'')}" placeholder="Ingrédient" style="flex:1;min-width:0">
-      <button type="button" class="add-ing-db" title="Ajouter cet ingrédient au backend" style="flex-shrink:0;display:${isLinked?'none':'flex'};align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:rgba(124,196,124,.15);color:var(--success);font-size:15px;font-weight:700;line-height:1">＋</button>
+      <button type="button" class="add-ing-db" title="Ajouter aux Ingrédients + Stock automatiquement" style="flex-shrink:0;display:${isLinked?'none':'flex'};align-items:center;justify-content:center;gap:3px;padding:0 8px;height:26px;border-radius:6px;background:rgba(124,196,124,.18);color:var(--success);font-size:11px;font-weight:700;line-height:1;white-space:nowrap">＋ Créer</button>
     </div>
     <input class="ing-amt-i" name="ing_amount" type="number" inputmode="decimal" step="any" value="${ing.amount==null||ing.unit==='au goût'?'':ing.amount}" placeholder="Qté">
     <input class="ing-unit-i" name="ing_unit" value="${escHtml(ing.unit||'')}" placeholder="g, ml…">
@@ -2626,6 +2847,7 @@ function renderFichesList(){
     const nut = ficheNutrition(f);
     const searchText = [f.name, f.category, f.cuisine, f.type].filter(Boolean).join(' ').toLowerCase();
     return `<button class="card" data-go="fiche/${f.id}" data-search="${escHtml(searchText)}">
+      ${bulkCheckHtml('fiches', f.id)}
       <div class="card-thumb ${f.photo?'has-photo':''}" ${photoStyle}>${f.photo?'':'❑'}</div>
       <div class="card-body">
         <div class="card-title">${escHtml(f.name)}</div>
@@ -2653,6 +2875,7 @@ function renderFichesList(){
         <input class="search-input" id="searchFiches" placeholder="Rechercher une fiche technique…" autocomplete="off">
         <button class="search-clear" aria-label="Effacer">×</button>
       </div>
+      ${bulkToolbarHtml('fiches')}
       <div class="section-head">
         <h2>${fichesCuisineFilter==='all'?'Plats':escHtml(fichesCuisineFilter)}</h2>
         <span class="count">${items.length} fiche${items.length>1?'s':''}</span>
@@ -2660,7 +2883,8 @@ function renderFichesList(){
       <div class="list">${list}</div>
       <div class="search-empty" id="searchFiches-empty">Aucune fiche ne correspond à ta recherche.</div>
     </div>
-    <button class="fab" data-go="fiche/new" aria-label="Ajouter une fiche">+</button>
+    ${bulkActionBarHtml('fiches')}
+    ${bulkActive('fiches')?'':`<button class="fab" data-go="fiche/new" aria-label="Ajouter une fiche">+</button>`}
   `;
 }
 
@@ -2997,6 +3221,7 @@ function renderTasksContent(){
     const tr = t.restos || [];
     return `
     <div class="task-row ${t.done?'done':''}" data-task="${t.id}">
+      ${bulkCheckHtml('tasks', t.id)}
       <button class="task-check" data-toggle-task="${t.id}">${t.done?'✓':''}</button>
       <div class="task-body" ${hasDesc?`data-task-expand="${t.id}" style="cursor:pointer"`:''}>
         <div class="task-title">${escHtml(t.title)}${hasDesc?' <span style="color:var(--cyan);font-size:13px" title="Détails disponibles">📝</span>':''}</div>
@@ -3056,7 +3281,9 @@ function renderTasksContent(){
       <button data-tab="week" class="${filter==='week'?'active':''}">Cette semaine</button>
       <button data-tab="all" class="${filter==='all'?'active':''}">Toutes</button>
     </div>
+    ${bulkToolbarHtml('tasks')}
     <div class="list">${list}</div>
+    ${bulkActionBarHtml('tasks')}
     <div class="divider"></div>
     <form id="taskForm" class="settings-group">
       <div class="sg-head">Nouvelle tâche</div>
@@ -3101,6 +3328,7 @@ function renderRoutinesContent(){
     Object.values(r.checked||{}).forEach(v=>{ if(v) done++; });
     const pct = total ? Math.round(done/total*100) : 0;
     return `<button class="routine-card" data-go="routine/${r.id}">
+      ${bulkCheckHtml('routines', r.id)}
       <div class="rc-body">
         <div class="rc-title">${escHtml(r.name)}</div>
         ${r.subtitle?`<div class="rc-sub">${escHtml(r.subtitle)}</div>`:''}
@@ -3110,7 +3338,11 @@ function renderRoutinesContent(){
       <div class="card-arrow" style="color:var(--cyan);font-size:22px;align-self:center">›</div>
     </button>`;
   }).join('');
-  return `<div class="list">${list}</div>`;
+  return `
+    ${bulkToolbarHtml('routines')}
+    <div class="list">${list}</div>
+    ${bulkActionBarHtml('routines')}
+  `;
 }
 
 function renderRoutineDetail(id){
@@ -3223,6 +3455,7 @@ function renderIngredients(){
     const searchText = [i.name, i.notes, i.unit].filter(Boolean).join(' ').toLowerCase();
     return `
     <div class="card" data-go="ingredient/${i.id}/edit" data-search="${escHtml(searchText)}">
+      ${bulkCheckHtml('ingredients', i.id)}
       <div class="card-body">
         <div class="card-title" style="font-size:18px">${escHtml(i.name)}</div>
         <div class="card-meta">Unité : ${escHtml(i.unit||'—')}</div>
@@ -3248,6 +3481,7 @@ function renderIngredients(){
         <input class="search-input" id="searchIngredients" placeholder="Rechercher un ingrédient…" autocomplete="off">
         <button class="search-clear" aria-label="Effacer">×</button>
       </div>
+      ${bulkToolbarHtml('ingredients')}
       <div class="section-head">
         <h2>Backend</h2>
         <span class="count">${items.length} référencés</span>
@@ -3255,7 +3489,8 @@ function renderIngredients(){
       <div class="list">${list}</div>
       <div class="search-empty" id="searchIngredients-empty">Aucun ingrédient ne correspond à ta recherche.</div>
     </div>
-    <button class="fab" data-go="ingredient/new" aria-label="Ajouter">+</button>
+    ${bulkActionBarHtml('ingredients')}
+    ${bulkActive('ingredients')?'':`<button class="fab" data-go="ingredient/new" aria-label="Ajouter">+</button>`}
   `;
 }
 
@@ -3850,6 +4085,66 @@ function refreshReorderButtons(containerSel, attrName){
     if(upBtn) upBtn.disabled = i===0;
     if(downBtn) downBtn.disabled = i===rows.length-1;
   });
+}
+
+function openRestoManager(){
+  const restos = getRestaurants();
+  const ov = document.createElement('div');
+  ov.className = 'modal-bg';
+  const rowsHtml = ()=> getRestaurants().map(r=>`
+    <div class="rm-row" style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--dark-2);border-radius:8px;margin-bottom:6px">
+      <input class="ing-name-i rm-name" data-id="${r.id}" value="${escHtml(r.name)}" style="flex:1">
+      <button class="btn btn-secondary rm-save" data-id="${r.id}" style="padding:8px 12px;font-size:12px">✓</button>
+      ${getRestaurants().length>1?`<button class="btn btn-ghost rm-del" data-id="${r.id}" style="padding:8px 12px;font-size:12px;color:var(--danger)">×</button>`:''}
+    </div>`).join('');
+  ov.innerHTML = `<div class="modal">
+    <div style="font-family:var(--font-display);font-size:22px;color:var(--gold);letter-spacing:.04em;margin-bottom:6px">🏪 Mes restaurants</div>
+    <p class="muted" style="font-size:12px;margin-bottom:14px;line-height:1.5">Ajoute tous les établissements de ton business. Chaque préparation, fiche, tâche peut viser un, plusieurs, ou tous les restos. La vue Globale agrège tout.</p>
+    <div id="rmList">${rowsHtml()}</div>
+    <div class="form-row" style="align-items:flex-end;margin-top:12px">
+      <div class="form-group" style="flex:1;margin-bottom:0">
+        <label>Nouveau restaurant</label>
+        <input id="rmNew" placeholder="Ex : Mexy Fresh Centre-ville" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="rmAdd" style="white-space:nowrap">+ Ajouter</button>
+    </div>
+    <button class="btn btn-ghost btn-block" style="margin-top:16px" data-rm-close>Fermer</button>
+  </div>`;
+  document.body.appendChild(ov);
+
+  const refresh = ()=>{ ov.querySelector('#rmList').innerHTML = rowsHtml(); bindRows(); };
+  function bindRows(){
+    ov.querySelectorAll('.rm-save').forEach(b=>b.addEventListener('click',async()=>{
+      const id=b.getAttribute('data-id');
+      const inp=ov.querySelector(`.rm-name[data-id="${id}"]`);
+      const v=(inp&&inp.value||'').trim();
+      if(!v){ toast('Nom vide'); return; }
+      const r=getRestaurants().find(x=>x.id===id);
+      if(r){ r.name=v; await persist(); toast('Renommé'); render(); }
+    }));
+    ov.querySelectorAll('.rm-del').forEach(b=>b.addEventListener('click',async()=>{
+      const id=b.getAttribute('data-id');
+      const r=getRestaurants().find(x=>x.id===id);
+      if(!r) return;
+      if(!confirm(`Supprimer « ${r.name} » ?\nLes éléments qui lui étaient spécifiquement assignés resteront mais ne seront plus filtrés par ce resto.`)) return;
+      state.restaurants=getRestaurants().filter(x=>x.id!==id);
+      ['recipes','fiches','ingredients','tasks','routines'].forEach(k=>{
+        (state[k]||[]).forEach(it=>{ if(it.restos) it.restos=it.restos.filter(x=>x!==id); });
+      });
+      if(activeResto()===id) setActiveResto('global');
+      await persist(); toast('Supprimé'); refresh(); render();
+    }));
+  }
+  bindRows();
+  ov.querySelector('#rmAdd').addEventListener('click',async()=>{
+    const inp=ov.querySelector('#rmNew');
+    const v=(inp.value||'').trim();
+    if(!v){ toast('Nom vide'); return; }
+    getRestaurants().push({ id:'r_'+Math.random().toString(36).slice(2,8), name:v });
+    inp.value='';
+    await persist(); toast('Restaurant ajouté'); refresh(); render();
+  });
+  ov.addEventListener('click', e=>{ if(e.target===ov || e.target.closest('[data-rm-close]')) ov.remove(); });
 }
 
 function showInstallInstructions(){
@@ -4508,6 +4803,8 @@ function attachHandlers(){
     setActiveResto(b.getAttribute('data-resto-pick'));
     render();
   }));
+  // Manage restaurants (modal, accessible to everyone from home)
+  $$('[data-manage-restos]').forEach(b=>b.addEventListener('click',()=>openRestoManager()));
   // "Tous" chip in editor resto-selector: checking it clears specific picks
   $$('[data-resto-all-cb]').forEach(allCb=>{
     const group = allCb.closest('.settings-group');
@@ -4527,6 +4824,19 @@ function attachHandlers(){
   });
   // Navigation
   $$('[data-go]').forEach(b=>b.addEventListener('click',e=>{
+    // In bulk select mode, tapping a card toggles its selection instead of navigating
+    if(bulkMode){
+      const go = b.getAttribute('data-go');
+      const m = go && go.match(/^(recipe|fiche|ingredient|routine)\/([^/]+)$/);
+      const kindMap = {recipe:'recipes',fiche:'fiches',ingredient:'ingredients',routine:'routines'};
+      if(m && kindMap[m[1]]===bulkMode){
+        e.stopPropagation(); e.preventDefault();
+        const id = m[2];
+        if(bulkSelected.has(id)) bulkSelected.delete(id); else bulkSelected.add(id);
+        render();
+        return;
+      }
+    }
     e.stopPropagation();
     navigate('#'+b.getAttribute('data-go'));
   }));
@@ -4591,7 +4901,6 @@ function attachHandlers(){
         if(exists){ toast('Cet ingrédient existe déjà'); update(); return; }
         const unitInput = row.querySelector('[name="ing_unit"]');
         let unit = (unitInput && unitInput.value.trim()) || 'kg';
-        // Normalize a few common cooking units to a sensible stock unit
         if(['g','gr','gramme','grammes'].includes(unit.toLowerCase())) unit='kg';
         if(['ml','cl'].includes(unit.toLowerCase())) unit='L';
         const newIng = {
@@ -4600,15 +4909,16 @@ function attachHandlers(){
           unit,
           price: null,
           halal: true,
+          vegetarian: false, vegan: false, allergens: [],
           kcal100: 0, protein100: 0, fat100: 0, carbs100: 0,
-          notes: 'Ajouté depuis une recette'
+          notes: 'Ajouté depuis une préparation',
+          restos: defaultRestosForNew()
         };
         state.ingredients.push(newIng);
         await persist();
-        // refresh datalist so other rows autocomplete it
         const dl = document.getElementById('ingredients-datalist');
         if(dl) dl.innerHTML = state.ingredients.map(i=>`<option value="${escHtml(i.name)}">`).join('');
-        toast('« '+name+' » ajouté aux ingrédients');
+        toast('« '+name+' » → ajouté aux Ingrédients ET au Stock');
         update();
       });
     }
@@ -5105,6 +5415,9 @@ function attachHandlers(){
     toast('Réinitialisé');
     navigate('#home');
   });
+
+  // ===== Bulk-edit bindings =====
+  ['recipes','fiches','ingredients','tasks','routines'].forEach(k=>bindBulkHandlers(k));
 
   // ===== Search bindings =====
   bindSearch('searchRecipes', '#app [data-go^="recipe/"][data-search]');
