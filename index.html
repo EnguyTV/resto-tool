@@ -868,6 +868,7 @@ function readRestosFromForm(form){
 // kind: 'recipes' | 'fiches' | 'ingredients' | 'tasks' | 'routines'
 let bulkMode = null;          // currently active list kind, or null
 let bulkSelected = new Set(); // selected item ids
+let bulkUnlocked = false;     // must be unlocked from Admin zone (code 5254) before "Sélectionner" buttons show up
 
 function bulkActive(kind){ return bulkMode === kind; }
 function bulkToggle(kind){
@@ -888,6 +889,8 @@ function bulkArrayFor(kind){
 function bulkToolbarHtml(kind){
   const on = bulkActive(kind);
   if(!on){
+    // Hidden unless the manager has unlocked bulk edit from Admin zone
+    if(!bulkUnlocked) return '';
     return `<div class="bulk-bar"><button class="bulk-btn" data-bulk-toggle="${kind}">☑ Sélectionner</button></div>`;
   }
   return `<div class="bulk-bar on">
@@ -2401,8 +2404,12 @@ function parseRoute(){
 }
 
 /* ---------- Render dispatch ---------- */
+let _lastRouteKey = null;
 function render(){
   const route = parseRoute();
+  const routeKey = `${route.path}|${route.id||''}|${route.action||''}`;
+  const sameRoute = (routeKey === _lastRouteKey);
+  const prevScroll = window.scrollY || window.pageYOffset || 0;
   currentRoute = window.location.hash || '#home';
   const root = $('#app');
   let html = '';
@@ -2445,7 +2452,13 @@ function render(){
     dl.innerHTML = state.ingredients.map(i=>`<option value="${escHtml(i.name)}">`).join('');
   }
   attachHandlers();
-  window.scrollTo(0,0);
+  if(sameRoute){
+    // Re-render of the same page (state update like ticking a task): keep scroll
+    window.scrollTo(0, prevScroll);
+  } else {
+    window.scrollTo(0, 0);
+  }
+  _lastRouteKey = routeKey;
 }
 
 /* ---------- Bottom nav ---------- */
@@ -2480,14 +2493,10 @@ function renderHome(){
   const ar = activeResto();
   const restoBar = `
     <div class="resto-bar">
-      <div class="resto-bar-label" style="display:flex;justify-content:space-between;align-items:center">
-        <span>Gestion ${restos.length>1?`· ${restos.length} restaurants`:''}</span>
-        <button data-manage-restos style="color:var(--cyan);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700">⚙ Gérer</button>
-      </div>
+      <div class="resto-bar-label">Gestion ${restos.length>1?`· ${restos.length} restaurants`:''}</div>
       <div class="resto-pills">
         <button class="resto-pill ${ar==='global'?'on':''}" data-resto-pick="global">🌐 Global</button>
         ${restos.map(r=>`<button class="resto-pill ${ar===r.id?'on':''}" data-resto-pick="${r.id}">${escHtml(r.name)}</button>`).join('')}
-        <button class="resto-pill" data-manage-restos style="border-style:dashed;color:var(--cyan)">＋ Restaurant</button>
       </div>
     </div>`;
   return `
@@ -3722,6 +3731,9 @@ function renderStock(){
         <button class="search-clear" aria-label="Effacer">×</button>
       </div>
       <div class="muted" style="margin-bottom:10px;font-size:11px;letter-spacing:.1em">Touche la case rouge pour forcer "à racheter". Définis un <b>seuil minimum</b> via ✎ : sous ce seuil, le produit passe automatiquement en "à racheter".</div>
+      ${stockFilter==='tobuy' && toBuyCount>0 ? `<div class="btn-row" style="margin-bottom:14px">
+        <button class="btn btn-secondary btn-block" id="copyToBuyBtn">📋 Copier la liste à racheter</button>
+      </div>` : ''}
       <div class="list">${list}</div>
       <div class="search-empty" id="searchStock-empty">Aucun produit ne correspond à ta recherche.</div>
       <div class="divider"></div>
@@ -3952,6 +3964,16 @@ function renderSettings(){
               </div>
               <button class="btn btn-secondary" id="addRestoBtn" style="white-space:nowrap">+ Ajouter</button>
             </div>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+            <div class="sg-head" style="margin-bottom:10px">✎ Édition groupée</div>
+            <div class="muted" style="margin-bottom:10px;font-size:11px;line-height:1.5">Active ce mode pour faire apparaître le bouton « ☑ Sélectionner » en haut des listes (Préparations, Fiches, Ingrédients, Tâches, Routines). Tu pourras alors modifier plusieurs éléments d'un coup (assigner à des restos, changer végé/vegan/halal…).</div>
+            <button class="toggle" id="bulkUnlockToggle">
+              <span class="toggle-label">Afficher « ☑ Sélectionner » sur les listes</span>
+              <span class="toggle-switch" id="bulkUnlockSwitch"></span>
+            </button>
+            <p class="muted" style="font-size:11px;margin-top:6px">Désactivé par défaut pour garder l'interface épurée. Le mode se réinitialise quand tu fermes l'app.</p>
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
@@ -4231,6 +4253,19 @@ function bindSyncHandlers(){
       await persist();
       toast('Appareil renommé');
       render();
+    });
+  }
+
+  // ── Bulk-edit unlock toggle ──
+  const bulkUnlockToggle = $('#bulkUnlockToggle');
+  const bulkUnlockSwitch = $('#bulkUnlockSwitch');
+  if(bulkUnlockToggle && bulkUnlockSwitch){
+    if(bulkUnlocked) bulkUnlockSwitch.classList.add('on');
+    bulkUnlockToggle.addEventListener('click',()=>{
+      bulkUnlocked = !bulkUnlocked;
+      bulkUnlockSwitch.classList.toggle('on', bulkUnlocked);
+      if(!bulkUnlocked) bulkClear();
+      toast(bulkUnlocked ? "Édition groupée disponible sur les listes" : "Édition groupée masquée");
     });
   }
 
@@ -4962,6 +4997,49 @@ function attachHandlers(){
     stockStoreFilter = b.getAttribute('data-stock-store');
     render();
   }));
+  // Copy "à racheter" list to clipboard (for sending in WhatsApp/email…)
+  const copyToBuyBtn = $('#copyToBuyBtn');
+  if(copyToBuyBtn) copyToBuyBtn.addEventListener('click', async ()=>{
+    const items = buildStockEntries().filter(needsRestock);
+    if(!items.length){ toast('Liste vide'); return; }
+    // Group by store
+    const groups = {};
+    items.forEach(s=>{
+      const key = s.store || 'Sans magasin';
+      (groups[key] = groups[key] || []).push(s);
+    });
+    const lines = ['🛒 LISTE À RACHETER — '+new Date().toLocaleDateString('fr-FR')];
+    Object.keys(groups).sort().forEach(store=>{
+      lines.push('');
+      lines.push('▸ '+store);
+      groups[store]
+        .sort((a,b)=>getStockName(a).localeCompare(getStockName(b),'fr'))
+        .forEach(s=>{
+          const name = getStockName(s);
+          const qty = (s.qty==null || s.qty==='') ? '—' : s.qty;
+          const unit = s.unit||'';
+          const note = s.note ? '  ('+s.note+')' : '';
+          lines.push('  • '+name+' — reste : '+qty+unit+note);
+        });
+    });
+    const text = lines.join('\n');
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        await navigator.clipboard.writeText(text);
+        toast('Liste copiée — colle-la dans WhatsApp / email');
+      } else {
+        // Fallback: textarea + execCommand
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        try{ document.execCommand('copy'); toast('Liste copiée'); }
+        catch(e){ alert(text); }
+        ta.remove();
+      }
+    }catch(e){
+      alert(text); // fallback if clipboard refused
+    }
+  });
   // Stock toggle to-buy (handles virtual entries by materializing)
   $$('[data-toggle-stock]').forEach(b=>b.addEventListener('click',async()=>{
     const id = b.getAttribute('data-toggle-stock');
