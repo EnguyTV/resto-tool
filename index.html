@@ -796,6 +796,58 @@ function uniqueTenantSlug(name){
   return 't_'+s;
 }
 
+// Reset in-memory state to a clean slate before switching tenant.
+// Required because the new tenant's cloud files may not exist yet (or be empty),
+// in which case cloudPull leaves state untouched — and the user would still see
+// the PREVIOUS tenant's data. Calling this first guarantees a clean baseline.
+function prepareForTenantSwitch(){
+  // Tenant list itself must be preserved (we just loaded it)
+  const tenantsBackup = state ? state._tenants : null;
+  const devicesBackup = state ? state._devices : null;
+  // Reset sync cache so we don't reuse stale SHAs/etags from another tenant's files
+  _libSha = null; _sharedSha = null; _libETag = null; _sharedETag = null;
+  _lastPushedLibHash = null; _lastPushedSharedHash = null;
+  // Start from clean defaults; cloudPull will overwrite if data exists for this tenant
+  state = defaultData();
+  ensureDefaults();
+  if(tenantsBackup) state._tenants = tenantsBackup;
+  if(devicesBackup) state._devices = devicesBackup;
+}
+
+// Push an empty starter snapshot to a brand-new tenant's files on GitHub,
+// so that switching to it immediately loads a clean slate (not the previous tenant's data).
+async function initializeTenantFiles(tenant){
+  const cfg = SyncConfig.loadOrDefaults();
+  if(!cfg || !cfg.token) throw new Error('Sync non configurée');
+  const emptyLib = {
+    version: 4, schema: 'library',
+    restaurants: [{id:'r_main', name:tenant.name}],
+    recipes: [], fiches: [], ingredients: [],
+    tasks: [], routines: [],
+    contacts: [
+      {id:'c1', name:'Urgences', phone:'112', category:'urgence', notes:'Numéro européen', restos:[]},
+      {id:'c2', name:'Police', phone:'101', category:'urgence', notes:'', restos:[]},
+      {id:'c3', name:'Pompiers', phone:'112', category:'urgence', notes:'', restos:[]}
+    ],
+    notes: [], notifications: [],
+    settings: {
+      showPrices:false, showCalories:true, showHalal:true, currency:'€',
+      cuisines: ['burger','mexicain'],
+      types: ['viandes','garnitures','sides','suppléments','sauces','marinades','féculents','pâtisserie','autres'],
+      stores: ['Sligro','Carrefour','Magasins du monde'],
+      role: 'service'
+    },
+    updatedAt: Date.now()
+  };
+  const emptyShared = {
+    version: 4, schema: 'shared',
+    stock: [], prep: {}, taskDone: {}, routineChecked: {}, devices: {},
+    updatedAt: Date.now()
+  };
+  await GitHubSync.putFile(cfg, emptyLib, null, tenant.dataFile);
+  await GitHubSync.putFile(cfg, emptyShared, null, tenant.sharedFile);
+}
+
 function splitState(){
   // Returns { library, shared }
   const library = {
@@ -879,9 +931,10 @@ function applyLibraryFromCloud(lib){
   state.recipes = lib.recipes || [];
   state.fiches = lib.fiches || [];
   state.ingredients = lib.ingredients || [];
-  if(lib.contacts) state.contacts = lib.contacts;
-  if(lib.notes) state.notes = lib.notes;
-  if(lib.notifications) state.notifications = lib.notifications;
+  // Fully replace these (don't merge — required for tenant switching)
+  state.contacts = lib.contacts || [];
+  state.notes = lib.notes || [];
+  state.notifications = lib.notifications || [];
   state.settings = Object.assign(state.settings||{}, lib.settings||{});
   // Tasks: replace definitions, preserve local done state by id
   const preservedDone = {};
@@ -4952,6 +5005,15 @@ function bindSyncHandlers(){
       state._tenants.push(tenant);
       try{
         await pushTenantsToCloud();
+        // For non-first tenants, create empty data files on GitHub right away
+        // so that switching to them gives a clean slate instead of inheriting current data.
+        if(!isFirst){
+          try{ await initializeTenantFiles(tenant); }
+          catch(e){
+            // Non-fatal: files will be created on first push if push permission OK
+            console.warn('Could not initialize tenant files:', e);
+          }
+        }
         toast('Utilisateur « '+name+' » créé');
         // If first tenant, auto-activate it on this device (smooth transition)
         if(isFirst){ setActiveTenantId(tenant.id); }
@@ -4974,9 +5036,10 @@ function bindSyncHandlers(){
       const t = getTenants().find(x=>x.code===code);
       if(!t){ toast('Aucun utilisateur trouvé avec ce code'); return; }
       setActiveTenantId(t.id);
+      prepareForTenantSwitch();
       toast('Bascule sur « '+t.name+' »…');
-      // Reload data from this tenant's files
       try{ await cloudPull(true); }catch(e){}
+      await Storage.save(state);
       navigate('#home');
     });
   }
@@ -4985,7 +5048,9 @@ function bindSyncHandlers(){
     resetTenantBtn.addEventListener('click', async ()=>{
       if(!confirm('Revenir au mode par défaut (fichiers historiques) ?')) return;
       setActiveTenantId('');
+      prepareForTenantSwitch();
       try{ await cloudPull(true); }catch(e){}
+      await Storage.save(state);
       toast('Mode par défaut');
       navigate('#home');
     });
@@ -4996,8 +5061,10 @@ function bindSyncHandlers(){
     const t = getTenants().find(x=>x.id===id);
     if(!t) return;
     setActiveTenantId(id);
+    prepareForTenantSwitch();
     toast('Bascule sur « '+t.name+' »…');
     try{ await cloudPull(true); }catch(e){}
+    await Storage.save(state);
     navigate('#home');
   }));
   // Edit (rename + change code)
