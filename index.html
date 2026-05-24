@@ -862,6 +862,644 @@ function uniqueTenantSlug(name){
   return 't_'+s;
 }
 
+/* ─────────── PROFILE TEMPLATES (canevas de présentation) ───────────
+   Each function returns a partial library state suitable for being PUSHed to a tenant's data file.
+   They include rich sample data (recipes, fiches, ingredients, tasks, routines, contacts, settings).
+   Used to bootstrap "Présentation X" tenants — copy/duplicate them when a new real client signs up. */
+function PROFILE_TEMPLATES(){
+  const r = [{id:'r_main', name:'Établissement Démo'}];
+  const day = (n)=>n; // helper for clarity
+  const mkIng = (n, u='kg', extra={}) => Object.assign({id:'ing_'+Math.random().toString(36).slice(2,8), name:n, unit:u, price:null, halal:true, vegetarian:false, vegan:false, allergens:[], kcal100:0, protein100:0, fat100:0, carbs100:0, notes:'', restos:[]}, extra);
+  const mkRec = (name, cat, cui, type, baseAmt, baseU, baseLbl, ings, steps, opts={}) => Object.assign({
+    id:'rec_'+Math.random().toString(36).slice(2,8), name, category:cat, cuisine:cui, type, photo:null,
+    baseAmount: baseAmt, baseUnit: baseU, baseLabel: baseLbl,
+    ingredients: ings.map(([n,a,u])=>({name:n, amount:a, unit:u, ingredientId:null})),
+    instructions: steps, prepTime: opts.prepTime||null, cookTemp: opts.cookTemp||null, cookTime: opts.cookTime||null,
+    notes: opts.notes||'', restos:[]
+  });
+  const mkFiche = (name, cat, cui, type, components, opts={}) => Object.assign({
+    id:'fic_'+Math.random().toString(36).slice(2,8), name, category:cat, cuisine:cui, type, photo:null,
+    composition: opts.composition||'', components: components.map(c=>({name:c[0], qty:c[1]||null, unit:c[2]||''})),
+    prepTime: opts.prepTime||null, cookTemp: opts.cookTemp||null, cookTime: opts.cookTime||null,
+    notes: opts.notes||'', restos:[]
+  });
+  const mkTask = (title, freq, day_, desc='') => ({id:'tk_'+Math.random().toString(36).slice(2,8), title, description:desc, frequency:freq, day:day_, done:false, lastDone:null, restos:[]});
+  const mkRoutine = (name, subtitle, sections) => ({id:'rt_'+Math.random().toString(36).slice(2,8), name, subtitle, sections: sections.map(s=>({title:s[0], items:s[1]})), checked:{}, restos:[]});
+  const mkContact = (name, phone, cat, notes='') => ({id:'ct_'+Math.random().toString(36).slice(2,8), name, phone, category:cat, notes, restos:[]});
+
+  return {
+    'boulanger-patisserie': {
+      name: 'Présentation Boulanger-Pâtisserie',
+      code: '1001',
+      restaurants: r,
+      ingredients: [
+        mkIng('Farine T55','kg',{vegetarian:true,vegan:true,allergens:['gluten'],kcal100:340,protein100:10,fat100:1,carbs100:72}),
+        mkIng('Farine T65','kg',{vegetarian:true,vegan:true,allergens:['gluten'],kcal100:335,protein100:11,fat100:1,carbs100:70}),
+        mkIng('Beurre AOP','kg',{vegetarian:true,allergens:['lait'],kcal100:740,protein100:1,fat100:82,carbs100:1}),
+        mkIng('Œufs','douzaine',{vegetarian:true,allergens:['oeuf'],kcal100:155,protein100:13,fat100:11,carbs100:1}),
+        mkIng('Sucre semoule','kg',{vegetarian:true,vegan:true,kcal100:400,carbs100:100}),
+        mkIng('Lait entier','L',{vegetarian:true,allergens:['lait'],kcal100:65,protein100:3,fat100:4,carbs100:5}),
+        mkIng('Levure fraîche','kg',{vegetarian:true,vegan:true,allergens:['gluten']}),
+        mkIng('Sel fin','kg',{vegetarian:true,vegan:true}),
+        mkIng('Chocolat noir 70%','kg',{vegetarian:true,vegan:true,kcal100:540,protein100:8,fat100:42,carbs100:33}),
+        mkIng('Vanille gousse','pièce',{vegetarian:true,vegan:true}),
+        mkIng('Crème liquide 35%','L',{vegetarian:true,allergens:['lait'],kcal100:340,fat100:35}),
+        mkIng('Amandes effilées','kg',{vegetarian:true,vegan:true,allergens:['fruits-coque']})
+      ],
+      recipes: [
+        mkRec('Pâte à brioche','Bases','pâtisserie','pâtes',1,'kg','pâte',
+          [['Farine T55',500,'g'],['Beurre',250,'g'],['Œufs',6,'pièce'],['Sucre',60,'g'],['Lait',50,'mL'],['Levure',20,'g'],['Sel',10,'g']],
+          ['Mélanger farine, sucre, sel dans la cuve','Ajouter les œufs et le lait tiède avec la levure émiettée','Pétrir 10 min vitesse moyenne, ajouter le beurre pommade petit à petit','Pousse 1h30 à 25°C puis dégazer et réserver au frais une nuit'],
+          {prepTime:120, cookTime:25, cookTemp:170}),
+        mkRec('Crème pâtissière','Bases','pâtisserie','crèmes',1,'kg','crème',
+          [['Lait',1000,'mL'],['Jaunes d\'œufs',8,'pièce'],['Sucre',200,'g'],['Farine',80,'g'],['Vanille',1,'gousse']],
+          ['Faire bouillir le lait avec la vanille fendue','Blanchir jaunes + sucre + farine','Verser le lait chaud sur le mélange, remettre sur le feu','Cuire en remuant jusqu\'à épaississement, filmer au contact'],
+          {prepTime:20}),
+        mkRec('Pâte feuilletée','Bases','pâtisserie','pâtes',1,'kg','pâton',
+          [['Farine T55',500,'g'],['Beurre tourage',375,'g'],['Eau',225,'mL'],['Sel',10,'g']],
+          ['Détrempe : farine + sel + eau, fraser sans corser','Aplatir le beurre en carré, l\'enchâsser dans la détrempe','5 tours simples avec repos 30 min entre chaque','Réserver une nuit au frais avant utilisation'],
+          {prepTime:240, notes:'Compter 2 jours pour une pâte parfaite'}),
+        mkRec('Pâte à choux','Bases','pâtisserie','pâtes',500,'g','pâte',
+          [['Eau',250,'mL'],['Beurre',100,'g'],['Farine T55',150,'g'],['Œufs',4,'pièce'],['Sel',2,'g'],['Sucre',5,'g']],
+          ['Faire bouillir eau + beurre + sel + sucre','Hors du feu, ajouter la farine d\'un coup, dessécher 2 min','Ajouter les œufs un par un en battant','Dresser et cuire 25 min à 180°C'],
+          {prepTime:20, cookTime:25, cookTemp:180}),
+        mkRec('Ganache chocolat noir','Bases','pâtisserie','crèmes',500,'g','ganache',
+          [['Chocolat noir',250,'g'],['Crème liquide',250,'mL']],
+          ['Hacher le chocolat finement','Porter la crème à ébullition','Verser sur le chocolat, attendre 1 min, mélanger au centre','Émulsionner à la maryse'],
+          {prepTime:10})
+      ],
+      fiches: [
+        mkFiche('Croissant au beurre','Viennoiserie','pâtisserie','viennoiserie',
+          [['Pâte feuilletée levée',80,'g']],
+          {prepTime:30, cookTime:18, cookTemp:200, notes:'Dorer à l\'œuf battu juste avant cuisson'}),
+        mkFiche('Pain au chocolat','Viennoiserie','pâtisserie','viennoiserie',
+          [['Pâte feuilletée levée',90,'g'],['Bâtonnets chocolat',2,'pièce']]),
+        mkFiche('Éclair au chocolat','Pâtisserie','pâtisserie','pâtisseries',
+          [['Pâte à choux',60,'g'],['Crème pâtissière chocolat',80,'g'],['Glaçage chocolat',30,'g']]),
+        mkFiche('Tarte aux fraises','Pâtisserie','pâtisserie','pâtisseries',
+          [['Pâte sucrée',200,'g'],['Crème pâtissière',300,'g'],['Fraises fraîches',400,'g'],['Nappage',50,'g']],
+          {prepTime:40, cookTime:25})
+      ],
+      tasks: [
+        mkTask('Pétrir les pâtes du lendemain','daily',1,'Brioches, viennoiseries, pâte à pain'),
+        mkTask('Cuisson 1er tour','daily',1,'5h30 — fournée pains'),
+        mkTask('Préparer vitrine','daily',1,'Disposer viennoiseries et pâtisseries du jour'),
+        mkTask('Nettoyer le four à sole','weekly',1,'Lundi avant ouverture'),
+        mkTask('Inventaire matières premières','weekly',5,'Vendredi pour commande lundi')
+      ],
+      routines: [
+        mkRoutine('Ouverture boulangerie','3h45 — préparation matinale',[
+          ['Allumage',['Four à sole sur 220°C','Chambre de pousse à 28°C','Lumières et caisse']],
+          ['Mise en place',['Sortir pâtons','Préparer plaques','Vérifier vitrine propre','Mettre tabliers propres']]
+        ])
+      ],
+      contacts: [
+        mkContact('Urgences','112','urgence'),
+        mkContact('Moulin Beauce','+33 1 23 45 67 89','fournisseur','Livraison farine mardi/vendredi'),
+        mkContact('Crémerie Centrale','+33 1 98 76 54 32','fournisseur','Beurre AOP + œufs frais'),
+        mkContact('Chocolaterie Valrhona','+33 4 75 07 90 90','fournisseur','Couverture chocolat — commande hebdo'),
+        mkContact('Réparateur four','+33 6 12 34 56 78','reparateur','Pannes pétrin/four — Jean')
+      ],
+      notes: [{id:'n_'+Math.random().toString(36).slice(2,8), title:'Astuce dorure', body:'Pour une dorure brillante : 1 œuf entier + 1 jaune + pincée de sel. Reposer 30 min avant utilisation.', pinned:true, author:'Démo', createdAt:Date.now(), updatedAt:Date.now(), restos:[]}],
+      settings: {cuisines:['pâtisserie','viennoiserie','pain','traiteur'], types:['pâtes','crèmes','garnitures','glaçages','viennoiseries','pâtisseries','pains'], stores:['Moulin','Crémerie','Chocolaterie','Métro']}
+    },
+
+    'boucherie': {
+      name: 'Présentation Boucherie',
+      code: '1002',
+      restaurants: r,
+      ingredients: [
+        mkIng('Bœuf — entrecôte','kg',{kcal100:280,protein100:24,fat100:20}),
+        mkIng('Bœuf — bavette','kg'),
+        mkIng('Bœuf haché 15% MG','kg'),
+        mkIng('Porc — échine','kg'),
+        mkIng('Porc — poitrine','kg'),
+        mkIng('Poulet entier','kg',{kcal100:215,protein100:18,fat100:15}),
+        mkIng('Agneau — gigot','kg'),
+        mkIng('Sel fin','kg',{vegetarian:true,vegan:true}),
+        mkIng('Poivre noir moulu','kg',{vegetarian:true,vegan:true}),
+        mkIng('Ail frais','kg',{vegetarian:true,vegan:true}),
+        mkIng('Persil plat','botte',{vegetarian:true,vegan:true}),
+        mkIng('Vin rouge cuisine','L',{vegetarian:true,vegan:true})
+      ],
+      recipes: [
+        mkRec('Marinade barbecue','Préparations','boucherie','marinades',500,'mL','marinade',
+          [['Huile olive',200,'mL'],['Vinaigre balsamique',100,'mL'],['Ail',4,'gousse'],['Herbes provence',20,'g'],['Sel',10,'g'],['Poivre',5,'g']],
+          ['Mixer tous les ingrédients','Mariner les viandes 4h à 24h au frais']),
+        mkRec('Farce à saucisse','Préparations','boucherie','charcuterie',1,'kg','farce',
+          [['Porc — épaule',700,'g'],['Porc — poitrine',300,'g'],['Sel',18,'g'],['Poivre',4,'g'],['Ail',2,'gousse']],
+          ['Hacher porc à grille 6 mm','Mélanger avec sel/poivre/ail','Tester un peu à la poêle, rectifier','Embosser en boyaux naturels'],
+          {prepTime:60}),
+        mkRec('Tartare classique','Préparations','boucherie','boeuf',150,'g','portion',
+          [['Bœuf rumsteak',150,'g'],['Échalote',1,'pièce'],['Câpres',10,'g'],['Cornichons',2,'pièce'],['Jaune d\'œuf',1,'pièce'],['Moutarde forte',5,'g']],
+          ['Hacher la viande au couteau','Ciseler échalote, câpres, cornichons','Mélanger avec moutarde, sauce Worcestershire, sel/poivre','Servir bien froid, jaune d\'œuf sur le dessus'],
+          {prepTime:15}),
+        mkRec('Saumure simple','Préparations','boucherie','sauces',1,'L','saumure',
+          [['Eau',1,'L'],['Sel',60,'g'],['Sucre',20,'g'],['Laurier',2,'feuille'],['Baies genièvre',5,'pièce']],
+          ['Porter à ébullition','Refroidir complètement','Immerger les pièces 12 à 48h selon taille'])
+      ],
+      fiches: [
+        mkFiche('Steak frites','Plats','boucherie','boeuf',
+          [['Entrecôte',250,'g'],['Frites maison',200,'g'],['Beurre maître d\'hôtel',20,'g']],
+          {prepTime:5, cookTime:6}),
+        mkFiche('Côte de bœuf 1kg','Plats','boucherie','boeuf',
+          [['Côte de bœuf',1,'kg'],['Fleur de sel',5,'g'],['Poivre',2,'g']],
+          {cookTime:25, notes:'Sortir 1h avant, cuisson à la plancha'}),
+        mkFiche('Brochettes mixte','Plats','boucherie','assortiment',
+          [['Bœuf cube',80,'g'],['Poulet cube',80,'g'],['Agneau cube',40,'g'],['Poivron',50,'g'],['Oignon',30,'g']],
+          {prepTime:15, cookTime:8}),
+        mkFiche('Saucisse maison','Charcuterie','boucherie','charcuterie',
+          [['Farce à saucisse',150,'g'],['Boyau naturel',1,'m']])
+      ],
+      tasks: [
+        mkTask('Sortir viandes vitrine','daily',1,'7h — disposition fraîcheur'),
+        mkTask('Nettoyage trancheuse','daily',1,'Démontage et lavage complet en fin de service'),
+        mkTask('Désinfection billots','daily',1,'Sel + eau bouillante + grattage'),
+        mkTask('Commande hebdomadaire','weekly',2,'Mardi — envoyer commande pour livraison jeudi'),
+        mkTask('Contrôle température chambres froides','daily',1,'Matin et soir, noter dans le registre HACCP')
+      ],
+      routines: [
+        mkRoutine('Ouverture boucherie','6h — préparation vitrine',[
+          ['Sécurité',['Vérifier températures chambres','Sortir registres HACCP','Désinfecter mains']],
+          ['Vitrine',['Sortir les pièces','Renouveler glace pilée','Étiquetage prix']],
+          ['Service',['Affûter couteaux','Préparer ficelle/papier','Caisse OK']]
+        ])
+      ],
+      contacts: [
+        mkContact('Urgences','112','urgence'),
+        mkContact('Éleveur Ferme Dupont','+33 6 77 88 99 00','fournisseur','Bœuf race normande'),
+        mkContact('Vétérinaire HACCP','+33 1 11 22 33 44','reparateur','Suivi sanitaire mensuel'),
+        mkContact('Affineur charcuterie','+33 4 55 66 77 88','fournisseur','Saucissons secs / jambons crus')
+      ],
+      settings: {cuisines:['boucherie','charcuterie','traiteur'], types:['boeuf','porc','volaille','agneau','charcuterie','marinades','sauces'], stores:['Éleveur','Métro','Grossiste']}
+    },
+
+    'friterie': {
+      name: 'Présentation Friterie',
+      code: '1003',
+      restaurants: r,
+      ingredients: [
+        mkIng('Pommes de terre Bintje','kg',{vegetarian:true,vegan:true,kcal100:77,carbs100:17}),
+        mkIng('Huile de friture','L',{vegetarian:true,vegan:true}),
+        mkIng('Mayonnaise','L',{vegetarian:true,allergens:['oeuf','moutarde']}),
+        mkIng('Ketchup','L',{vegetarian:true,vegan:true}),
+        mkIng('Oignons','kg',{vegetarian:true,vegan:true}),
+        mkIng('Cornichons','L',{vegetarian:true,vegan:true,allergens:['moutarde']}),
+        mkIng('Fricadelles','pièce'),
+        mkIng('Bicky burger','pièce',{allergens:['gluten','lait']}),
+        mkIng('Pain pita','pièce',{vegetarian:true,vegan:true,allergens:['gluten']}),
+        mkIng('Viande à mitraillette','kg'),
+        mkIng('Sauce andalouse','L',{vegetarian:true,allergens:['oeuf','moutarde']})
+      ],
+      recipes: [
+        mkRec('Sauce andalouse','Sauces','friterie','sauces',1,'L','sauce',
+          [['Mayonnaise',800,'mL'],['Concentré tomate',150,'g'],['Poivron rouge',80,'g'],['Paprika doux',10,'g'],['Cayenne',2,'g']],
+          ['Mixer tous les ingrédients','Réserver au frais 12h pour développer les arômes'],
+          {prepTime:10}),
+        mkRec('Sauce samouraï','Sauces','friterie','sauces',1,'L','sauce',
+          [['Mayonnaise',800,'mL'],['Sambal oelek',60,'g'],['Concentré tomate',100,'g'],['Paprika fumé',15,'g']],
+          ['Mélanger soigneusement, ajuster en piment']),
+        mkRec('Sauce mammouth','Sauces','friterie','sauces',1,'L','sauce',
+          [['Mayonnaise',600,'mL'],['Mousse de viande',200,'g'],['Cornichons hachés',100,'g'],['Moutarde',50,'g']],
+          ['Mélanger au fouet','Pas plus de 48h au frais']),
+        mkRec('Cuisson frites belges','Bases','friterie','frites',1,'kg','frites',
+          [['Pommes de terre Bintje',1,'kg'],['Huile bœuf',2,'L']],
+          ['Éplucher, calibrer en bâtonnets 12 mm','Blanchir 6 min à 150°C, refroidir','Cuisson finale 2 min à 175°C juste à la commande','Saler immédiatement à la sortie'],
+          {prepTime:20, cookTime:8})
+      ],
+      fiches: [
+        mkFiche('Mitraillette','Plats','friterie','snacks',
+          [['Pain pita',1,'pièce'],['Viande mitraillette',150,'g'],['Frites',150,'g'],['Sauce andalouse',40,'g'],['Salade',30,'g'],['Tomate',30,'g']],
+          {prepTime:5}),
+        mkFiche('Cornet frites moyen','Plats','friterie','frites',
+          [['Frites',250,'g'],['Sauce au choix',50,'g']]),
+        mkFiche('Fricadelle + frites','Plats','friterie','snacks',
+          [['Fricadelle',1,'pièce'],['Frites',200,'g'],['Sauce',40,'g']]),
+        mkFiche('Bicky burger','Plats','friterie','snacks',
+          [['Bicky burger',1,'pièce'],['Frites',150,'g']])
+      ],
+      tasks: [
+        mkTask('Éplucher pommes de terre','daily',1,'Au moins 10 kg pour le service midi'),
+        mkTask('Vérifier huile de friture','daily',1,'Niveau et clarté'),
+        mkTask('Changer huile friteuses','weekly',1,'Lundi matin'),
+        mkTask('Nettoyer cuves friteuses','weekly',1,'Détartrant + rinçage abondant'),
+        mkTask('Commande viande mitraillette','weekly',3,'Mercredi pour livraison vendredi')
+      ],
+      routines: [
+        mkRoutine('Ouverture friterie','10h30 — mise en place',[
+          ['Friteuses',['Vérifier température','Filtrer huile','Test cuisson']],
+          ['Sauces',['Sortir bidons','Vérifier dates','Remplir squeezers']],
+          ['Salle',['Allumer enseigne','Vider poubelles','Caisse OK']]
+        ])
+      ],
+      contacts: [
+        mkContact('Urgences','112','urgence'),
+        mkContact('Maraîcher Pommes de terre','+32 4 56 78 90 12','fournisseur','Bintje saison'),
+        mkContact('Boucher mitraillette','+32 4 87 65 43 21','fournisseur','Viande spéciale mitraillette')
+      ],
+      settings: {cuisines:['friterie','snack'], types:['frites','sauces','viandes','snacks','accompagnements'], stores:['Maraîcher','Métro','Boucher']}
+    },
+
+    'pizzeria': {
+      name: 'Présentation Pizzeria',
+      code: '1004',
+      restaurants: r,
+      ingredients: [
+        mkIng('Farine 00','kg',{vegetarian:true,vegan:true,allergens:['gluten']}),
+        mkIng('Levure boulanger fraîche','kg',{vegetarian:true,vegan:true,allergens:['gluten']}),
+        mkIng('Mozzarella fior di latte','kg',{vegetarian:true,allergens:['lait']}),
+        mkIng('Tomate San Marzano pelée','kg',{vegetarian:true,vegan:true}),
+        mkIng('Huile olive extra-vierge','L',{vegetarian:true,vegan:true}),
+        mkIng('Basilic frais','botte',{vegetarian:true,vegan:true}),
+        mkIng('Jambon cru','kg',{allergens:[]}),
+        mkIng('Champignons Paris','kg',{vegetarian:true,vegan:true}),
+        mkIng('Parmesan','kg',{vegetarian:true,allergens:['lait']}),
+        mkIng('Gorgonzola','kg',{vegetarian:true,allergens:['lait']}),
+        mkIng('Origan séché','kg',{vegetarian:true,vegan:true})
+      ],
+      recipes: [
+        mkRec('Pâte à pizza napolitaine','Bases','italien','pâtes',1,'kg','pâte',
+          [['Farine 00',600,'g'],['Eau',360,'mL'],['Sel',18,'g'],['Levure fraîche',2,'g']],
+          ['Mélanger farine + eau jusqu\'à autolyse 30 min','Ajouter sel et levure, pétrir 15 min','Pousse en bloc 2h, bouler en pâtons de 250 g','Pousse pâtons 18-24h au frais avant utilisation'],
+          {prepTime:40, notes:'Hydratation 60% — préparer J-1'}),
+        mkRec('Sauce tomate pizza','Bases','italien','sauces',1,'L','sauce',
+          [['Tomate pelée San Marzano',1,'kg'],['Sel',8,'g'],['Origan',2,'g'],['Huile olive',30,'mL']],
+          ['Écraser les tomates à la main','Saler et assaisonner','Ne PAS cuire — utiliser crue, cuisson au four']),
+        mkRec('Préparation mozzarella','Bases','italien','garnitures',1,'kg','prêt à pizza',
+          [['Mozzarella fior di latte',1,'kg']],
+          ['Égoutter 12h sur grille','Couper en cubes 1 cm','Réserver au frais sec'])
+      ],
+      fiches: [
+        mkFiche('Pizza Margherita','Plats','italien','pizza',
+          [['Pâton',250,'g'],['Sauce tomate',80,'g'],['Mozzarella',100,'g'],['Basilic frais',5,'feuille'],['Huile olive',5,'mL']],
+          {cookTime:90, cookTemp:450, notes:'Four à bois ou à pizza haute température'}),
+        mkFiche('Pizza Regina','Plats','italien','pizza',
+          [['Pâton',250,'g'],['Sauce tomate',80,'g'],['Mozzarella',100,'g'],['Jambon cuit',60,'g'],['Champignons',60,'g'],['Olives',20,'g']]),
+        mkFiche('Pizza Quattro Formaggi','Plats','italien','pizza',
+          [['Pâton',250,'g'],['Mozzarella',60,'g'],['Gorgonzola',50,'g'],['Parmesan',30,'g'],['Chèvre',40,'g']]),
+        mkFiche('Calzone classique','Plats','italien','pizza',
+          [['Pâton',280,'g'],['Ricotta',100,'g'],['Jambon',60,'g'],['Mozzarella',80,'g'],['Tomate',50,'g']],
+          {cookTime:8, cookTemp:280})
+      ],
+      tasks: [
+        mkTask('Pétrir pâte du lendemain','daily',1,'15h — 24h de fermentation au frais'),
+        mkTask('Sortir pâtons','daily',1,'2h avant service — atteindre 18°C'),
+        mkTask('Nettoyer four','daily',1,'Brossage sole + retrait farine brûlée'),
+        mkTask('Commande mozzarella','weekly',2,'Mardi pour livraison mercredi/jeudi'),
+        mkTask('Détartrer pétrin','weekly',1,'Lundi avant service')
+      ],
+      routines: [
+        mkRoutine('Ouverture pizzeria','11h30 — mise en place',[
+          ['Four',['Allumage 1h avant','Stabiliser à 450°C','Brossage final']],
+          ['Garnitures',['Sortir mozzarella','Râper parmesan du jour','Préparer plateaux toppings']],
+          ['Service',['Préparer pelles + farine','Vérifier four à bois','Salle dressée']]
+        ])
+      ],
+      contacts: [
+        mkContact('Urgences','112','urgence'),
+        mkContact('Importateur italien','+33 1 47 58 96 12','fournisseur','Farine 00 + tomate San Marzano'),
+        mkContact('Crémerie mozzarella','+33 4 91 23 45 67','fournisseur','Livraison lundi + jeudi')
+      ],
+      settings: {cuisines:['italien','pizza','pâtes'], types:['pâtes','sauces','garnitures','fromages','antipasti','desserts'], stores:['Importateur','Crémerie','Métro']}
+    },
+
+    'glacier': {
+      name: 'Présentation Glacier',
+      code: '1005',
+      restaurants: r,
+      ingredients: [
+        mkIng('Lait entier','L',{vegetarian:true,allergens:['lait']}),
+        mkIng('Crème 35%','L',{vegetarian:true,allergens:['lait']}),
+        mkIng('Sucre','kg',{vegetarian:true,vegan:true}),
+        mkIng('Glucose atomisé','kg',{vegetarian:true,vegan:true}),
+        mkIng('Jaunes d\'œuf pasteurisés','L',{vegetarian:true,allergens:['oeuf']}),
+        mkIng('Vanille Bourbon gousse','pièce',{vegetarian:true,vegan:true}),
+        mkIng('Pulpe de fraise','kg',{vegetarian:true,vegan:true}),
+        mkIng('Pulpe de mangue','kg',{vegetarian:true,vegan:true}),
+        mkIng('Chocolat noir 70%','kg',{vegetarian:true,vegan:true,allergens:[]}),
+        mkIng('Pistache pâte pure','kg',{vegetarian:true,vegan:true,allergens:['fruits-coque']}),
+        mkIng('Cônes gaufrés','pièce',{vegetarian:true,allergens:['gluten','oeuf']})
+      ],
+      recipes: [
+        mkRec('Base anglaise glace','Bases','glacier','glaces',1,'L','base',
+          [['Lait',650,'mL'],['Crème 35%',150,'mL'],['Jaunes',150,'g'],['Sucre',150,'g']],
+          ['Faire bouillir lait + crème','Blanchir jaunes + sucre','Mélanger, cuire à 85°C en vannant','Refroidir rapidement et turbiner après maturation 12h'],
+          {prepTime:25}),
+        mkRec('Glace vanille','Glaces','glacier','glaces',1,'L','glace',
+          [['Base anglaise',1,'L'],['Vanille',2,'gousse']],
+          ['Infuser vanille dans le lait chaud 30 min','Procédure base anglaise','Maturation 12h puis turbiner'],
+          {prepTime:30}),
+        mkRec('Sorbet fraise','Sorbets','glacier','sorbets',1,'L','sorbet',
+          [['Pulpe fraise',700,'mL'],['Sirop',300,'mL'],['Jus citron',30,'mL']],
+          ['Mélanger pulpe + sirop tiède + citron','Maturation 4h','Turbiner']),
+        mkRec('Caramel beurre salé','Coulis','glacier','toppings',500,'g','coulis',
+          [['Sucre',250,'g'],['Crème',200,'mL'],['Beurre demi-sel',80,'g']],
+          ['Caraméliser le sucre à sec','Décuire avec la crème chaude','Ajouter le beurre, mélanger lisse'])
+      ],
+      fiches: [
+        mkFiche('Coupe Dame Blanche','Coupes','glacier','coupes',
+          [['Glace vanille',3,'boule'],['Chantilly',60,'g'],['Chocolat chaud',40,'g'],['Amandes effilées',5,'g']]),
+        mkFiche('Coupe Liégeoise','Coupes','glacier','coupes',
+          [['Glace café',2,'boule'],['Espresso',30,'mL'],['Chantilly',50,'g']]),
+        mkFiche('Cornet 2 boules','Glaces à emporter','glacier','glaces',
+          [['Cône gaufré',1,'pièce'],['Glace ou sorbet',2,'boule']]),
+        mkFiche('Sundae chocolat','Coupes','glacier','coupes',
+          [['Glace vanille',2,'boule'],['Glace chocolat',1,'boule'],['Caramel beurre salé',30,'g'],['Cacahuètes',10,'g']])
+      ],
+      tasks: [
+        mkTask('Pasteuriser bases','daily',1,'Bases anglaises pour le lendemain'),
+        mkTask('Turbiner glaces','daily',1,'2 ou 3 parfums par jour selon stock'),
+        mkTask('Étiqueter bacs glaces','daily',1,'Date pasteurisation + parfum + initiales'),
+        mkTask('Nettoyage turbines','daily',1,'Démontage + lavage + désinfection'),
+        mkTask('Inventaire vitrine','weekly',1,'Lundi — quoi rotule, quoi à refaire')
+      ],
+      routines: [
+        mkRoutine('Ouverture glacier','12h — mise en service',[
+          ['Vitrine',['Vérifier température -14°C','Décorer bacs','Préparer cuillères chaudes']],
+          ['Service',['Sortir cônes','Charger pots','Caisse OK']]
+        ])
+      ],
+      contacts: [
+        mkContact('Urgences','112','urgence'),
+        mkContact('Crémerie laitière','+33 2 33 44 55 66','fournisseur','Lait/crème — livraison 2x/sem'),
+        mkContact('Fruitier saisons','+33 2 99 88 77 66','fournisseur','Fraises/abricots/pêches en saison'),
+        mkContact('Frigoriste','+33 6 78 90 12 34','reparateur','Vitrines + turbines')
+      ],
+      settings: {cuisines:['glacier','dessert'], types:['glaces','sorbets','coulis','toppings','coupes','accompagnements'], stores:['Crémerie','Fruitier','Métro']}
+    },
+
+    'brasserie': {
+      name: 'Présentation Brasserie',
+      code: '1006',
+      restaurants: r,
+      ingredients: [
+        mkIng('Pommes de terre','kg',{vegetarian:true,vegan:true}),
+        mkIng('Moules de bouchot','kg',{allergens:['mollusques']}),
+        mkIng('Bavette de bœuf','kg'),
+        mkIng('Échalotes','kg',{vegetarian:true,vegan:true}),
+        mkIng('Vin blanc sec','L',{vegetarian:true,vegan:true,allergens:['sulfites']}),
+        mkIng('Bière brune','L',{vegetarian:true,vegan:true,allergens:['gluten']}),
+        mkIng('Beurre','kg',{vegetarian:true,allergens:['lait']}),
+        mkIng('Crème fraîche épaisse','kg',{vegetarian:true,allergens:['lait']}),
+        mkIng('Persil plat','botte',{vegetarian:true,vegan:true}),
+        mkIng('Ail','kg',{vegetarian:true,vegan:true}),
+        mkIng('Œufs','douzaine',{vegetarian:true,allergens:['oeuf']})
+      ],
+      recipes: [
+        mkRec('Sauce béarnaise','Sauces','français','sauces',500,'mL','sauce',
+          [['Échalote',50,'g'],['Vinaigre estragon',80,'mL'],['Vin blanc',80,'mL'],['Jaunes',6,'pièce'],['Beurre clarifié',300,'g'],['Estragon',10,'g']],
+          ['Réduire vinaigre + vin + échalote + estragon','Filtrer, monter avec les jaunes au bain-marie','Incorporer beurre clarifié en filet','Ajouter estragon frais haché'],
+          {prepTime:25}),
+        mkRec('Carbonade flamande','Plats','français','plats',4,'portion','part',
+          [['Bœuf gîte',800,'g'],['Oignons',500,'g'],['Bière brune',500,'mL'],['Pain d\'épices',2,'tranche'],['Moutarde forte',30,'g'],['Cassonade',30,'g']],
+          ['Saisir la viande en morceaux','Suer les oignons','Mouiller à la bière, ajouter pain d\'épices tartiné moutarde','Mijoter 3h à feu doux'],
+          {prepTime:30, cookTime:180}),
+        mkRec('Marinade pour bavette','Préparations','français','marinades',500,'mL','marinade',
+          [['Huile olive',200,'mL'],['Sauce soja',80,'mL'],['Ail',5,'gousse'],['Romarin',2,'branche'],['Poivre',5,'g']],
+          ['Mixer','Mariner 2-4h au frais'])
+      ],
+      fiches: [
+        mkFiche('Steak frites','Plats','français','plats',
+          [['Bavette',200,'g'],['Frites',200,'g'],['Beurre maître d\'hôtel',20,'g'],['Salade verte',50,'g']],
+          {cookTime:5}),
+        mkFiche('Moules-frites','Plats','français','plats',
+          [['Moules',1,'kg'],['Frites',300,'g'],['Échalote',2,'pièce'],['Vin blanc',100,'mL'],['Persil',10,'g']],
+          {cookTime:8, notes:'Moules marinière classique'}),
+        mkFiche('Carbonade flamande','Plats','français','plats',
+          [['Carbonade',250,'g'],['Frites',200,'g']]),
+        mkFiche('Tartare frites','Plats','français','plats',
+          [['Tartare',150,'g'],['Frites',200,'g'],['Salade',50,'g']])
+      ],
+      tasks: [
+        mkTask('Mise en place midi','daily',1,'9h — préparer fruits/légumes/sauces'),
+        mkTask('Mise en place soir','daily',1,'17h — recharger + nettoyage cuisine'),
+        mkTask('Nettoyage cuisine','daily',1,'Après service du soir — sols, plans, hottes'),
+        mkTask('Commande boucher','weekly',2,'Mardi — bavette + entrecôte pour week-end'),
+        mkTask('Inventaire cave','weekly',1,'Lundi — vins + bières')
+      ],
+      routines: [
+        mkRoutine('Ouverture déjeuner','9h-12h',[
+          ['Cuisine',['Sortir viandes','Plucher légumes','Mettre fonds à chauffer','Préparer sauces']],
+          ['Salle',['Dresser tables','Vérifier menus','Cafetière en route','Caisse + TPE OK']]
+        ]),
+        mkRoutine('Fermeture soirée','23h-00h',[
+          ['Cuisine',['Filmer/ranger préparations','Nettoyer plans + sols','Vider poubelles','Éteindre tout']],
+          ['Salle',['Encaissement','Mise en place lendemain','Aspirer','Verrouiller']]
+        ])
+      ],
+      contacts: [
+        mkContact('Urgences','112','urgence'),
+        mkContact('Brasseur local','+33 3 22 33 44 55','fournisseur','Bières pression — livraison hebdo'),
+        mkContact('Mareyeur Marée du jour','+33 2 98 76 54 32','fournisseur','Moules + poissons frais'),
+        mkContact('Boucher','+33 1 88 99 00 11','fournisseur','Viandes + abats'),
+        mkContact('Patron','+33 6 11 22 33 44','patron','Urgences gestion')
+      ],
+      settings: {cuisines:['français','traditionnel','brasserie'], types:['entrées','plats','desserts','sauces','accompagnements','viandes','poissons'], stores:['Boucher','Mareyeur','Brasseur','Métro']}
+    },
+
+    'bar': {
+      name: 'Présentation Bar',
+      code: '1007',
+      restaurants: r,
+      ingredients: [
+        mkIng('Rhum blanc agricole','L',{vegan:true,vegetarian:true}),
+        mkIng('Gin London Dry','L',{vegan:true,vegetarian:true}),
+        mkIng('Vodka','L',{vegan:true,vegetarian:true}),
+        mkIng('Tequila blanco','L',{vegan:true,vegetarian:true}),
+        mkIng('Whisky bourbon','L',{vegan:true,vegetarian:true}),
+        mkIng('Vermouth rouge','L',{vegan:true,vegetarian:true,allergens:['sulfites']}),
+        mkIng('Prosecco','L',{vegan:true,vegetarian:true,allergens:['sulfites']}),
+        mkIng('Citron vert frais','kg',{vegan:true,vegetarian:true}),
+        mkIng('Menthe fraîche','botte',{vegan:true,vegetarian:true}),
+        mkIng('Sucre cassonade','kg',{vegan:true,vegetarian:true}),
+        mkIng('Glace pilée','kg',{vegan:true,vegetarian:true}),
+        mkIng('Sirop simple maison','L',{vegan:true,vegetarian:true})
+      ],
+      recipes: [
+        mkRec('Sirop simple','Bases','cocktails','sirops',1,'L','sirop',
+          [['Eau',500,'mL'],['Sucre',500,'g']],
+          ['Chauffer eau + sucre jusqu\'à dissolution complète','Refroidir, bouteiller','Conservation 2 semaines au frais']),
+        mkRec('Mix sour maison','Bases','cocktails','sirops',1,'L','mix',
+          [['Jus citron jaune',500,'mL'],['Jus citron vert',200,'mL'],['Sirop simple',300,'mL']],
+          ['Mélanger, filtrer','Conserver 5 jours max au frais'])
+      ],
+      fiches: [
+        mkFiche('Mojito','Cocktails','cocktails','classiques',
+          [['Rhum blanc',50,'mL'],['Menthe fraîche',10,'feuille'],['Citron vert',1,'pièce'],['Sucre',15,'g'],['Eau gazeuse',100,'mL'],['Glace pilée',1,'verre']],
+          {prepTime:3, notes:'Écraser menthe + sucre + citron au fond, allonger glace pilée'}),
+        mkFiche('Spritz','Cocktails','cocktails','classiques',
+          [['Prosecco',100,'mL'],['Apérol',60,'mL'],['Eau gazeuse',30,'mL'],['Tranche orange',1,'pièce']]),
+        mkFiche('Manhattan','Cocktails','cocktails','classiques',
+          [['Bourbon',60,'mL'],['Vermouth rouge',30,'mL'],['Angostura',2,'trait'],['Cerise',1,'pièce']]),
+        mkFiche('Cosmopolitan','Cocktails','cocktails','signatures',
+          [['Vodka',45,'mL'],['Triple sec',15,'mL'],['Jus cranberry',30,'mL'],['Citron vert',15,'mL']]),
+        mkFiche('Margarita','Cocktails','cocktails','classiques',
+          [['Tequila',50,'mL'],['Triple sec',20,'mL'],['Citron vert',30,'mL'],['Sel rebord verre','—']])
+      ],
+      tasks: [
+        mkTask('Nettoyer percolateur','daily',1,'Après service — démontage filtres'),
+        mkTask('Changer fûts bière','daily',1,'Vérifier pression CO2 + tirage'),
+        mkTask('Inventaire alcools','weekly',1,'Lundi avant ouverture'),
+        mkTask('Recharger frigo bouteilles','daily',1,'Soft + bières + bouteilles cocktails'),
+        mkTask('Préparer fruits jour','daily',1,'Tranches citron/orange + zestes + cerises'),
+        mkTask('Nettoyer comptoir + verres','daily',1,'En fin de service — TOUT le bar')
+      ],
+      routines: [
+        mkRoutine('Ouverture bar','16h — mise en place',[
+          ['Bar',['Allumer glaces','Vérifier pression bière','Préparer fruits','Lancer playlists']],
+          ['Service',['Caisse + TPE OK','Carte cocktails à jour','Verres propres','Glaçons remplis']]
+        ])
+      ],
+      contacts: [
+        mkContact('Urgences','112','urgence'),
+        mkContact('Caviste vins','+33 1 45 67 89 01','fournisseur','Sélection vins au verre'),
+        mkContact('Brasseur local','+33 3 88 99 00 11','fournisseur','Fûts pression bière'),
+        mkContact('Frigoriste','+33 6 23 45 67 89','reparateur','Tirages bière + frigos')
+      ],
+      settings: {cuisines:['cocktails','sans-alcool','vins','bières'], types:['classiques','signatures','virgin','shots','snacks','tapas'], stores:['Caviste','Brasseur','Grossiste','Métro']}
+    },
+
+    'restaurant': {
+      name: 'Présentation Restaurant',
+      code: '1008',
+      restaurants: r,
+      ingredients: [
+        mkIng('Fond brun','L'),
+        mkIng('Fond blanc','L'),
+        mkIng('Beurre','kg',{vegetarian:true,allergens:['lait']}),
+        mkIng('Crème 35%','L',{vegetarian:true,allergens:['lait']}),
+        mkIng('Échalotes','kg',{vegan:true,vegetarian:true}),
+        mkIng('Vin blanc cuisine','L',{vegan:true,vegetarian:true,allergens:['sulfites']}),
+        mkIng('Vin rouge cuisine','L',{vegan:true,vegetarian:true,allergens:['sulfites']}),
+        mkIng('Poisson — bar entier','kg',{allergens:['poisson']}),
+        mkIng('Filet de bœuf','kg'),
+        mkIng('Carotte','kg',{vegan:true,vegetarian:true}),
+        mkIng('Champignons Paris','kg',{vegan:true,vegetarian:true}),
+        mkIng('Pommes de terre','kg',{vegan:true,vegetarian:true})
+      ],
+      recipes: [
+        mkRec('Sauce mère brun (espagnole)','Bases','français','sauces',1,'L','sauce',
+          [['Fond brun',1.5,'L'],['Roux brun',60,'g'],['Tomate concentrée',30,'g'],['Mirepoix',150,'g']],
+          ['Suer mirepoix au beurre','Ajouter tomate, cuire 5 min','Mouiller au fond brun, réduire de moitié','Lier au roux, passer au chinois']),
+        mkRec('Sauce mère blanche (velouté)','Bases','français','sauces',1,'L','sauce',
+          [['Fond blanc',1,'L'],['Roux blanc',80,'g']],
+          ['Détendre le roux avec le fond bouillant','Cuire 30 min à frémissements','Écumer, passer au chinois étamine']),
+        mkRec('Réduction porto','Bases','français','sauces',300,'mL','réduction',
+          [['Porto',500,'mL'],['Échalote',50,'g'],['Thym',1,'branche'],['Beurre',30,'g']],
+          ['Suer échalote sans coloration','Déglacer au porto, ajouter thym','Réduire à sec puis monter au beurre froid'])
+      ],
+      fiches: [
+        mkFiche('Tartare de bœuf','Entrées','français','entrées',
+          [['Filet de bœuf',150,'g'],['Échalote',10,'g'],['Câpres',5,'g'],['Cornichons',5,'g'],['Jaune œuf',1,'pièce']],
+          {prepTime:15}),
+        mkFiche('Bar en croûte de sel','Plats','français','poissons',
+          [['Bar entier',1,'kg'],['Gros sel',2,'kg'],['Blancs œufs',2,'pièce'],['Herbes fraîches',20,'g']],
+          {cookTime:30, cookTemp:200}),
+        mkFiche('Filet de bœuf Rossini','Plats','français','viandes',
+          [['Filet bœuf',180,'g'],['Foie gras poêlé',40,'g'],['Sauce périgueux',60,'mL'],['Toast',1,'pièce']],
+          {cookTime:8}),
+        mkFiche('Crème brûlée vanille','Desserts','français','desserts',
+          [['Crème 35%',150,'mL'],['Jaune œuf',2,'pièce'],['Sucre',30,'g'],['Vanille',0.5,'gousse'],['Cassonade brûlée',15,'g']],
+          {prepTime:15, cookTime:50, cookTemp:90})
+      ],
+      tasks: [
+        mkTask('Briefing équipe service','daily',1,'17h45 — plats du jour + allergies'),
+        mkTask('Mise en place chaude','daily',1,'15h — sauces, fonds, garnitures'),
+        mkTask('Mise en place froide','daily',1,'15h — entrées, salades, desserts'),
+        mkTask('Nettoyage complet cuisine','daily',1,'Après service — sols, hottes, plans'),
+        mkTask('Inventaire fond cuisine','weekly',1,'Lundi — épices, conserves, surgelés'),
+        mkTask('Commande poisson','weekly',5,'Vendredi — pour service week-end'),
+        mkTask('Briefing carte vins','weekly',2,'Mardi avec sommelier')
+      ],
+      routines: [
+        mkRoutine('Service du soir','17h-23h',[
+          ['Avant service',['Briefing 17h45','Vérifier plats du jour','Tester chauffe','Mise en place finale']],
+          ['Pendant',['Check tickets en permanence','Communication salle/cuisine','Hygiène constante']],
+          ['Après',['Nettoyage profond','Bilan ventes','Prep lendemain','Sortir poubelles']]
+        ])
+      ],
+      contacts: [
+        mkContact('Urgences','112','urgence'),
+        mkContact('Maraîcher BIO','+33 4 22 33 44 55','fournisseur','Légumes saison — livraison mardi/vendredi'),
+        mkContact('Boucher','+33 1 88 77 66 55','fournisseur','Viandes label rouge'),
+        mkContact('Mareyeur','+33 2 99 88 77 66','fournisseur','Marée du jour 5h'),
+        mkContact('Fromager affineur','+33 4 78 90 12 34','fournisseur','Plateau fromages saison'),
+        mkContact('Cave','+33 1 56 78 90 12','fournisseur','Sélection vins carte')
+      ],
+      settings: {cuisines:['français','méditerranéen','traditionnel'], types:['entrées','plats','desserts','sauces','accompagnements','viandes','poissons','fromages'], stores:['Maraîcher','Boucher','Mareyeur','Fromager','Cave','Métro']}
+    },
+
+    'cafe': {
+      name: 'Présentation Café',
+      code: '1009',
+      restaurants: r,
+      ingredients: [
+        mkIng('Café grains espresso','kg',{vegan:true,vegetarian:true}),
+        mkIng('Café grains filtre','kg',{vegan:true,vegetarian:true}),
+        mkIng('Lait entier','L',{vegetarian:true,allergens:['lait']}),
+        mkIng('Lait d\'avoine','L',{vegan:true,vegetarian:true,allergens:['gluten']}),
+        mkIng('Sirop vanille','L',{vegan:true,vegetarian:true}),
+        mkIng('Sirop caramel','L',{vegan:true,vegetarian:true}),
+        mkIng('Sirop noisette','L',{vegan:true,vegetarian:true,allergens:['fruits-coque']}),
+        mkIng('Chocolat en poudre','kg',{vegetarian:true,allergens:['lait']}),
+        mkIng('Sucre roux','kg',{vegan:true,vegetarian:true}),
+        mkIng('Cookies maison','pièce',{vegetarian:true,allergens:['gluten','oeuf','lait']}),
+        mkIng('Pain sandwich','pièce',{vegetarian:true,vegan:true,allergens:['gluten']})
+      ],
+      recipes: [
+        mkRec('Préparation cookies','Pâtisseries','café','pâtisseries',24,'pièce','cookie',
+          [['Farine',300,'g'],['Beurre',200,'g'],['Sucre roux',150,'g'],['Œuf',1,'pièce'],['Pépites chocolat',150,'g'],['Levure',5,'g']],
+          ['Crémer beurre + sucres','Ajouter œuf puis farine + levure','Incorporer pépites','Bouler 24 portions, congeler','Cuire 12 min à 180°C à la commande'],
+          {prepTime:20, cookTime:12, cookTemp:180}),
+        mkRec('Sirop vanille maison','Bases','café','sirops',1,'L','sirop',
+          [['Sucre',500,'g'],['Eau',500,'mL'],['Vanille',2,'gousse']],
+          ['Faire bouillir eau + sucre + vanille fendue','Infuser 30 min hors feu','Filtrer, bouteiller']),
+        mkRec('Chocolat chaud maison','Boissons chaudes','café','boissons',1,'L','chocolat',
+          [['Lait entier',1,'L'],['Chocolat noir 70%',150,'g'],['Sucre',30,'g']],
+          ['Chauffer le lait','Ajouter chocolat haché + sucre','Mixer pour mousser','Servir bien chaud'])
+      ],
+      fiches: [
+        mkFiche('Espresso','Boissons chaudes','café','cafés',
+          [['Café grains',9,'g'],['Eau',30,'mL']],
+          {cookTime:1, notes:'Extraction 25-30 sec'}),
+        mkFiche('Cappuccino','Boissons chaudes','café','cafés',
+          [['Espresso double',18,'g'],['Lait mousseux',150,'mL'],['Cacao saupoudré',1,'g']]),
+        mkFiche('Latte vanille','Boissons chaudes','café','cafés',
+          [['Espresso',18,'g'],['Sirop vanille',15,'mL'],['Lait chaud',180,'mL']]),
+        mkFiche('Café glacé','Boissons froides','café','cafés',
+          [['Espresso',36,'g'],['Glaçons',6,'pièce'],['Lait',100,'mL'],['Sirop',10,'mL']]),
+        mkFiche('Cookie maison','Pâtisseries','café','pâtisseries',
+          [['Cookie',1,'pièce']],
+          {cookTime:12, cookTemp:180}),
+        mkFiche('Sandwich poulet','Snacks','café','snacks',
+          [['Pain sandwich',1,'pièce'],['Poulet émincé',80,'g'],['Tomate',30,'g'],['Salade',20,'g'],['Mayo',15,'g']])
+      ],
+      tasks: [
+        mkTask('Calibrer moulin espresso','daily',1,'7h — ajustement grain selon hygrométrie'),
+        mkTask('Nettoyer machine espresso','daily',1,'En fin de service — back-flush + détartrage'),
+        mkTask('Refaire la mise en place du bar','daily',1,'13h — entre services'),
+        mkTask('Sortir pâtisseries vitrine','daily',1,'7h30 + 14h pour 2 services'),
+        mkTask('Backflush machine','weekly',1,'Lundi — produit spécialisé'),
+        mkTask('Commande café torréfacteur','weekly',3,'Mercredi — livraison vendredi')
+      ],
+      routines: [
+        mkRoutine('Ouverture café','7h — premier service',[
+          ['Bar',['Allumer machine 30 min avant','Calibrer moulin','Réchauffer tasses','Mousser lait']],
+          ['Salle',['Allumer enseigne','Disposer vitrine','Mettre carte du jour','Caisse OK']]
+        ])
+      ],
+      contacts: [
+        mkContact('Urgences','112','urgence'),
+        mkContact('Torréfacteur partenaire','+33 1 23 45 67 89','fournisseur','Espresso blend signature'),
+        mkContact('Crémerie','+33 4 56 78 90 12','fournisseur','Lait + alternatives végétales'),
+        mkContact('Technicien machine','+33 6 78 90 12 34','reparateur','Marzocco Linea')
+      ],
+      settings: {cuisines:['café','boissons','snacks','pâtisseries'], types:['cafés','boissons chaudes','boissons froides','pâtisseries','snacks','desserts'], stores:['Torréfacteur','Crémerie','Boulanger','Métro']}
+    }
+  };
+}
+
+
 // Reset in-memory state to a clean slate before switching tenant.
 // Required because the new tenant's cloud files may not exist yet (or be empty),
 // in which case cloudPull leaves state untouched — and the user would still see
@@ -899,6 +1537,7 @@ async function initializeTenantFiles(tenant){
       {id:'c3', name:'Pompiers', phone:'112', category:'urgence', notes:'', restos:[]}
     ],
     notes: [], notifications: [],
+    activity: [],
     settings: {
       showPrices:false, showCalories:true, showHalal:true, currency:'€',
       cuisines: ['burger','mexicain'],
@@ -916,6 +1555,212 @@ async function initializeTenantFiles(tenant){
   await GitHubSync.putFile(cfg, emptyLib, null, tenant.dataFile);
   await GitHubSync.putFile(cfg, emptyShared, null, tenant.sharedFile);
 }
+
+// Push a rich preset library to a tenant's data file (for templates / demo profiles)
+async function pushTenantTemplate(tenant, template){
+  const cfg = SyncConfig.loadOrDefaults();
+  if(!cfg || !cfg.token) throw new Error('Sync non configurée');
+  const lib = {
+    version: 4, schema: 'library',
+    restaurants: template.restaurants || [{id:'r_main', name:tenant.name}],
+    recipes: template.recipes || [],
+    fiches: template.fiches || [],
+    ingredients: template.ingredients || [],
+    tasks: template.tasks || [],
+    routines: template.routines || [],
+    contacts: template.contacts || [],
+    notes: template.notes || [],
+    notifications: [],
+    activity: [{at:Date.now(), by:'Démo', kind:'misc', summary:'Profil canevas initialisé'}],
+    settings: Object.assign({showPrices:false, showCalories:true, showHalal:true, currency:'€', role:'service'}, template.settings||{}),
+    updatedAt: Date.now()
+  };
+  const shared = {
+    version: 4, schema: 'shared',
+    stock: [], prep: {}, taskDone: {}, routineChecked: {}, devices: {},
+    updatedAt: Date.now()
+  };
+  await GitHubSync.putFile(cfg, lib, null, tenant.dataFile);
+  await GitHubSync.putFile(cfg, shared, null, tenant.sharedFile);
+}
+
+// Bulk create the 9 demo profiles. Skips tenants that already exist (by code).
+async function createDemoProfiles(){
+  const templates = PROFILE_TEMPLATES();
+  await loadTenantsFromCloud();
+  state._tenants = state._tenants || [];
+  const created = [];
+  const skipped = [];
+  for(const key of Object.keys(templates)){
+    const tpl = templates[key];
+    // Skip if a tenant with this code already exists
+    if(state._tenants.find(t=>t.code===tpl.code)){
+      skipped.push(tpl.name);
+      continue;
+    }
+    const slug = uniqueTenantSlug(tpl.name);
+    const tenant = {
+      id: slug,
+      name: tpl.name,
+      code: tpl.code,
+      dataFile: 'resto-data-'+slug.slice(2)+'.json',
+      sharedFile: 'resto-shared-'+slug.slice(2)+'.json',
+      createdAt: Date.now()
+    };
+    try{
+      await pushTenantTemplate(tenant, tpl);
+      state._tenants.push(tenant);
+      created.push(tpl.name);
+    }catch(e){
+      console.error('Failed to create', tpl.name, e);
+    }
+  }
+  if(created.length){
+    await pushTenantsToCloud();
+  }
+  return {created, skipped};
+}
+
+// Duplicate an existing tenant: pull its data, create a new tenant, push the same data to the new files.
+async function duplicateTenant(sourceTenantId, newName, newCode){
+  const cfg = SyncConfig.loadOrDefaults();
+  if(!cfg || !cfg.token) throw new Error('Sync non configurée');
+  const source = getTenants().find(t=>t.id===sourceTenantId);
+  if(!source) throw new Error('Source introuvable');
+  // Fetch source data
+  const libRes = await GitHubSync.fetchFile(cfg, source.dataFile);
+  const sharedRes = await GitHubSync.fetchFile(cfg, source.sharedFile);
+  const sourceLib = (libRes && libRes.data) || {};
+  const sourceShared = (sharedRes && sharedRes.data) || {};
+  // Build new tenant
+  const slug = uniqueTenantSlug(newName);
+  const tenant = {
+    id: slug,
+    name: newName,
+    code: newCode,
+    dataFile: 'resto-data-'+slug.slice(2)+'.json',
+    sharedFile: 'resto-shared-'+slug.slice(2)+'.json',
+    createdAt: Date.now()
+  };
+  // Reset activity log + adapt some fields for the copy
+  const newLib = Object.assign({}, sourceLib, {
+    activity: [{at:Date.now(), by:'Démo', kind:'misc', summary:'Tenant dupliqué depuis « '+source.name+' »'}],
+    updatedAt: Date.now()
+  });
+  // Wipe shared cumulative state (stock/checked/etc) for a clean start
+  const newShared = {
+    version: 4, schema: 'shared',
+    stock: [], prep: {}, taskDone: {}, routineChecked: {}, devices: {},
+    updatedAt: Date.now()
+  };
+  await GitHubSync.putFile(cfg, newLib, null, tenant.dataFile);
+  await GitHubSync.putFile(cfg, newShared, null, tenant.sharedFile);
+  state._tenants = state._tenants || [];
+  state._tenants.push(tenant);
+  await pushTenantsToCloud();
+  return tenant;
+}
+
+// ─────────── Backups (snapshots per tenant) ───────────
+// Stored in a separate GitHub file per tenant: resto-backups-{tenantSlug}.json
+// Structure: { version:1, backups: [ { id, at, label, snapshot:{library, shared} } ], updatedAt }
+// Capped at 10 snapshots per tenant (oldest removed when adding new).
+const BACKUPS_MAX = 10;
+let _backupsCache = null; // {tenantId, list, sha}
+
+function currentBackupsFile(){
+  const t = getActiveTenant();
+  if(t && t.id){
+    // Use a stable filename based on tenant ID (strip 't_' prefix)
+    return 'resto-backups-' + t.id.replace(/^t_/,'') + '.json';
+  }
+  return 'resto-backups-default.json';
+}
+
+async function loadBackups(){
+  const cfg = SyncConfig.loadOrDefaults();
+  if(!cfg || !cfg.token) throw new Error('Sync non configurée');
+  const file = currentBackupsFile();
+  try{
+    const res = await GitHubSync.fetchFile(cfg, file);
+    if(res && res.exists === false){
+      _backupsCache = {file, list: [], sha: null};
+      return [];
+    }
+    const list = (res && res.data && Array.isArray(res.data.backups)) ? res.data.backups : [];
+    _backupsCache = {file, list, sha: res.sha || null};
+    return list;
+  }catch(e){
+    _backupsCache = {file, list: [], sha: null};
+    return [];
+  }
+}
+
+async function saveBackup(label){
+  const cfg = SyncConfig.loadOrDefaults();
+  if(!cfg || !cfg.token) throw new Error('Sync non configurée');
+  const file = currentBackupsFile();
+  // Always refresh first to avoid SHA conflicts
+  await loadBackups();
+  const cache = _backupsCache;
+  // Build snapshot of the current state (library + shared portions)
+  const { library, shared } = splitState();
+  const snap = {
+    id: 'bk_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,6),
+    at: Date.now(),
+    label: (label||'Sauvegarde manuelle').slice(0,80),
+    by: (typeof getDeviceName==='function' ? getDeviceName() : 'Appareil'),
+    snapshot: { library, shared }
+  };
+  cache.list.unshift(snap);
+  // Cap to BACKUPS_MAX (keep newest)
+  if(cache.list.length > BACKUPS_MAX) cache.list.length = BACKUPS_MAX;
+  const payload = { version:1, backups: cache.list, updatedAt: Date.now() };
+  try{
+    const res = await GitHubSync.putFile(cfg, payload, cache.sha, file);
+    if(res && res.sha) cache.sha = res.sha;
+    return snap;
+  }catch(e){
+    // 409 conflict: refetch + retry once
+    await loadBackups();
+    _backupsCache.list.unshift(snap);
+    if(_backupsCache.list.length > BACKUPS_MAX) _backupsCache.list.length = BACKUPS_MAX;
+    const payload2 = { version:1, backups: _backupsCache.list, updatedAt: Date.now() };
+    const res2 = await GitHubSync.putFile(cfg, payload2, _backupsCache.sha, file);
+    if(res2 && res2.sha) _backupsCache.sha = res2.sha;
+    return snap;
+  }
+}
+
+async function deleteBackup(id){
+  const cfg = SyncConfig.loadOrDefaults();
+  if(!cfg || !cfg.token) throw new Error('Sync non configurée');
+  const file = currentBackupsFile();
+  await loadBackups();
+  _backupsCache.list = _backupsCache.list.filter(b=>b.id!==id);
+  const payload = { version:1, backups: _backupsCache.list, updatedAt: Date.now() };
+  const res = await GitHubSync.putFile(cfg, payload, _backupsCache.sha, file);
+  if(res && res.sha) _backupsCache.sha = res.sha;
+}
+
+async function restoreBackup(id){
+  // Find the backup and replace local state with its snapshot, then push to cloud
+  await loadBackups();
+  const b = (_backupsCache.list||[]).find(x=>x.id===id);
+  if(!b) throw new Error('Sauvegarde introuvable');
+  const lib = b.snapshot.library || {};
+  const sh = b.snapshot.shared || {};
+  // Reset state baseline then apply snapshot
+  state = defaultData();
+  ensureDefaults();
+  applyLibraryFromCloud(lib);
+  applySharedFromCloud(sh);
+  logActivity('restore', 'Restauration de la sauvegarde « ' + (b.label||'') + ' »');
+  // Push restored state to cloud so other devices follow
+  try{ await cloudPush(true); }catch(e){ console.warn('Push after restore failed:', e); }
+  await persist();
+}
+
 
 function splitState(){
   // Returns { library, shared }
@@ -937,6 +1782,7 @@ function splitState(){
     contacts: state.contacts || [],
     notes: state.notes || [],
     notifications: state.notifications || [],
+    activity: state._activity || [],
     settings: state.settings || {},
     updatedAt: Date.now()
   };
@@ -1004,6 +1850,7 @@ function applyLibraryFromCloud(lib){
   state.contacts = lib.contacts || [];
   state.notes = lib.notes || [];
   state.notifications = lib.notifications || [];
+  state._activity = lib.activity || [];
   state.settings = Object.assign(state.settings||{}, lib.settings||{});
   // Tasks: replace definitions, preserve local done state by id
   const preservedDone = {};
@@ -2642,6 +3489,34 @@ function toast(msg){
 }
 
 async function persist(){ await Storage.save(state); }
+
+/* ---------- Activity log ----------
+   Append-only journal of meaningful actions. Stored in state._activity, capped at 200 entries.
+   Synced with the library (so all devices on the same tenant see the same history). */
+const ACTIVITY_MAX = 200;
+function logActivity(kind, summary){
+  if(!state._activity) state._activity = [];
+  state._activity.unshift({
+    at: Date.now(),
+    by: (typeof getDeviceName==='function' ? getDeviceName() : 'Appareil'),
+    kind, // 'add'|'edit'|'delete'|'check'|'uncheck'|'restore'|'backup'|'misc'
+    summary
+  });
+  if(state._activity.length > ACTIVITY_MAX) state._activity.length = ACTIVITY_MAX;
+}
+function clearActivityLog(){
+  state._activity = [];
+}
+function formatActivityWhen(ts){
+  const d = new Date(ts);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now.getTime() - 86400000).toDateString() === d.toDateString();
+  const time = d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  if(sameDay) return "Aujourd'hui à "+time;
+  if(yesterday) return 'Hier à '+time;
+  return d.toLocaleDateString('fr-FR')+' à '+time;
+}
 
 /* ---------- Router ---------- */
 function navigate(hash){
@@ -4294,6 +5169,7 @@ function renderContactEdit(id){
     c.restos = readRestosFromForm(e.target);
     await persist();
     ov.remove();
+    logActivity('edit','Contact modifié');
     toast('Contact mis à jour');
     render();
   });
@@ -4302,6 +5178,7 @@ function renderContactEdit(id){
     state.contacts = (state.contacts||[]).filter(x=>x.id!==c.id);
     await persist();
     ov.remove();
+    logActivity('delete','Contact supprimé');
     toast('Contact supprimé');
     render();
   });
@@ -4410,6 +5287,7 @@ function openNotifEditor(id){
     if(!n.title && !n.text){ toast('Titre ou message requis'); return; }
     await persist();
     ov.remove();
+    logActivity('edit','Annonce modifiée');
     toast('Annonce mise à jour');
     render();
   });
@@ -4418,6 +5296,7 @@ function openNotifEditor(id){
     state.notifications = (state.notifications||[]).filter(x=>x.id!==n.id);
     await persist();
     ov.remove();
+    logActivity('delete','Annonce supprimée');
     toast('Annonce supprimée');
     render();
   });
@@ -4473,6 +5352,7 @@ function openNoteEditor(id){
     n.updatedAt = Date.now();
     await persist();
     ov.remove();
+    logActivity('edit','Note modifiée');
     toast('Note enregistrée');
     render();
   });
@@ -4481,6 +5361,7 @@ function openNoteEditor(id){
     state.notes = (state.notes||[]).filter(x=>x.id!==n.id);
     await persist();
     ov.remove();
+    logActivity('delete','Note supprimée');
     toast('Note supprimée');
     render();
   });
@@ -4534,18 +5415,19 @@ function renderSettings(){
 
       <div class="settings-group">
         <div class="sg-head" style="display:flex;justify-content:space-between;align-items:center">
-          <span>🏢 Zone utilisateur</span>
+          <span>🏢 Zone entreprise</span>
           ${_userAdminUnlocked ? '<button id="userAdminLockBtn" style="font-size:11px;color:var(--cream-faint);letter-spacing:.1em">🔓 Verrouiller</button>' : ''}
         </div>
         ${!_userAdminUnlocked ? `
-        <div class="muted" style="margin-bottom:10px;font-size:12px;line-height:1.5">Gestion de l'entreprise : restaurants, catégories, annonces. Utilise le code de ton entreprise (ou ${APP_ADMIN_CODE}).</div>
+        <div class="muted" style="margin-bottom:10px;font-size:12px;line-height:1.5">Gestion de l'entreprise : restaurants, catégories, annonces. Utilise le <b>code entreprise</b> (ou le code développeur).</div>
         <div class="form-row" style="align-items:flex-end">
           <div class="form-group" style="flex:1;margin-bottom:0">
-            <label>Code utilisateur</label>
+            <label>Code entreprise</label>
             <input id="userAdminCode" type="tel" inputmode="numeric" placeholder="••••" maxlength="6" autocomplete="off">
           </div>
           <button class="btn btn-secondary" id="userAdminUnlockBtn" style="white-space:nowrap">Déverrouiller</button>
         </div>
+        <p class="muted" style="font-size:11px;margin-top:6px;line-height:1.5">Pas de code ? Demande-le à ton responsable.</p>
         ` : `
         <div class="muted" style="margin-bottom:12px;font-size:11px">Modifications sauvegardées et synchronisées automatiquement.</div>
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
@@ -4559,6 +5441,21 @@ function renderSettings(){
               </div>
               <button class="btn btn-secondary" id="addRestoBtn" style="white-space:nowrap">+ Ajouter</button>
             </div>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+            <div class="sg-head" style="margin-bottom:10px">👤 Rôle sur cet appareil</div>
+          <div class="form-group">
+            <label>Rôle sur cet appareil</label>
+            <div class="role-pills" style="display:flex;gap:8px;margin-top:6px">
+              <button type="button" class="role-pill ${s.role==='chef'?'active':''}" data-role="chef" style="flex:1;padding:10px;background:${s.role==='chef'?'var(--gold)':'var(--dark-2)'};color:${s.role==='chef'?'var(--dark)':'var(--cream-dim)'};border-radius:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px">🍳 Gestion</button>
+              <button type="button" class="role-pill ${s.role!=='chef'?'active':''}" data-role="service" style="flex:1;padding:10px;background:${s.role!=='chef'?'var(--cyan)':'var(--dark-2)'};color:${s.role!=='chef'?'var(--dark)':'var(--cream-dim)'};border-radius:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px">🛎 Employé</button>
+            </div>
+            <p class="muted" style="margin-top:6px;font-size:11px;line-height:1.5">
+              <b>Employé</b> (par défaut) : pour l'équipe. Peut cocher tâches/routines, gérer le stock.<br>
+              <b>Gestion</b> : peut aussi modifier recettes, fiches, ingrédients.
+            </p>
+          </div>
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
@@ -4614,6 +5511,34 @@ function renderSettings(){
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+            <div class="sg-head" style="margin-bottom:10px">💾 Sauvegardes</div>
+            <div class="muted" style="margin-bottom:10px;font-size:11px;line-height:1.5">
+              Crée un instantané complet (recettes, fiches, stock, contacts, etc.) que tu pourras restaurer en cas de fausse manipulation. Max ${BACKUPS_MAX} sauvegardes — les plus anciennes sont supprimées automatiquement.
+            </div>
+            <div id="backupsList" class="muted" style="font-size:12px">Chargement des sauvegardes…</div>
+            <form id="backupCreateForm" style="margin-top:10px">
+              <div class="form-row" style="align-items:flex-end">
+                <div class="form-group" style="flex:1;margin-bottom:0">
+                  <label>Libellé (optionnel)</label>
+                  <input id="backupLabel" placeholder="Ex : Avant import gros menu" maxlength="80">
+                </div>
+                <button type="submit" class="btn btn-secondary" style="white-space:nowrap">+ Sauvegarder</button>
+              </div>
+            </form>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+            <div class="sg-head" style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+              <span>🕓 Historique d'activité</span>
+              <button class="btn btn-ghost" id="activityClearBtn" style="font-size:11px;padding:4px 8px">Effacer</button>
+            </div>
+            <div class="muted" style="margin-bottom:10px;font-size:11px;line-height:1.5">
+              Journal des ${ACTIVITY_MAX} dernières actions, synchronisé entre tous les appareils. Utile pour tracer qui a fait quoi.
+            </div>
+            <div id="activityList" style="max-height:300px;overflow-y:auto"></div>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
 <div class="sg-head" style="margin-bottom:10px">🍽 Catégories — Cuisines</div>
         <div class="muted" style="margin-bottom:8px;font-size:11px">Onglets de filtrage pour les recettes et fiches.</div>
         <div class="dynamic-list" id="cuisinesList">
@@ -4656,32 +5581,21 @@ function renderSettings(){
       <div class="settings-group">
         <div style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
           <div class="sg-head" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-            <span>🔧 Zone application</span>
+            <span>🔧 Zone développeur</span>
             ${_appAdminUnlocked ? '<button id="appAdminLockBtn" style="font-size:11px;color:var(--cream-faint);letter-spacing:.1em">🔓 Verrouiller</button>' : ''}
           </div>
           ${!_appAdminUnlocked ? `
           <div class="form-row" style="align-items:flex-end">
             <div class="form-group" style="flex:1;margin-bottom:0">
-              <label>Code application</label>
+              <label>Code développeur</label>
               <input id="advCode" type="tel" inputmode="numeric" placeholder="••••" maxlength="6" autocomplete="off">
             </div>
             <button class="btn btn-secondary" id="advUnlockBtn" style="white-space:nowrap">Déverrouiller</button>
           </div>
-          <p class="muted" style="font-size:11px;margin-top:6px">Réservé au développeur : config sync, gestion des utilisateurs, données techniques.</p>` : ''}
+          <p class="muted" style="font-size:11px;margin-top:6px;line-height:1.5">Réservé au développeur de l'app. Si tu n'es pas concerné, demande à ton responsable.</p>` : ''}
         </div>
 
         <div id="advArea" style="display:${_appAdminUnlocked?'block':'none'};margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-          <div class="form-group">
-            <label>Rôle sur cet appareil</label>
-            <div class="role-pills" style="display:flex;gap:8px;margin-top:6px">
-              <button type="button" class="role-pill ${s.role==='chef'?'active':''}" data-role="chef" style="flex:1;padding:10px;background:${s.role==='chef'?'var(--gold)':'var(--dark-2)'};color:${s.role==='chef'?'var(--dark)':'var(--cream-dim)'};border-radius:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px">🍳 Gestion</button>
-              <button type="button" class="role-pill ${s.role!=='chef'?'active':''}" data-role="service" style="flex:1;padding:10px;background:${s.role!=='chef'?'var(--cyan)':'var(--dark-2)'};color:${s.role!=='chef'?'var(--dark)':'var(--cream-dim)'};border-radius:8px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;font-size:12px">🛎 Employé</button>
-            </div>
-            <p class="muted" style="margin-top:6px;font-size:11px;line-height:1.5">
-              <b>Employé</b> (par défaut) : pour l'équipe. Peut cocher tâches/routines, gérer le stock.<br>
-              <b>Gestion</b> : peut aussi modifier recettes, fiches, ingrédients.
-            </p>
-          </div>
 
           <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
             <div class="form-group">
@@ -4771,6 +5685,11 @@ function renderSettings(){
                 <button class="btn btn-secondary" id="switchTenantBtn" style="white-space:nowrap">Basculer</button>
               </div>
               ${activeTenantId() ? `<button class="btn btn-ghost btn-block" id="resetTenantBtn" style="margin-top:10px;font-size:12px">Revenir au mode par défaut</button>` : ''}
+            </div>
+            <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:14px">
+              <p class="muted" style="font-size:11px;margin-bottom:8px;line-height:1.5"><b style="color:var(--gold)">📚 Canevas de présentation</b><br>9 profils types pré-remplis (Boulanger-Pâtisserie 1001, Boucherie 1002, Friterie 1003, Pizzeria 1004, Glacier 1005, Brasserie 1006, Bar 1007, Restaurant 1008, Café 1009). Tu pourras les <b>dupliquer</b> pour de futurs clients.</p>
+              <button class="btn btn-secondary btn-block" id="createDemoProfilesBtn">📚 Générer les 9 canevas de démo</button>
+              <p class="muted" style="font-size:10px;margin-top:6px;line-height:1.4">Les utilisateurs déjà existants (par code) seront ignorés.</p>
             </div>
           </div>
 
@@ -4932,6 +5851,7 @@ function openRestoManager(){
     if(!v){ toast('Nom vide'); return; }
     getRestaurants().push({ id:'r_'+Math.random().toString(36).slice(2,8), name:v });
     inp.value='';
+    await persist(); logActivity('add','Restaurant ajouté');
     await persist(); toast('Restaurant ajouté'); refresh(); render();
   });
   ov.addEventListener('click', e=>{ if(e.target===ov || e.target.closest('[data-rm-close]')) ov.remove(); });
@@ -5085,6 +6005,7 @@ function bindSyncHandlers(){
         restos: [] // applies to all by default
       });
       await persist();
+      logActivity('add','Annonce créée');
       toast('Annonce créée');
       render();
     });
@@ -5160,6 +6081,7 @@ function bindSyncHandlers(){
           <div style="font-size:11px;color:var(--cream-faint);margin-top:2px">Code : <b style="color:var(--cyan)">${escHtml(t.code||'—')}</b> · Fichier : ${escHtml(t.dataFile||'—')}</div>
         </div>
         ${t.id!==activeId?`<button class="btn btn-secondary" data-tenant-use="${t.id}" style="padding:6px 10px;font-size:11px">Utiliser</button>`:''}
+        <button class="btn btn-ghost" data-tenant-duplicate="${t.id}" style="padding:6px 10px;font-size:14px;color:var(--gold)" title="Dupliquer">⎘</button>
         <button class="btn btn-ghost" data-tenant-edit="${t.id}" style="padding:6px 10px;font-size:14px;color:var(--cyan)">✎</button>
         <button class="btn btn-ghost" data-tenant-del="${t.id}" style="padding:6px 10px;font-size:14px;color:var(--danger)">×</button>
       </div>`).join('') : '<p class="muted" style="font-size:11px">Aucun utilisateur créé pour l\'instant. Crée-en un ci-dessous.</p>';
@@ -5257,16 +6179,49 @@ function bindSyncHandlers(){
     const id = b.getAttribute('data-tenant-edit');
     const t = getTenants().find(x=>x.id===id);
     if(!t) return;
-    const newName = prompt('Nouveau nom :', t.name);
-    if(newName===null) return;
-    const newCode = prompt('Nouveau code (3-6 chiffres) :', t.code||'');
-    if(newCode===null) return;
-    if(!/^[0-9]{3,6}$/.test(newCode)){ toast('Code invalide'); return; }
-    if(getTenants().some(x=>x.id!==id && x.code===newCode)){ toast('Code déjà utilisé'); return; }
-    t.name = newName.trim() || t.name;
-    t.code = newCode;
-    pushTenantsToCloud().then(()=>{ toast('Modifié'); render(); })
-                       .catch(e=>alert('Échec : '+(e.message||'')));
+    const ov = document.createElement('div');
+    ov.className = 'modal-bg';
+    ov.innerHTML = `<div class="modal">
+      <div style="font-family:var(--font-display);font-size:21px;color:var(--gold);letter-spacing:.04em;margin-bottom:14px">✎ Modifier l'entreprise</div>
+      <form id="tenantEditForm">
+        <div class="form-group">
+          <label>Nom de l'entreprise</label>
+          <input name="name" value="${escHtml(t.name||'')}" required>
+        </div>
+        <div class="form-group">
+          <label>Code entreprise (3-6 chiffres)</label>
+          <input name="code" type="tel" inputmode="numeric" value="${escHtml(t.code||'')}" maxlength="6" pattern="[0-9]{3,6}" required>
+          <p class="muted" style="font-size:11px;margin-top:6px;line-height:1.5">Ce code permet à l'équipe de l'entreprise d'accéder à la Zone entreprise. Modifie-le ici en cas de besoin (changement de gérant, fuite, etc.).</p>
+        </div>
+        <div style="background:var(--dark-2);border-radius:8px;padding:10px;font-size:11px;color:var(--cream-faint);line-height:1.5">
+          <b style="color:var(--cream-dim)">Fichiers de données :</b><br>
+          ${escHtml(t.dataFile||'—')}<br>${escHtml(t.sharedFile||'—')}
+        </div>
+        <div class="btn-row" style="margin-top:14px">
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+          <button type="button" class="btn btn-ghost" data-close-modal>Annuler</button>
+        </div>
+      </form>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#tenantEditForm').addEventListener('submit', async e=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const newName = (fd.get('name')||'').toString().trim();
+      const newCode = (fd.get('code')||'').toString().trim();
+      if(!newName || !newCode){ toast('Nom et code requis'); return; }
+      if(!/^[0-9]{3,6}$/.test(newCode)){ toast('Code invalide (3-6 chiffres)'); return; }
+      if(getTenants().some(x=>x.id!==id && x.code===newCode)){ toast('Code déjà utilisé par une autre entreprise'); return; }
+      t.name = newName;
+      t.code = newCode;
+      try{
+        await pushTenantsToCloud();
+        ov.remove();
+        toast('Entreprise modifiée');
+        render();
+      }catch(e){ alert('Échec : '+(e.message||'')); }
+    });
+    ov.addEventListener('click', e=>{ if(e.target===ov || e.target.closest('[data-close-modal]')) ov.remove(); });
   }));
   // Delete a tenant (does NOT delete its data files on GitHub — manual cleanup)
   $$('[data-tenant-del]').forEach(b=>b.addEventListener('click', async ()=>{
@@ -5282,6 +6237,76 @@ function bindSyncHandlers(){
       render();
     }catch(e){ alert('Échec : '+(e.message||'')); }
   }));
+  // Duplicate a tenant (full copy: same data, new name + code, fresh stock/cochages)
+  $$('[data-tenant-duplicate]').forEach(b=>b.addEventListener('click', ()=>{
+    const id = b.getAttribute('data-tenant-duplicate');
+    const src = getTenants().find(x=>x.id===id);
+    if(!src) return;
+    const ov = document.createElement('div');
+    ov.className = 'modal-bg';
+    ov.innerHTML = `<div class="modal">
+      <div style="font-family:var(--font-display);font-size:21px;color:var(--gold);letter-spacing:.04em;margin-bottom:14px">⎘ Dupliquer « ${escHtml(src.name)} »</div>
+      <p class="muted" style="font-size:12px;margin-bottom:14px;line-height:1.5">Crée une nouvelle entreprise avec une copie complète des données de « ${escHtml(src.name)} » (recettes, fiches, ingrédients, tâches, contacts, réglages). Le stock et les cochages sont remis à zéro pour un démarrage propre.</p>
+      <form id="dupForm">
+        <div class="form-group">
+          <label>Nom de la nouvelle entreprise</label>
+          <input name="name" required placeholder="Ex : Boulangerie Dupont">
+        </div>
+        <div class="form-group">
+          <label>Code entreprise (3-6 chiffres)</label>
+          <input name="code" type="tel" inputmode="numeric" maxlength="6" pattern="[0-9]{3,6}" required placeholder="Ex : 4521">
+        </div>
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary">Dupliquer</button>
+          <button type="button" class="btn btn-ghost" data-close-modal>Annuler</button>
+        </div>
+      </form>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#dupForm').addEventListener('submit', async e=>{
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const name = (fd.get('name')||'').toString().trim();
+      const code = (fd.get('code')||'').toString().trim();
+      if(!name){ toast('Nom requis'); return; }
+      if(!/^[0-9]{3,6}$/.test(code)){ toast('Code invalide (3-6 chiffres)'); return; }
+      if(getTenants().some(t=>t.code===code)){ toast('Code déjà utilisé'); return; }
+      const btn = e.target.querySelector('button[type="submit"]');
+      btn.disabled = true; btn.textContent = 'Duplication en cours…';
+      try{
+        await duplicateTenant(id, name, code);
+        ov.remove();
+        toast('Entreprise dupliquée');
+        render();
+      }catch(e){
+        alert('Échec : '+(e.message||''));
+        btn.disabled = false; btn.textContent = 'Dupliquer';
+      }
+    });
+    ov.addEventListener('click', e=>{ if(e.target===ov || e.target.closest('[data-close-modal]')) ov.remove(); });
+  }));
+  // Bulk-create the 9 demo profile canevas
+  const createDemoProfilesBtn = $('#createDemoProfilesBtn');
+  if(createDemoProfilesBtn){
+    createDemoProfilesBtn.addEventListener('click', async ()=>{
+      if(!confirm('Créer les 9 canevas de présentation ?\n\nCela ajoutera 9 nouveaux utilisateurs (Boulanger-Pâtisserie, Boucherie, Friterie, Pizzeria, Glacier, Brasserie, Bar, Restaurant, Café) avec des données d\'exemple. Les utilisateurs déjà existants (par code) seront ignorés.')) return;
+      createDemoProfilesBtn.disabled = true;
+      createDemoProfilesBtn.textContent = 'Création en cours… (peut prendre 30s)';
+      try{
+        const {created, skipped} = await createDemoProfiles();
+        let msg = '';
+        if(created.length){ msg += '✅ Créés (' + created.length + ') :\n' + created.map(n=>'  • '+n).join('\n'); }
+        if(skipped.length){ msg += (msg?'\n\n':'') + '⏭ Ignorés (code déjà utilisé) :\n' + skipped.map(n=>'  • '+n).join('\n'); }
+        if(!msg) msg = 'Aucun canevas créé.';
+        alert(msg);
+        render();
+      }catch(e){
+        alert('Échec : '+(e.message||''));
+        createDemoProfilesBtn.disabled = false;
+        createDemoProfilesBtn.textContent = '📚 Générer les 9 canevas de démo';
+      }
+    });
+  }
 
   // ── Restaurant management ──
   const restosListEl = $('#restosList');
@@ -5326,6 +6351,7 @@ function bindSyncHandlers(){
     });
     if(activeResto()===id) setActiveResto('global');
     await persist();
+    logActivity('delete','Restaurant supprimé');
     toast('Restaurant supprimé');
     render();
   }));
@@ -5399,7 +6425,7 @@ function bindSyncHandlers(){
       const code = (advCodeEl.value||'').trim();
       if(code === APP_ADMIN_CODE){
         _appAdminUnlocked = true;
-        toast('Zone application déverrouillée');
+        toast('Zone développeur déverrouillée');
         render();
       } else {
         toast('Code incorrect');
@@ -5413,7 +6439,7 @@ function bindSyncHandlers(){
   if(appLockBtn){
     appLockBtn.addEventListener('click', ()=>{
       _appAdminUnlocked = false;
-      toast('Zone application verrouillée');
+      toast('Zone développeur verrouillée');
       render();
     });
   }
@@ -5427,7 +6453,7 @@ function bindSyncHandlers(){
       const tenantCode = tenant && tenant.code ? tenant.code : null;
       if(code === APP_ADMIN_CODE || (tenantCode && code === tenantCode)){
         _userAdminUnlocked = true;
-        toast('Zone utilisateur déverrouillée');
+        toast('Zone entreprise déverrouillée');
         render();
       } else {
         toast('Code incorrect');
@@ -5441,12 +6467,127 @@ function bindSyncHandlers(){
   if(userLockBtn){
     userLockBtn.addEventListener('click', ()=>{
       _userAdminUnlocked = false;
-      toast('Zone utilisateur verrouillée');
+      toast('Zone entreprise verrouillée');
       render();
     });
   }
   // Notification edit handler
   $$('[data-notif-edit]').forEach(b=>b.addEventListener('click', ()=>openNotifEditor(b.getAttribute('data-notif-edit'))));
+
+  // Activity log rendering
+  const activityListEl = $('#activityList');
+  if(activityListEl){
+    const items = state._activity || [];
+    if(!items.length){
+      activityListEl.innerHTML = '<p class="muted" style="font-size:12px">Aucune activité enregistrée pour l\'instant.</p>';
+    } else {
+      const kindIcon = (k)=>{
+        if(k==='add') return '<span style="color:var(--success)">＋</span>';
+        if(k==='edit') return '<span style="color:var(--cyan)">✎</span>';
+        if(k==='delete') return '<span style="color:var(--danger)">×</span>';
+        if(k==='check') return '<span style="color:var(--success)">✓</span>';
+        if(k==='uncheck') return '<span style="color:var(--cream-faint)">○</span>';
+        if(k==='restore') return '<span style="color:var(--gold)">↺</span>';
+        if(k==='backup') return '<span style="color:var(--gold)">💾</span>';
+        return '<span class="muted">·</span>';
+      };
+      activityListEl.innerHTML = items.map(a=>`
+        <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;background:var(--dark-2);border-radius:6px;margin-bottom:4px;font-size:12px;line-height:1.4">
+          <span style="font-size:14px;flex-shrink:0;width:18px;text-align:center">${kindIcon(a.kind)}</span>
+          <div style="flex:1;min-width:0">
+            <div style="color:var(--cream)">${escHtml(a.summary||'(sans description)')}</div>
+            <div style="color:var(--cream-faint);font-size:10px;margin-top:2px">${escHtml(formatActivityWhen(a.at))} · ${escHtml(a.by||'?')}</div>
+          </div>
+        </div>`).join('');
+    }
+  }
+  const activityClearBtn = $('#activityClearBtn');
+  if(activityClearBtn){
+    activityClearBtn.addEventListener('click', async ()=>{
+      if(!confirm('Effacer tout l\'historique d\'activité ?\nCette action est irréversible.')) return;
+      clearActivityLog();
+      logActivity('misc', 'Historique d\'activité effacé');
+      await persist();
+      toast('Historique effacé');
+      render();
+    });
+  }
+
+  // Backups rendering
+  const backupsListEl = $('#backupsList');
+  if(backupsListEl){
+    backupsListEl.textContent = 'Chargement des sauvegardes…';
+    loadBackups().then(list=>{
+      if(!list.length){
+        backupsListEl.innerHTML = '<p class="muted" style="font-size:12px">Aucune sauvegarde. Crée la première ci-dessous.</p>';
+        return;
+      }
+      backupsListEl.innerHTML = list.map(b=>{
+        const lib = (b.snapshot && b.snapshot.library) || {};
+        const stats = [
+          (lib.recipes||[]).length+' prep',
+          (lib.fiches||[]).length+' fiches',
+          (lib.ingredients||[]).length+' ingr.',
+          (lib.contacts||[]).length+' contacts'
+        ].join(' · ');
+        return `<div style="background:var(--dark-2);border-radius:8px;padding:10px;margin-bottom:6px;font-size:12px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+            <div style="flex:1;min-width:0">
+              <div style="color:var(--cream);font-weight:600">${escHtml(b.label||'Sauvegarde')}</div>
+              <div style="color:var(--cream-faint);font-size:11px;margin-top:2px">${escHtml(formatActivityWhen(b.at))} · ${escHtml(b.by||'?')}</div>
+              <div style="color:var(--cream-dim);font-size:11px;margin-top:2px">${stats}</div>
+            </div>
+            <div style="display:flex;gap:4px;flex-shrink:0">
+              <button class="btn btn-secondary" data-backup-restore="${b.id}" style="padding:6px 10px;font-size:11px">Restaurer</button>
+              <button class="btn btn-ghost" data-backup-del="${b.id}" style="padding:6px 10px;font-size:14px;color:var(--danger)">×</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+      // Wire restore/delete
+      backupsListEl.querySelectorAll('[data-backup-restore]').forEach(btn=>btn.addEventListener('click', async ()=>{
+        const id = btn.getAttribute('data-backup-restore');
+        if(!confirm('Restaurer cette sauvegarde ?\n\nL\'état ACTUEL sera remplacé par celui de la sauvegarde. Pense à créer une sauvegarde AVANT si tu veux pouvoir revenir.')) return;
+        try{
+          btn.disabled = true; btn.textContent = '…';
+          await restoreBackup(id);
+          toast('Sauvegarde restaurée');
+          render();
+        }catch(e){ alert('Échec : '+(e.message||'')); }
+      }));
+      backupsListEl.querySelectorAll('[data-backup-del]').forEach(btn=>btn.addEventListener('click', async ()=>{
+        const id = btn.getAttribute('data-backup-del');
+        if(!confirm('Supprimer cette sauvegarde ?')) return;
+        try{
+          btn.disabled = true;
+          await deleteBackup(id);
+          toast('Sauvegarde supprimée');
+          render();
+        }catch(e){ alert('Échec : '+(e.message||'')); }
+      }));
+    }).catch(e=>{
+      backupsListEl.innerHTML = '<p class="muted" style="font-size:12px;color:var(--danger)">Impossible de charger les sauvegardes : '+escHtml(e.message||'?')+'</p>';
+    });
+  }
+  const backupCreateForm = $('#backupCreateForm');
+  if(backupCreateForm){
+    backupCreateForm.addEventListener('submit', async e=>{
+      e.preventDefault();
+      const label = ($('#backupLabel').value||'').trim() || 'Sauvegarde manuelle';
+      const btn = backupCreateForm.querySelector('button[type="submit"]');
+      if(btn){ btn.disabled = true; btn.textContent = '…'; }
+      try{
+        const snap = await saveBackup(label);
+        logActivity('backup', 'Sauvegarde créée : ' + (snap.label||''));
+        await persist();
+        toast('Sauvegarde créée');
+        render();
+      }catch(e){
+        alert('Échec : '+(e.message||'erreur réseau'));
+        if(btn){ btn.disabled = false; btn.textContent = '+ Sauvegarder'; }
+      }
+    });
+  }
 
   // ── Add to home screen ──
   const addHomeBtn = $('#addHomeBtn');
@@ -6207,6 +7348,7 @@ function attachHandlers(){
     if(!confirm('Marquer toutes les préparations comme faites (tout décocher) ?')) return;
     state.prep = {};
     await persist();
+    logActivity('uncheck','Préparations réinitialisées');
     toast('Préparations réinitialisées');
     render();
   });
@@ -6249,6 +7391,7 @@ function attachHandlers(){
     r.checked = {};
     r.lastReset = Date.now();
     await persist();
+    logActivity('uncheck','Routine réinitialisée');
     toast('Routine réinitialisée');
     render();
   }));
@@ -6257,6 +7400,7 @@ function attachHandlers(){
     if(!confirm('Supprimer cette routine ?')) return;
     state.routines = (state.routines||[]).filter(r=>r.id!==id);
     await persist();
+    logActivity('delete','Routine supprimée');
     toast('Routine supprimée');
     navigate('#tasks');
   }));
@@ -6331,6 +7475,7 @@ function attachHandlers(){
     state.recipes = state.recipes.filter(r=>r.id!==id);
     state.fiches.forEach(f=>{ f.linkedRecipes = (f.linkedRecipes||[]).filter(x=>x!==id); });
     await persist();
+    logActivity('delete','Préparation supprimée');
     toast('Préparation supprimée');
     navigate('#recipes');
   }));
@@ -6346,6 +7491,7 @@ function attachHandlers(){
     if(!confirm('Supprimer cette fiche ?')) return;
     state.fiches = state.fiches.filter(f=>f.id!==id);
     await persist();
+    logActivity('delete','Fiche technique supprimée');
     toast('Fiche technique supprimée');
     navigate('#fiches');
   }));
@@ -6407,6 +7553,7 @@ function attachHandlers(){
     const restoCbs = $$(`[data-te-resto="${id}"]`).filter(c=>c.checked);
     t.restos = restoCbs.map(c=>c.value);
     await persist();
+    logActivity('edit','Tâche modifiée');
     toast('Tâche modifiée');
     render();
   }));
@@ -6432,6 +7579,7 @@ function attachHandlers(){
       if(!t.title) return;
       state.tasks.push(t);
       await persist();
+      logActivity('add','Tâche créée');
       toast('Tâche ajoutée');
       render();
     });
@@ -6447,6 +7595,7 @@ function attachHandlers(){
   if(resetTasksBtn) resetTasksBtn.addEventListener('click',async()=>{
     state.tasks.forEach(t=>{t.done=false;t.lastDone=null;});
     await persist();
+    logActivity('uncheck','Tâches réinitialisées');
     toast('Tâches réinitialisées');
     render();
   });
@@ -6461,6 +7610,7 @@ function attachHandlers(){
     if(!confirm('Supprimer cet ingrédient ?')) return;
     state.ingredients = state.ingredients.filter(x=>x.id!==id);
     await persist();
+    logActivity('delete','Ingrédient supprimé');
     toast('Ingrédient supprimé');
     navigate('#ingredients');
   }));
@@ -6595,6 +7745,7 @@ function attachHandlers(){
       if(!c.name){ toast('Nom requis'); return; }
       state.contacts.push(c);
       await persist();
+      logActivity('add','Contact ajouté');
       toast('Contact ajouté');
       render();
     });
@@ -6622,6 +7773,7 @@ function attachHandlers(){
       if(!n.title){ toast('Titre requis'); return; }
       state.notes.push(n);
       await persist();
+      logActivity('add','Note ajoutée');
       toast('Note ajoutée');
       render();
     });
@@ -6922,12 +8074,14 @@ async function handleRecipeSubmit(e){
       const r = state.recipes.find(x=>x.id===editId);
       Object.assign(r, data);
       await persist();
+      logActivity('edit','Préparation modifiée');
       toast('Préparation enregistrée');
       navigate('#recipe/'+editId);
     } else {
       const id = uid('rec');
       state.recipes.push({id, ...data});
       await persist();
+      logActivity('add','Préparation créée');
       toast('Préparation créée');
       navigate('#recipe/'+id);
     }
@@ -6993,12 +8147,14 @@ async function handleFicheSubmit(e){
       const fi = state.fiches.find(x=>x.id===editId);
       Object.assign(fi, data);
       await persist();
+      logActivity('edit','Fiche technique modifiée');
       toast('Fiche technique enregistrée');
       navigate('#fiche/'+editId);
     } else {
       const id = uid('fic');
       state.fiches.push({id, ...data});
       await persist();
+      logActivity('add','Fiche technique créée');
       toast('Fiche technique créée');
       navigate('#fiche/'+id);
     }
@@ -7137,12 +8293,14 @@ async function handleRoutineSubmit(e){
       Object.assign(r, data);
       // keep existing checked state
       await persist();
+      logActivity('edit','Routine modifiée');
       toast('Routine enregistrée');
       navigate('#routine/'+editId);
     } else {
       const id = uid('rou');
       state.routines.push({id, ...data, checked:{}, lastReset:null});
       await persist();
+      logActivity('add','Routine créée');
       toast('Routine créée');
       navigate('#routine/'+id);
     }
@@ -7177,6 +8335,7 @@ async function handleIngSubmit(e){
     const ing = state.ingredients.find(x=>x.id===editId);
     Object.assign(ing,data);
     await persist();
+    logActivity('edit','Ingrédient mis à jour');
     toast('Ingrédient enregistré');
   } else {
     state.ingredients.push({id:uid('ing'),...data});
