@@ -73,6 +73,69 @@ html[data-theme="classique"]{
   --bg-grad-1:rgba(0,0,0,.02);
   --bg-grad-2:rgba(169,118,43,.05);
 }
+/* Thème NATURE : Helvetia Blue + Ecru + Glaucous Green + Dull Citrine (Sanzo Wada) */
+html[data-theme="nature"]{
+  --navy:#1d4868;
+  --navy-2:#163a55;
+  --cyan:#b4cdc2;          /* Glaucous Green */
+  --gold:#c2ae93;          /* Ecru */
+  --dark:#0c2336;          /* Helvetia Blue darkened */
+  --dark-2:#081c2c;
+  --cream:#e6d8c1;         /* Ecru lightened */
+  --cream-dim:rgba(230,216,193,.7);
+  --cream-faint:rgba(230,216,193,.45);
+  --line:rgba(180,205,194,.18);
+  --line-strong:rgba(180,205,194,.35);
+  --danger:#d96f5a;
+  --success:#9ab89e;
+  --bg-grad-1:rgba(180,205,194,.06);
+  --bg-grad-2:rgba(194,174,147,.05);
+  /* Citrine #b09f36 -> used via .tag.gold accent below */
+}
+html[data-theme="nature"] .tag.gold{background:rgba(176,159,54,.22);color:#d3c258;border:1px solid rgba(176,159,54,.4)}
+
+/* Thème FUTURISTE RÉTRO DÉSATURÉ : Pale Raw Umber, Light Glaucous Blue, Pale King's Blue, Cream Yellow, Black */
+html[data-theme="retro-desat"]{
+  --navy:#1c2227;          /* dark cool gray */
+  --navy-2:#13181c;
+  --cyan:#a7d4e4;          /* Pale King's Blue */
+  --gold:#fdbf68;          /* Cream Yellow */
+  --dark:#111314;          /* Black from palette */
+  --dark-2:#0a0c0e;
+  --cream:#a5c8d1;         /* Light Glaucous Blue */
+  --cream-dim:rgba(165,200,209,.72)
+;
+  --cream-faint:rgba(165,200,209,.45);
+  --line:rgba(165,200,209,.16);
+  --line-strong:rgba(165,200,209,.32);
+  --danger:#c97a4e;        /* warm desaturated red-brown */
+  --success:#8fb4a3;
+  --bg-grad-1:rgba(253,191,104,.05);
+  --bg-grad-2:rgba(167,212,228,.06);
+}
+html[data-theme="retro-desat"] .tag.cuisine-burger{background:rgba(113,80,47,.25);color:#c79870;border:1px solid rgba(113,80,47,.45)} /* Pale Raw Umber accent */
+
+/* Thème FRAÎCHEUR : Pale Methy Blue + Dull Citrine + Pinkish Cinnamon + Orange Yellow (Sanzo Wada) */
+/* Light theme — soft pale blue background, warm orange/cinnamon accents */
+html[data-theme="fraicheur"]{
+  --navy:#ffffff;
+  --navy-2:#eaf3f5;        /* pale teal-blue card backdrop */
+  --cyan:#2e7e8e;          /* deeper Methy Blue for legibility */
+  --gold:#fcb315;          /* Orange Yellow — primary accent */
+  --dark:#eef6f7;          /* pale Methy Blue background */
+  --dark-2:#ffffff;
+  --cream:#1e3a40;         /* deep teal-grey for text */
+  --cream-dim:rgba(30,58,64,.7);
+  --cream-faint:rgba(30,58,64,.45);
+  --line:rgba(46,126,142,.2);
+  --line-strong:rgba(46,126,142,.4);
+  --danger:#c0512b;
+  --success:#2e7d4f;
+  --bg-grad-1:rgba(238,180,128,.08);   /* Pinkish Cinnamon */
+  --bg-grad-2:rgba(252,179,21,.05);    /* Orange Yellow */
+}
+html[data-theme="fraicheur"] .tag{background:rgba(238,180,128,.18);color:#a86936;border:1px solid rgba(238,180,128,.4)} /* Pinkish Cinnamon tag */
+html[data-theme="fraicheur"] .tag.gold{background:rgba(176,159,54,.18);color:#7d6f1e;border:1px solid rgba(176,159,54,.4)} /* Dull Citrine */
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;background:var(--dark);color:var(--cream);font-family:var(--font-body);font-weight:500;letter-spacing:.02em;overscroll-behavior-y:none}
 body{background:
@@ -562,7 +625,10 @@ const THEME_KEY = 'restoTool_theme';
 const THEMES = [
   {key:'retro', label:'Futuriste Rétro', desc:"Le style d'origine (navy / cyan / or)"},
   {key:'sombre', label:'Sombre', desc:'Noir profond, accents froids, minimal'},
-  {key:'classique', label:'Classique', desc:'Clair et sobre, type fiche papier'}
+  {key:'classique', label:'Classique', desc:'Clair et sobre, type fiche papier'},
+  {key:'nature', label:'Nature', desc:'Helvetia Blue · Ecru · Glaucous Green · Citrine (Sanzo Wada)'},
+  {key:'retro-desat', label:'Futuriste Rétro désaturé', desc:'Pale Raw Umber · Light Glaucous Blue · Cream Yellow · Black (Sanzo Wada)'},
+  {key:'fraicheur', label:'Fraîcheur', desc:'Pale Methy Blue · Dull Citrine · Pinkish Cinnamon · Orange Yellow (Sanzo Wada)'}
 ];
 function applyTheme(t){
   let theme = t;
@@ -807,6 +873,9 @@ function prepareForTenantSwitch(){
   // Reset sync cache so we don't reuse stale SHAs/etags from another tenant's files
   _libSha = null; _sharedSha = null; _libETag = null; _sharedETag = null;
   _lastPushedLibHash = null; _lastPushedSharedHash = null;
+  // Reset admin unlock — the user zone is tied to the (now-different) tenant's code
+  _userAdminUnlocked = false;
+  _appAdminUnlocked = false;
   // Start from clean defaults; cloudPull will overwrite if data exists for this tenant
   state = defaultData();
   ensureDefaults();
@@ -1041,6 +1110,11 @@ function readRestosFromForm(form){
 let bulkMode = null;          // currently active list kind, or null
 let bulkSelected = new Set(); // selected item ids
 let bulkUnlocked = false;     // must be unlocked from Admin zone (code 5254) before "Sélectionner" buttons show up
+
+// Admin unlock state — kept in memory across same-route re-renders, reset on app reload or tenant switch
+let _userAdminUnlocked = false;   // Zone utilisateur (entreprise) — unlocked by tenant code
+let _appAdminUnlocked = false;    // Zone application (technique) — unlocked by master code 5254
+const APP_ADMIN_CODE = '5254';
 
 function bulkActive(kind){ return bulkMode === kind; }
 function bulkToggle(kind){
@@ -4280,6 +4354,76 @@ function renderNotes(){
   `;
 }
 
+function openNotifEditor(id){
+  const n = (state.notifications||[]).find(x=>x.id===id);
+  if(!n) return;
+  const ov = document.createElement('div');
+  ov.className = 'modal-bg';
+  ov.innerHTML = `<div class="modal">
+    <div style="font-family:var(--font-display);font-size:22px;color:var(--gold);letter-spacing:.04em;margin-bottom:14px">📢 Éditer l'annonce</div>
+    <form id="notifEditForm">
+      <div class="form-row">
+        <div class="form-group" style="flex:1">
+          <label>Icône</label>
+          <input name="icon" value="${escHtml(n.icon||'📢')}" maxlength="3">
+        </div>
+        <div class="form-group" style="flex:3">
+          <label>Titre</label>
+          <input name="title" value="${escHtml(n.title||'')}" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Message</label>
+        <textarea name="text" rows="3" required>${escHtml(n.text||'')}</textarea>
+      </div>
+      <label class="toggle" style="cursor:pointer">
+        <span class="toggle-label">Active (visible sur l'accueil)</span>
+        <input type="checkbox" name="active" ${n.active?'checked':''} style="width:auto;padding:0">
+      </label>
+      ${restoSelectorHtml(n.restos||[])}
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+        <button type="button" class="btn btn-danger" data-del-notif="${n.id}">Supprimer</button>
+        <button type="button" class="btn btn-ghost" data-close-modal>Annuler</button>
+      </div>
+    </form>
+  </div>`;
+  document.body.appendChild(ov);
+  const allCb = ov.querySelector('[data-resto-all-cb]');
+  if(allCb){
+    const specifics = ov.querySelectorAll('input[name="resto_apply"]');
+    allCb.addEventListener('change',()=>{ if(allCb.checked) specifics.forEach(s=>s.checked=false); });
+    specifics.forEach(s=>s.addEventListener('change',()=>{
+      const any = Array.from(specifics).some(x=>x.checked);
+      allCb.checked = !any;
+      allCb.closest('label').classList.toggle('on', allCb.checked);
+    }));
+  }
+  ov.querySelector('#notifEditForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    n.icon = (fd.get('icon')||'📢').toString().trim() || '📢';
+    n.title = (fd.get('title')||'').toString().trim();
+    n.text = (fd.get('text')||'').toString();
+    n.active = !!fd.get('active');
+    n.restos = readRestosFromForm(e.target);
+    if(!n.title && !n.text){ toast('Titre ou message requis'); return; }
+    await persist();
+    ov.remove();
+    toast('Annonce mise à jour');
+    render();
+  });
+  ov.querySelector('[data-del-notif]').addEventListener('click', async ()=>{
+    if(!confirm('Supprimer cette annonce ?')) return;
+    state.notifications = (state.notifications||[]).filter(x=>x.id!==n.id);
+    await persist();
+    ov.remove();
+    toast('Annonce supprimée');
+    render();
+  });
+  ov.addEventListener('click', e=>{ if(e.target===ov || e.target.closest('[data-close-modal]')) ov.remove(); });
+}
+
 function openNoteEditor(id){
   const n = (state.notes||[]).find(x=>x.id===id);
   if(!n) return;
@@ -4359,7 +4503,15 @@ function renderSettings(){
             const cur = (function(){ try{ return localStorage.getItem(THEME_KEY)||'retro'; }catch(e){ return 'retro'; } })();
             const on = cur===t.key;
             return `<button type="button" class="theme-opt ${on?'on':''}" data-theme-pick="${t.key}" style="text-align:left;padding:12px 14px;border-radius:10px;border:1px solid ${on?'var(--cyan)':'var(--line)'};background:${on?'var(--navy)':'var(--dark-2)'};display:flex;align-items:center;gap:12px">
-              <span style="width:34px;height:34px;border-radius:8px;flex-shrink:0;background:${t.key==='retro'?'linear-gradient(135deg,#203554,#66C5DB)':t.key==='sombre'?'linear-gradient(135deg,#0a0a0b,#8AB4D8)':'linear-gradient(135deg,#f7f6f3,#A9762B)'}"></span>
+              <span style="width:34px;height:34px;border-radius:8px;flex-shrink:0;background:${
+                t.key==='retro'        ? 'linear-gradient(135deg,#203554,#66C5DB)' :
+                t.key==='sombre'       ? 'linear-gradient(135deg,#0a0a0b,#8AB4D8)' :
+                t.key==='classique'    ? 'linear-gradient(135deg,#f7f6f3,#A9762B)' :
+                t.key==='nature'       ? 'linear-gradient(135deg,#0c2336 0%,#005b8d 40%,#b4cdc2 70%,#c2ae93 100%)' :
+                t.key==='retro-desat'  ? 'linear-gradient(135deg,#111314 0%,#71502f 35%,#a7d4e4 65%,#fdbf68 100%)' :
+                t.key==='fraicheur'    ? 'linear-gradient(135deg,#a7d4e4 0%,#eeb480 50%,#fcb315 100%)' :
+                'linear-gradient(135deg,#222,#666)'
+              }"></span>
               <span style="flex:1">
                 <span style="display:block;font-family:var(--font-display);font-size:17px;letter-spacing:.04em;color:var(--cream)">${t.label}</span>
                 <span style="display:block;font-size:11px;color:var(--cream-faint)">${t.desc}</span>
@@ -4378,19 +4530,147 @@ function renderSettings(){
         <button class="btn btn-primary btn-block" id="syncStartBtn" style="font-size:16px;padding:16px;letter-spacing:.05em">▶ DÉMARRER LA SYNCHRO</button>
         <div class="muted" id="syncStartHint" style="text-align:center;margin-top:8px;font-size:12px"></div>
 
+      </div>
+
+      <div class="settings-group">
+        <div class="sg-head" style="display:flex;justify-content:space-between;align-items:center">
+          <span>🏢 Zone utilisateur</span>
+          ${_userAdminUnlocked ? '<button id="userAdminLockBtn" style="font-size:11px;color:var(--cream-faint);letter-spacing:.1em">🔓 Verrouiller</button>' : ''}
+        </div>
+        ${!_userAdminUnlocked ? `
+        <div class="muted" style="margin-bottom:10px;font-size:12px;line-height:1.5">Gestion de l'entreprise : restaurants, catégories, annonces. Utilise le code de ton entreprise (ou ${APP_ADMIN_CODE}).</div>
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-group" style="flex:1;margin-bottom:0">
+            <label>Code utilisateur</label>
+            <input id="userAdminCode" type="tel" inputmode="numeric" placeholder="••••" maxlength="6" autocomplete="off">
+          </div>
+          <button class="btn btn-secondary" id="userAdminUnlockBtn" style="white-space:nowrap">Déverrouiller</button>
+        </div>
+        ` : `
+        <div class="muted" style="margin-bottom:12px;font-size:11px">Modifications sauvegardées et synchronisées automatiquement.</div>
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+            <div class="sg-head" style="margin-bottom:10px">🏪 Restaurants</div>
+            <div class="muted" style="margin-bottom:10px;font-size:11px">Ajoute les établissements à gérer. Chaque recette/fiche/tâche peut être assignée à un ou plusieurs restos (ou à tous).</div>
+            <div id="restosList"></div>
+            <div class="form-row" style="align-items:flex-end;margin-top:10px">
+              <div class="form-group" style="flex:1;margin-bottom:0">
+                <label>Nouveau restaurant</label>
+                <input id="newRestoName" placeholder="Ex : Mexy Fresh Centre-ville">
+              </div>
+              <button class="btn btn-secondary" id="addRestoBtn" style="white-space:nowrap">+ Ajouter</button>
+            </div>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+            <div class="sg-head" style="margin-bottom:10px">✎ Édition groupée</div>
+            <div class="muted" style="margin-bottom:10px;font-size:11px;line-height:1.5">Active ce mode pour faire apparaître le bouton « ☑ Sélectionner » en haut des listes (Préparations, Fiches, Ingrédients, Tâches, Routines). Tu pourras alors modifier plusieurs éléments d'un coup (assigner à des restos, changer végé/vegan/halal…).</div>
+            <button class="toggle" id="bulkUnlockToggle">
+              <span class="toggle-label">Afficher « ☑ Sélectionner » sur les listes</span>
+              <span class="toggle-switch" id="bulkUnlockSwitch"></span>
+            </button>
+            <p class="muted" style="font-size:11px;margin-top:6px">Désactivé par défaut pour garder l'interface épurée. Le mode se réinitialise quand tu fermes l'app.</p>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+            <div class="sg-head" style="margin-bottom:10px">📞 Catégories de contacts</div>
+            <div class="muted" style="margin-bottom:10px;font-size:11px;line-height:1.5">Catégories par défaut (Urgence, Fournisseur, Livreur, Patron, Réparateur, Équipe, Autre) déjà présentes. Tu peux en ajouter d'autres ici.</div>
+            <div id="contactCatsList"></div>
+            <form id="contactCatAddForm" style="margin-top:10px">
+              <div class="form-row" style="align-items:flex-end">
+                <div class="form-group" style="flex:0 0 70px">
+                  <label>Icône</label>
+                  <input id="newContactCatIcon" placeholder="📞" maxlength="3">
+                </div>
+                <div class="form-group" style="flex:1">
+                  <label>Nom catégorie</label>
+                  <input id="newContactCatLabel" placeholder="Ex : Banque, Comptable…">
+                </div>
+                <button type="submit" class="btn btn-secondary" style="white-space:nowrap">+ Ajouter</button>
+              </div>
+            </form>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+            <div class="sg-head" style="margin-bottom:10px">📢 Annonces / Notifications</div>
+            <div class="muted" style="margin-bottom:10px;font-size:11px;line-height:1.5">Crée une annonce qui apparaîtra en bannière sur l'accueil de tous les appareils synchronisés. Chacun peut la fermer une fois lue.</div>
+            <div id="notifsList"></div>
+            <form id="notifAddForm" style="margin-top:12px">
+              <div class="form-row">
+                <div class="form-group" style="flex:1">
+                  <label>Icône</label>
+                  <input id="notifIcon" placeholder="📢" maxlength="3" value="📢">
+                </div>
+                <div class="form-group" style="flex:3">
+                  <label>Titre</label>
+                  <input id="notifTitle" placeholder="Ex : Service spécial samedi">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Message</label>
+                <textarea id="notifText" rows="2" placeholder="Détails de l'annonce…"></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block">+ Créer l'annonce</button>
+            </form>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+<div class="sg-head" style="margin-bottom:10px">🍽 Catégories — Cuisines</div>
+        <div class="muted" style="margin-bottom:8px;font-size:11px">Onglets de filtrage pour les recettes et fiches.</div>
+        <div class="dynamic-list" id="cuisinesList">
+          ${(s.cuisines||[]).map((c,i)=>`<div class="dynamic-item" data-cuis-row="${i}">
+            <input class="ing-name-i" name="cuis_name" value="${escHtml(c)}" placeholder="Nom de cuisine">
+            <button type="button" class="rm" data-rm-cuis>×</button>
+          </div>`).join('')}
+        </div>
+        <button type="button" class="add-btn" id="addCuisineBtn">+ Ajouter une cuisine</button>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+<div class="sg-head" style="margin-bottom:10px">📦 Catégories — Types</div>
+        <div class="muted" style="margin-bottom:8px;font-size:11px">Pour classer recettes/fiches : viandes, garnitures, sides, suppléments…</div>
+        <div class="dynamic-list" id="typesList">
+          ${(s.types||[]).map((t,i)=>`<div class="dynamic-item" data-type-row="${i}">
+            <input class="ing-name-i" name="type_name" value="${escHtml(t)}" placeholder="Nom de type">
+            <button type="button" class="rm" data-rm-type>×</button>
+          </div>`).join('')}
+        </div>
+        <button type="button" class="add-btn" id="addTypeBtn">+ Ajouter un type</button>
+        <button type="button" class="btn btn-secondary btn-block" id="saveCategoriesBtn" style="margin-top:10px">Enregistrer les catégories</button>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+<div class="sg-head" style="margin-bottom:10px">🛒 Catégories — Magasins</div>
+        <div class="muted" style="margin-bottom:8px;font-size:11px">Pour la liste de stock : où acheter chaque produit.</div>
+        <div class="dynamic-list" id="storesList">
+          ${(s.stores||[]).map((st,i)=>`<div class="dynamic-item" data-store-row="${i}">
+            <input class="ing-name-i" name="store_name" value="${escHtml(st)}" placeholder="Nom de magasin">
+            <button type="button" class="rm" data-rm-store>×</button>
+          </div>`).join('')}
+        </div>
+        <button type="button" class="add-btn" id="addStoreBtn">+ Ajouter un magasin</button>
+        <button type="button" class="btn btn-secondary btn-block" id="saveStoresBtn" style="margin-top:10px">Enregistrer les magasins</button>
+          </div>
+        `}
+      </div>
+
+      <div class="settings-group">
         <div style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
-          <div class="sg-head" style="margin-bottom:8px">🔒 Zone administrateur</div>
+          <div class="sg-head" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+            <span>🔧 Zone application</span>
+            ${_appAdminUnlocked ? '<button id="appAdminLockBtn" style="font-size:11px;color:var(--cream-faint);letter-spacing:.1em">🔓 Verrouiller</button>' : ''}
+          </div>
+          ${!_appAdminUnlocked ? `
           <div class="form-row" style="align-items:flex-end">
             <div class="form-group" style="flex:1;margin-bottom:0">
-              <label>Code d'accès</label>
+              <label>Code application</label>
               <input id="advCode" type="tel" inputmode="numeric" placeholder="••••" maxlength="6" autocomplete="off">
             </div>
             <button class="btn btn-secondary" id="advUnlockBtn" style="white-space:nowrap">Déverrouiller</button>
           </div>
-          <p class="muted" style="font-size:11px;margin-top:6px">Réservé au responsable : rôles, paramètres techniques, restaurants, données.</p>
+          <p class="muted" style="font-size:11px;margin-top:6px">Réservé au développeur : config sync, gestion des utilisateurs, données techniques.</p>` : ''}
         </div>
 
-        <div id="advArea" style="display:none;margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+        <div id="advArea" style="display:${_appAdminUnlocked?'block':'none'};margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
           <div class="form-group">
             <label>Rôle sur cet appareil</label>
             <div class="role-pills" style="display:flex;gap:8px;margin-top:6px">
@@ -4494,70 +4774,9 @@ function renderSettings(){
             </div>
           </div>
 
-          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-            <div class="sg-head" style="margin-bottom:10px">🏪 Restaurants</div>
-            <div class="muted" style="margin-bottom:10px;font-size:11px">Ajoute les établissements à gérer. Chaque recette/fiche/tâche peut être assignée à un ou plusieurs restos (ou à tous).</div>
-            <div id="restosList"></div>
-            <div class="form-row" style="align-items:flex-end;margin-top:10px">
-              <div class="form-group" style="flex:1;margin-bottom:0">
-                <label>Nouveau restaurant</label>
-                <input id="newRestoName" placeholder="Ex : Mexy Fresh Centre-ville">
-              </div>
-              <button class="btn btn-secondary" id="addRestoBtn" style="white-space:nowrap">+ Ajouter</button>
-            </div>
-          </div>
 
-          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-            <div class="sg-head" style="margin-bottom:10px">✎ Édition groupée</div>
-            <div class="muted" style="margin-bottom:10px;font-size:11px;line-height:1.5">Active ce mode pour faire apparaître le bouton « ☑ Sélectionner » en haut des listes (Préparations, Fiches, Ingrédients, Tâches, Routines). Tu pourras alors modifier plusieurs éléments d'un coup (assigner à des restos, changer végé/vegan/halal…).</div>
-            <button class="toggle" id="bulkUnlockToggle">
-              <span class="toggle-label">Afficher « ☑ Sélectionner » sur les listes</span>
-              <span class="toggle-switch" id="bulkUnlockSwitch"></span>
-            </button>
-            <p class="muted" style="font-size:11px;margin-top:6px">Désactivé par défaut pour garder l'interface épurée. Le mode se réinitialise quand tu fermes l'app.</p>
-          </div>
 
-          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-            <div class="sg-head" style="margin-bottom:10px">📞 Catégories de contacts</div>
-            <div class="muted" style="margin-bottom:10px;font-size:11px;line-height:1.5">Catégories par défaut (Urgence, Fournisseur, Livreur, Patron, Réparateur, Équipe, Autre) déjà présentes. Tu peux en ajouter d'autres ici.</div>
-            <div id="contactCatsList"></div>
-            <form id="contactCatAddForm" style="margin-top:10px">
-              <div class="form-row" style="align-items:flex-end">
-                <div class="form-group" style="flex:0 0 70px">
-                  <label>Icône</label>
-                  <input id="newContactCatIcon" placeholder="📞" maxlength="3">
-                </div>
-                <div class="form-group" style="flex:1">
-                  <label>Nom catégorie</label>
-                  <input id="newContactCatLabel" placeholder="Ex : Banque, Comptable…">
-                </div>
-                <button type="submit" class="btn btn-secondary" style="white-space:nowrap">+ Ajouter</button>
-              </div>
-            </form>
-          </div>
 
-          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-            <div class="sg-head" style="margin-bottom:10px">📢 Annonces / Notifications</div>
-            <div class="muted" style="margin-bottom:10px;font-size:11px;line-height:1.5">Crée une annonce qui apparaîtra en bannière sur l'accueil de tous les appareils synchronisés. Chacun peut la fermer une fois lue.</div>
-            <div id="notifsList"></div>
-            <form id="notifAddForm" style="margin-top:12px">
-              <div class="form-row">
-                <div class="form-group" style="flex:1">
-                  <label>Icône</label>
-                  <input id="notifIcon" placeholder="📢" maxlength="3" value="📢">
-                </div>
-                <div class="form-group" style="flex:3">
-                  <label>Titre</label>
-                  <input id="notifTitle" placeholder="Ex : Service spécial samedi">
-                </div>
-              </div>
-              <div class="form-group">
-                <label>Message</label>
-                <textarea id="notifText" rows="2" placeholder="Détails de l'annonce…"></textarea>
-              </div>
-              <button type="submit" class="btn btn-primary btn-block">+ Créer l'annonce</button>
-            </form>
-          </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
             <div class="sg-head" style="margin-bottom:10px">💾 Données</div>
@@ -4581,43 +4800,9 @@ function renderSettings(){
         </div>
       </div>
 
-      <div class="settings-group">
-        <div class="sg-head">Catégories — Cuisines</div>
-        <div class="muted" style="margin-bottom:8px;font-size:11px">Onglets de filtrage pour les recettes et fiches.</div>
-        <div class="dynamic-list" id="cuisinesList">
-          ${(s.cuisines||[]).map((c,i)=>`<div class="dynamic-item" data-cuis-row="${i}">
-            <input class="ing-name-i" name="cuis_name" value="${escHtml(c)}" placeholder="Nom de cuisine">
-            <button type="button" class="rm" data-rm-cuis>×</button>
-          </div>`).join('')}
-        </div>
-        <button type="button" class="add-btn" id="addCuisineBtn">+ Ajouter une cuisine</button>
-      </div>
 
-      <div class="settings-group">
-        <div class="sg-head">Catégories — Types</div>
-        <div class="muted" style="margin-bottom:8px;font-size:11px">Pour classer recettes/fiches : viandes, garnitures, sides, suppléments…</div>
-        <div class="dynamic-list" id="typesList">
-          ${(s.types||[]).map((t,i)=>`<div class="dynamic-item" data-type-row="${i}">
-            <input class="ing-name-i" name="type_name" value="${escHtml(t)}" placeholder="Nom de type">
-            <button type="button" class="rm" data-rm-type>×</button>
-          </div>`).join('')}
-        </div>
-        <button type="button" class="add-btn" id="addTypeBtn">+ Ajouter un type</button>
-        <button type="button" class="btn btn-secondary btn-block" id="saveCategoriesBtn" style="margin-top:10px">Enregistrer les catégories</button>
-      </div>
 
-      <div class="settings-group">
-        <div class="sg-head">Catégories — Magasins</div>
-        <div class="muted" style="margin-bottom:8px;font-size:11px">Pour la liste de stock : où acheter chaque produit.</div>
-        <div class="dynamic-list" id="storesList">
-          ${(s.stores||[]).map((st,i)=>`<div class="dynamic-item" data-store-row="${i}">
-            <input class="ing-name-i" name="store_name" value="${escHtml(st)}" placeholder="Nom de magasin">
-            <button type="button" class="rm" data-rm-store>×</button>
-          </div>`).join('')}
-        </div>
-        <button type="button" class="add-btn" id="addStoreBtn">+ Ajouter un magasin</button>
-        <button type="button" class="btn btn-secondary btn-block" id="saveStoresBtn" style="margin-top:10px">Enregistrer les magasins</button>
-      </div>
+
 
       <div class="settings-group">
         <div class="sg-head">Affichage</div>
@@ -5205,25 +5390,63 @@ function bindSyncHandlers(){
     }
   }
 
-  // ── Advanced settings unlock (code: 5254) ──
+  // ── Admin zones unlock (persistent across re-renders) ──
+  // App zone: code = APP_ADMIN_CODE (5254)
   const advCodeEl = $('#advCode');
   const advUnlockBtn = $('#advUnlockBtn');
-  const advArea = $('#advArea');
-  if(advUnlockBtn && advArea){
-    const tryAdv = ()=>{
-      if((advCodeEl.value||'').trim() === '5254'){
-        advArea.style.display = 'block';
-        advUnlockBtn.textContent = '✓ Ouvert';
-        advUnlockBtn.disabled = true;
-        toast('Réglages avancés déverrouillés');
+  if(advUnlockBtn && advCodeEl){
+    const tryApp = ()=>{
+      const code = (advCodeEl.value||'').trim();
+      if(code === APP_ADMIN_CODE){
+        _appAdminUnlocked = true;
+        toast('Zone application déverrouillée');
+        render();
       } else {
         toast('Code incorrect');
         advCodeEl.value = '';
       }
     };
-    advUnlockBtn.addEventListener('click', tryAdv);
-    advCodeEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); tryAdv(); } });
+    advUnlockBtn.addEventListener('click', tryApp);
+    advCodeEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); tryApp(); } });
   }
+  const appLockBtn = $('#appAdminLockBtn');
+  if(appLockBtn){
+    appLockBtn.addEventListener('click', ()=>{
+      _appAdminUnlocked = false;
+      toast('Zone application verrouillée');
+      render();
+    });
+  }
+  // User zone: code = active tenant's code OR APP_ADMIN_CODE (fallback)
+  const userCodeEl = $('#userAdminCode');
+  const userUnlockBtn = $('#userAdminUnlockBtn');
+  if(userUnlockBtn && userCodeEl){
+    const tryUser = ()=>{
+      const code = (userCodeEl.value||'').trim();
+      const tenant = getActiveTenant();
+      const tenantCode = tenant && tenant.code ? tenant.code : null;
+      if(code === APP_ADMIN_CODE || (tenantCode && code === tenantCode)){
+        _userAdminUnlocked = true;
+        toast('Zone utilisateur déverrouillée');
+        render();
+      } else {
+        toast('Code incorrect');
+        userCodeEl.value = '';
+      }
+    };
+    userUnlockBtn.addEventListener('click', tryUser);
+    userCodeEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); tryUser(); } });
+  }
+  const userLockBtn = $('#userAdminLockBtn');
+  if(userLockBtn){
+    userLockBtn.addEventListener('click', ()=>{
+      _userAdminUnlocked = false;
+      toast('Zone utilisateur verrouillée');
+      render();
+    });
+  }
+  // Notification edit handler
+  $$('[data-notif-edit]').forEach(b=>b.addEventListener('click', ()=>openNotifEditor(b.getAttribute('data-notif-edit'))));
 
   // ── Add to home screen ──
   const addHomeBtn = $('#addHomeBtn');
