@@ -440,14 +440,6 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .task-edit-panel textarea{min-height:100px;line-height:1.65}
 .task-edit-panel .btn-row{margin-top:14px;display:flex;gap:8px}
 .task-edit-panel .btn-row .btn{flex:1;padding:13px}
-/* ===== Offline indicator ===== */
-#offlineIndicator{position:fixed;top:0;left:0;right:0;z-index:300;background:#BA7517;color:#fff;font-size:12px;font-weight:600;letter-spacing:.08em;padding:8px 16px;display:none;align-items:center;justify-content:center;gap:8px;text-align:center}
-
-/* ===== Search FAB flottante ===== */
-.search-fab{position:fixed;right:16px;z-index:100;width:48px;height:48px;border-radius:50%;background:var(--dark-2);border:1px solid var(--cyan);color:var(--cyan);font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.4);cursor:pointer;transition:transform .15s,background .15s}
-.search-fab:active{transform:scale(.92);background:rgba(102,197,219,.15)}
-.search-fab-wrap{position:relative}
-
 /* ===== Filter bottom sheet (stock) ===== */
 .filter-fab{display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;background:var(--dark-2);border:1px solid var(--line-strong);color:var(--cyan);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;cursor:pointer;transition:border-color .15s,background .15s;margin-bottom:14px;width:100%}
 .filter-fab .ff-badge{background:var(--cyan);color:var(--dark);border-radius:10px;padding:1px 7px;font-size:10px;margin-left:auto}
@@ -633,6 +625,8 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 /* Stock list */
 .stock-row{background:var(--navy-2);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px;margin-bottom:8px;transition:border-color .15s,background .15s}
 .stock-row:active{background:var(--navy);border-color:var(--line-strong)}
+.stock-row.bulk-mode{cursor:pointer}
+.stock-row.bulk-mode:active{border-color:var(--cyan)}
 .stock-row.tobuy{border-color:rgba(228,90,64,.4);background:rgba(228,90,64,.06)}
 .stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:13px;cursor:pointer;transition:all .15s}
 .stock-row.tobuy .stock-check{background:var(--danger);border-color:var(--danger);color:var(--cream)}
@@ -664,7 +658,6 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 </style>
 </head>
 <body>
-<div id="offlineIndicator">📵 Hors-ligne — tes modifications sont sauvées et seront synchronisées dès le retour de la connexion</div>
 <div id="app"></div>
 <datalist id="ingredients-datalist"></datalist>
 <script>
@@ -815,26 +808,6 @@ let _sharedSha = null;
 let _sharedETag = null;
 let _libETag = null;
 let _pushTimer = null;
-
-// ── Offline queue ──────────────────────────────────────────
-// Lorsque le push GitHub échoue par manque de connexion,
-// on marque _offlineDirty=true. Dès que la connexion revient
-// (event "online"), on relance autoPushIfDirty automatiquement.
-let _offlineDirty = false;
-
-window.addEventListener('online', ()=>{
-  const ind = document.getElementById('offlineIndicator');
-  if(ind) ind.style.display = 'none';
-  if(_offlineDirty){
-    _offlineDirty = false;
-    console.log('[RestoTool] Connexion rétablie — retry push...');
-    setTimeout(()=> autoPushIfDirty(), 800);
-  }
-});
-window.addEventListener('offline', ()=>{
-  const ind = document.getElementById('offlineIndicator');
-  if(ind) ind.style.display = 'flex';
-});
 let _pollTimer = null;
 let _syncStatus = 'idle';
 let _syncError = '';
@@ -1202,6 +1175,7 @@ function bulkArrayFor(kind){
   if(kind==='ingredients') return state.ingredients||[];
   if(kind==='tasks') return state.tasks||[];
   if(kind==='routines') return state.routines||[];
+  if(kind==='stock') return buildStockEntries(); // inclut virtuels
   return [];
 }
 // Toolbar shown at top of a list when entering/leaving select mode
@@ -1224,12 +1198,18 @@ function bulkActionBarHtml(kind){
   if(!bulkActive(kind) || bulkSelected.size===0) return '';
   const dietBtn = kind==='ingredients'
     ? `<button class="bulk-act" data-bulk-diet="${kind}">🥗 Propriétés</button>` : '';
+  const stockBtns = kind==='stock' ? `
+    <button class="bulk-act" data-bulk-stockcat="${kind}">🏷 Catégorie</button>
+    <button class="bulk-act" data-bulk-stockloc="${kind}">📍 Emplacement</button>` : '';
+  const restobtn = kind!=='stock'
+    ? `<button class="bulk-act" data-bulk-resto="${kind}">🏪 Restaurants</button>` : '';
   return `<div class="bulk-actionbar">
     <div class="bulk-actionbar-inner">
       <span>${bulkSelected.size} élément${bulkSelected.size>1?'s':''}</span>
       <div class="bulk-acts">
-        <button class="bulk-act" data-bulk-resto="${kind}">🏪 Restaurants</button>
+        ${restobtn}
         ${dietBtn}
+        ${stockBtns}
       </div>
     </div>
   </div>`;
@@ -1259,6 +1239,75 @@ function bindBulkHandlers(kind){
   }));
   $$(`[data-bulk-resto="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkRestoModal(kind)));
   $$(`[data-bulk-diet="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkDietModal(kind)));
+  $$(`[data-bulk-stockcat="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkStockCatModal('cat')));
+  $$(`[data-bulk-stockloc="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkStockCatModal('loc')));
+}
+
+function openBulkStockCatModal(mode){
+  const items = mode==='cat' ? getStockCategories() : getStockLocations();
+  const ids = Array.from(bulkSelected);
+  const title = mode==='cat' ? '🏷 Assigner une catégorie' : '📍 Assigner un emplacement';
+  const count = ids.length;
+
+  const ov = document.createElement('div');
+  ov.className = 'modal-bg';
+  ov.innerHTML = `<div class="modal">
+    <div style="font-family:var(--font-display);font-size:21px;color:var(--gold);letter-spacing:.04em;margin-bottom:6px">${title}</div>
+    <p class="muted" style="font-size:12px;margin-bottom:16px">${count} produit${count>1?'s':''} sélectionné${count>1?'s':''}. Choisir une valeur l'applique à tous.</p>
+    <div class="filter-chips" style="margin-bottom:20px">
+      <button class="filter-chip" data-scat-val="">— Aucun(e) —</button>
+      ${items.map(it=>`<button class="filter-chip" data-scat-val="${it.key}">${escHtml(it.label)}</button>`).join('')}
+    </div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn btn-ghost" data-bulk-cancel>Annuler</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+
+  // Highlight on click and apply immediately
+  ov.querySelectorAll('[data-scat-val]').forEach(chip=>{
+    chip.addEventListener('click', async ()=>{
+      const val = chip.getAttribute('data-scat-val') || null;
+      // Apply to all real stock entries (create virtual ones if needed)
+      const allEntries = buildStockEntries();
+      for(const id of ids){
+        const entry = allEntries.find(x=>x.id===id);
+        if(!entry) continue;
+        let s = (state.stock||[]).find(x=>x.id===id);
+        if(!s && entry._virtual){
+          s = { id: uid('s'), ingredientId: entry.ingredientId, name: entry.name,
+                qty: entry.qty, unit: entry.unit, toBuy: false, note: '',
+                store: null, category: null, location: null };
+          if(!state.stock) state.stock = [];
+          state.stock.push(s);
+        }
+        if(!s) continue;
+        if(mode==='cat'){
+          s.category = val;
+          if(s.ingredientId){
+            const ing = state.ingredients.find(i=>i.id===s.ingredientId);
+            if(ing) ing.stockCategory = val;
+          }
+        } else {
+          s.location = val;
+          if(s.ingredientId){
+            const ing = state.ingredients.find(i=>i.id===s.ingredientId);
+            if(ing) ing.stockLocation = val;
+          }
+        }
+      }
+      await persist();
+      ov.remove();
+      const label = val ? items.find(i=>i.key===val)?.label : 'aucun(e)';
+      toast(`${count} produit${count>1?'s':''} → ${label}`);
+      bulkClear();
+      render();
+    });
+  });
+
+  ov.addEventListener('click', e=>{
+    if(e.target===ov || e.target.closest('[data-bulk-cancel]')) ov.remove();
+  });
 }
 
 function openBulkRestoModal(kind){
@@ -1412,15 +1461,8 @@ const Storage = {
     if(!saved){ memStore[STORAGE_KEY] = data; }
     const cfg = SyncConfig.loadOrDefaults();
     if(cfg && cfg.token && cfg.owner && cfg.repo && cfg.auto){
-      if(!navigator.onLine){
-        // Pas de connexion : marquer dirty, le retry se fera au retour en ligne
-        _offlineDirty = true;
-        _syncStatus = 'offline';
-        updateSyncStatusUI();
-      } else {
-        if(_pushTimer) clearTimeout(_pushTimer);
-        _pushTimer = setTimeout(()=>autoPushIfDirty(), 2000);
-      }
+      if(_pushTimer) clearTimeout(_pushTimer);
+      _pushTimer = setTimeout(()=>autoPushIfDirty(), 2000);
     }
   },
   async clear(){
@@ -1579,13 +1621,6 @@ async function autoPushIfDirty(){
     updateSyncStatusUI();
   }catch(err){
     _syncStatus = 'error'; _syncError = err.message || String(err);
-    // Réseau hors-ligne : on garde les données sales pour retry au retour
-    if(!navigator.onLine || /network|fetch|failed to fetch|load/i.test(_syncError)){
-      _offlineDirty = true;
-      _syncStatus = 'offline';
-      updateSyncStatusUI();
-      return;
-    }
     if(err.status===409 || err.status===422 || /sha/i.test(_syncError)){
       // Stale SHA: refresh and try once more
       try{
@@ -1677,11 +1712,6 @@ function updateSyncStatusUI(){
   if(!cfg || !cfg.token){
     el.textContent = 'Non configurée · '+roleLabel;
     el.style.color = 'var(--cream-faint)';
-    return;
-  }
-  if(_syncStatus==='offline'){
-    el.innerHTML = '📵 Hors-ligne — modifications sauvées localement · '+roleLabel;
-    el.style.color = 'var(--gold)';
     return;
   }
   if(_syncStatus==='syncing'){
@@ -2800,8 +2830,8 @@ function render(){
   }
   attachHandlers();
   if(sameRoute){
-    // Re-render of the same page: restore scroll after paint
-    requestAnimationFrame(()=> window.scrollTo({ top: prevScroll, behavior: 'instant' }));
+    // Re-render of the same page (state update like ticking a task): keep scroll
+    window.scrollTo(0, prevScroll);
   } else {
     window.scrollTo(0, 0);
   }
@@ -4127,15 +4157,13 @@ function renderStock(){
     const lowByThreshold = s.qty!=null && s.minQty!=null && Number(s.minQty)>0 && Number(s.qty)<=Number(s.minQty) && !s.toBuy;
     const catLabel = stockCats.find(c=>c.key===(s.category||'autre'));
     const locLabel = stockLocs.find(l=>l.key===s.location);
-    return `<div class="stock-row ${restock?'tobuy':''} ${s._virtual?'virtual':''}" data-stock="${s.id}" data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}">
-      <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter">${restock?'!':''}</button>
+    return `<div class="stock-row ${restock?'tobuy':''} ${s._virtual?'virtual':''} ${bulkActive('stock')?'bulk-mode':''}" data-stock="${s.id}" data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}" style="position:relative">
+      ${bulkCheckHtml('stock', s.id)}
+      <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter" ${bulkActive('stock')?'style="pointer-events:none;opacity:.3"':''}>${restock?'!':''}</button>
       <div class="stock-body">
         <div class="stock-name">${escHtml(name)}</div>
         <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span>${s.minQty!=null&&Number(s.minQty)>0?` <span style="color:var(--cream-faint);font-size:10px">(seuil ${s.minQty})</span>`:''}${s.store?` · <span style="color:var(--cyan);font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase">${escHtml(s.store)}</span>`:''}</div>
-        <div class="stock-cat-chips" style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap">
-          ${catLabel?`<button class="tag stock-cat-chip" data-set-cat="${s.id}" title="Changer la catégorie">${escHtml(catLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed" data-set-cat="${s.id}" title="Ajouter une catégorie">+ catégorie</button>`}
-          ${locLabel?`<button class="tag stock-cat-chip" style="background:rgba(102,197,219,.2);color:var(--cyan)" data-set-loc="${s.id}" title="Changer l'emplacement">${escHtml(locLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed;background:rgba(102,197,219,.08);color:var(--cyan)" data-set-loc="${s.id}" title="Ajouter un emplacement">+ lieu</button>`}
-        </div>
+        ${catLabel||locLabel ? `<div style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap">${catLabel?`<span class="tag">${escHtml(catLabel.label)}</span>`:''}${locLabel?`<span class="tag" style="background:rgba(102,197,219,.12);color:var(--cyan)">${escHtml(locLabel.label)}</span>`:''}</div>` : ''}
         ${lowByThreshold?`<div class="stock-note" style="color:var(--gold)">⚠ Sous le seuil — à racheter</div>`:''}
         ${s.note?`<div class="stock-note">${escHtml(s.note)}</div>`:''}
       </div>
@@ -4151,13 +4179,17 @@ function renderStock(){
     <div class="topbar">
       <button class="back" data-back>‹</button>
       <h1>Stock & courses</h1>
-      <div class="actions"><button class="iconbtn" id="stockAddFab" aria-label="Ajouter un produit" title="Ajouter un produit">+</button></div>
+      <div class="actions">
+        ${isChef() ? `<button class="iconbtn ${bulkActive('stock')?'active':''}" data-bulk-toggle="stock" title="Sélection groupée" aria-label="Sélection groupée">☑</button>` : ''}
+        <button class="iconbtn" id="stockAddFab" aria-label="Ajouter un produit" title="Ajouter un produit">+</button>
+      </div>
     </div>
     <div class="view">
       <div class="seg-tabs">
         <button data-stock-filter="all" class="${stockFilter==='all'?'active':''}">Tous (${all.length})</button>
         <button data-stock-filter="tobuy" class="${stockFilter==='tobuy'?'active':''}">🛒 À racheter (${toBuyCount})</button>
       </div>
+      ${bulkToolbarHtml('stock')}
       ${(()=>{
         const activeFilters = [stockStoreFilter!=='all', stockCatFilter!=='all', stockLocFilter!=='all'].filter(Boolean).length;
         const badge = activeFilters > 0 ? `<span class="ff-badge">${activeFilters} actif${activeFilters>1?'s':''}</span>` : '';
@@ -4169,16 +4201,16 @@ function renderStock(){
         const preview = previewParts.length ? ` · ${previewParts.join(', ')}` : '';
         return `<button class="filter-fab" id="stockFilterFab">⚙ Filtrer${preview}${badge}</button>`;
       })()}
-      <div class="search-wrap" id="stockSearchWrap" style="display:none">
+      <div class="search-wrap">
         <input class="search-input" id="searchStock" placeholder="Rechercher un produit, un magasin…" autocomplete="off">
         <button class="search-clear" aria-label="Effacer">×</button>
       </div>
-      <button class="search-fab" id="stockSearchFab" title="Rechercher" style="bottom:calc(var(--safe-bot) + 80px)">🔍</button>
       ${stockFilter==='tobuy' && toBuyCount>0 ? `<div class="btn-row" style="margin-bottom:14px">
         <button class="btn btn-secondary btn-block" id="copyToBuyBtn">📋 Copier la liste à racheter</button>
       </div>` : ''}
       <div class="list">${list}</div>
       <div class="search-empty" id="searchStock-empty">Aucun produit ne correspond à ta recherche.</div>
+      ${bulkActionBarHtml('stock')}
       <div class="divider"></div>
       <form id="stockForm" class="settings-group" id="stockAddForm">
         <div class="sg-head">Ajouter un produit hors ingrédients</div>
@@ -6165,73 +6197,6 @@ function enableDragReorder(opts){
   container.addEventListener('mousedown', onMouseDown);
 }
 
-/* ========== Stock quick-set catégorie / emplacement ========== */
-function openStockQuickSet(stockId, mode){
-  const all = buildStockEntries();
-  const entry = all.find(x=>x.id===stockId);
-  if(!entry) return;
-
-  // Resolve real stock entry (create if virtual)
-  let s = (state.stock||[]).find(x=>x.id===stockId);
-  if(!s && entry._virtual){
-    s = { id: uid('s'), ingredientId: entry.ingredientId, name: entry.name,
-          qty: entry.qty, unit: entry.unit, toBuy: false, note: '',
-          store: null, category: entry.category||null, location: entry.location||null };
-    if(!state.stock) state.stock = [];
-    state.stock.push(s);
-  }
-
-  const items = mode==='cat' ? getStockCategories() : getStockLocations();
-  const currentVal = mode==='cat' ? (s.category||'') : (s.location||'');
-  const title = mode==='cat' ? '🏷 Catégorie' : '📍 Emplacement';
-
-  const old = document.getElementById('stockQuickSet');
-  if(old) old.remove();
-
-  const overlay = document.createElement('div');
-  overlay.className = 'filter-sheet-overlay';
-  overlay.id = 'stockQuickSet';
-  overlay.innerHTML = `
-    <div class="filter-sheet">
-      <div class="filter-sheet-head">
-        <span class="filter-sheet-title">${escHtml(title)} — ${escHtml(getStockName(entry))}</span>
-        <button class="filter-sheet-close" id="sqsClose">×</button>
-      </div>
-      <div class="filter-chips" style="margin-bottom:18px">
-        <button class="filter-chip${!currentVal?' active':''}" data-sqs-val="">Aucun(e)</button>
-        ${items.map(item=>`<button class="filter-chip${currentVal===item.key?' active':''}" data-sqs-val="${item.key}">${escHtml(item.label)}</button>`).join('')}
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  const close = ()=> overlay.remove();
-  overlay.addEventListener('click', e=>{ if(e.target===overlay) close(); });
-  document.getElementById('sqsClose').addEventListener('click', close);
-
-  overlay.querySelectorAll('[data-sqs-val]').forEach(chip=>{
-    chip.addEventListener('click', async ()=>{
-      const val = chip.getAttribute('data-sqs-val') || null;
-      if(mode==='cat'){
-        s.category = val;
-        // Mirror to linked ingredient
-        if(s.ingredientId){
-          const ing = state.ingredients.find(i=>i.id===s.ingredientId);
-          if(ing) ing.stockCategory = val;
-        }
-      } else {
-        s.location = val;
-        if(s.ingredientId){
-          const ing = state.ingredients.find(i=>i.id===s.ingredientId);
-          if(ing) ing.stockLocation = val;
-        }
-      }
-      close();
-      await persist();
-      render();
-    });
-  });
-}
-
 /* ========== Stock filter bottom sheet ========== */
 function openStockFilterSheet(){
   const stores = state.settings.stores || [];
@@ -6584,30 +6549,23 @@ function attachHandlers(){
     render();
   }));
 
-  // Stock filter FAB → opens bottom sheet
-  const stockFilterFab = $('#stockFilterFab');
-  if(stockFilterFab) stockFilterFab.addEventListener('click', ()=> openStockFilterSheet());
-  // Loupe FAB — toggle barre de recherche et focus
-  const stockSearchFab = $('#stockSearchFab');
-  const stockSearchWrap = $('#stockSearchWrap');
-  if(stockSearchFab && stockSearchWrap){
-    stockSearchFab.addEventListener('click', ()=>{
-      const isVisible = stockSearchWrap.style.display !== 'none';
-      stockSearchWrap.style.display = isVisible ? 'none' : 'block';
-      if(!isVisible){
-        const inp = document.getElementById('searchStock');
-        if(inp){ inp.focus(); }
-        stockSearchFab.style.background = 'rgba(102,197,219,.18)';
-        stockSearchFab.textContent = '✕';
-      } else {
-        stockSearchFab.style.background = '';
-        stockSearchFab.textContent = '🔍';
-        const inp = document.getElementById('searchStock');
-        if(inp){ inp.value = ''; inp.dispatchEvent(new Event('input')); }
-      }
+  // Stock bulk : clic sur toute la row pour sélectionner/désélectionner
+  if(bulkActive('stock')){
+    $$('.stock-row.bulk-mode').forEach(row=>{
+      row.addEventListener('click', e=>{
+        // Ignore si on clique sur un bouton action (edit, del, etc.)
+        if(e.target.closest('button:not(.stock-check)') || e.target.closest('[data-set-cat]') || e.target.closest('[data-set-loc]')) return;
+        const id = row.getAttribute('data-stock');
+        if(!id) return;
+        if(bulkSelected.has(id)) bulkSelected.delete(id); else bulkSelected.add(id);
+        render();
+      });
     });
   }
 
+  // Stock filter FAB → opens bottom sheet
+  const stockFilterFab = $('#stockFilterFab');
+  if(stockFilterFab) stockFilterFab.addEventListener('click', ()=> openStockFilterSheet());
   // FAB in topbar → scroll to add form
   const stockAddFab = $('#stockAddFab');
   if(stockAddFab) stockAddFab.addEventListener('click',()=>{
@@ -6696,18 +6654,6 @@ function attachHandlers(){
     }
   });
   // Stock toggle to-buy (handles virtual entries by materializing)
-  // Quick-set catégorie / emplacement depuis la row
-  $$('[data-set-cat]').forEach(b=>b.addEventListener('click', e=>{
-    e.stopPropagation();
-    const id = b.getAttribute('data-set-cat');
-    openStockQuickSet(id, 'cat');
-  }));
-  $$('[data-set-loc]').forEach(b=>b.addEventListener('click', e=>{
-    e.stopPropagation();
-    const id = b.getAttribute('data-set-loc');
-    openStockQuickSet(id, 'loc');
-  }));
-
   $$('[data-toggle-stock]').forEach(b=>b.addEventListener('click',async()=>{
     const id = b.getAttribute('data-toggle-stock');
     let s = (state.stock||[]).find(x=>x.id===id);
@@ -7158,7 +7104,7 @@ function attachHandlers(){
   });
 
   // ===== Bulk-edit bindings =====
-  ['recipes','fiches','ingredients','tasks','routines'].forEach(k=>bindBulkHandlers(k));
+  ['recipes','fiches','ingredients','tasks','routines','stock'].forEach(k=>bindBulkHandlers(k));
 
   // ===== Search bindings =====
   bindSearch('searchRecipes', '#app [data-go^="recipe/"][data-search]');
@@ -7801,11 +7747,6 @@ async function handleIngSubmit(e){
 
 /* ---------- Init ---------- */
 async function init(){
-  // Affiche l'indicateur offline si on est déjà hors ligne au démarrage
-  if(!navigator.onLine){
-    const ind = document.getElementById('offlineIndicator');
-    if(ind) ind.style.display = 'flex';
-  }
   let loaded = await Storage.load();
 
   // Migrate from v2 or v1 if no v3 found
