@@ -421,6 +421,15 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .toast{position:fixed;bottom:calc(var(--safe-bot) + 96px);left:50%;transform:translateX(-50%);background:var(--gold);color:var(--dark);padding:10px 20px;border-radius:24px;font-size:12px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;z-index:200;box-shadow:0 4px 16px rgba(0,0,0,.4);animation:toastIn .25s ease}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translateX(-50%)}}
 
+/* ===== Ingredient add modal (mobile) ===== */
+.ing-modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.7);display:flex;flex-direction:column;justify-content:flex-end;animation:fadeInOverlay .15s ease}
+.ing-modal{background:var(--dark);border-radius:18px 18px 0 0;padding:20px 16px calc(var(--safe-bot) + 24px);width:100%;animation:slideUpModal .2s ease}
+.ing-modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.ing-modal-title{font-family:var(--font-display);font-size:18px;color:var(--gold);letter-spacing:.04em}
+.ing-modal input{font-size:17px;padding:12px 14px;margin-bottom:10px}
+.ing-modal .ing-modal-row{display:flex;gap:10px;margin-bottom:10px}
+.ing-modal .ing-modal-row input{flex:1;margin-bottom:0}
+
 /* ===== Edit modal (tâches & inline forms mobiles) ===== */
 .edit-modal-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.65);display:flex;flex-direction:column;justify-content:flex-end;animation:fadeInOverlay .15s ease}
 @keyframes fadeInOverlay{from{opacity:0}to{opacity:1}}
@@ -625,8 +634,6 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 /* Stock list */
 .stock-row{background:var(--navy-2);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px;margin-bottom:8px;transition:border-color .15s,background .15s}
 .stock-row:active{background:var(--navy);border-color:var(--line-strong)}
-.stock-row.bulk-mode{cursor:pointer}
-.stock-row.bulk-mode:active{border-color:var(--cyan)}
 .stock-row.tobuy{border-color:rgba(228,90,64,.4);background:rgba(228,90,64,.06)}
 .stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:13px;cursor:pointer;transition:all .15s}
 .stock-row.tobuy .stock-check{background:var(--danger);border-color:var(--danger);color:var(--cream)}
@@ -1175,7 +1182,6 @@ function bulkArrayFor(kind){
   if(kind==='ingredients') return state.ingredients||[];
   if(kind==='tasks') return state.tasks||[];
   if(kind==='routines') return state.routines||[];
-  if(kind==='stock') return buildStockEntries(); // inclut virtuels
   return [];
 }
 // Toolbar shown at top of a list when entering/leaving select mode
@@ -1198,18 +1204,12 @@ function bulkActionBarHtml(kind){
   if(!bulkActive(kind) || bulkSelected.size===0) return '';
   const dietBtn = kind==='ingredients'
     ? `<button class="bulk-act" data-bulk-diet="${kind}">🥗 Propriétés</button>` : '';
-  const stockBtns = kind==='stock' ? `
-    <button class="bulk-act" data-bulk-stockcat="${kind}">🏷 Catégorie</button>
-    <button class="bulk-act" data-bulk-stockloc="${kind}">📍 Emplacement</button>` : '';
-  const restobtn = kind!=='stock'
-    ? `<button class="bulk-act" data-bulk-resto="${kind}">🏪 Restaurants</button>` : '';
   return `<div class="bulk-actionbar">
     <div class="bulk-actionbar-inner">
       <span>${bulkSelected.size} élément${bulkSelected.size>1?'s':''}</span>
       <div class="bulk-acts">
-        ${restobtn}
+        <button class="bulk-act" data-bulk-resto="${kind}">🏪 Restaurants</button>
         ${dietBtn}
-        ${stockBtns}
       </div>
     </div>
   </div>`;
@@ -1239,75 +1239,6 @@ function bindBulkHandlers(kind){
   }));
   $$(`[data-bulk-resto="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkRestoModal(kind)));
   $$(`[data-bulk-diet="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkDietModal(kind)));
-  $$(`[data-bulk-stockcat="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkStockCatModal('cat')));
-  $$(`[data-bulk-stockloc="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkStockCatModal('loc')));
-}
-
-function openBulkStockCatModal(mode){
-  const items = mode==='cat' ? getStockCategories() : getStockLocations();
-  const ids = Array.from(bulkSelected);
-  const title = mode==='cat' ? '🏷 Assigner une catégorie' : '📍 Assigner un emplacement';
-  const count = ids.length;
-
-  const ov = document.createElement('div');
-  ov.className = 'modal-bg';
-  ov.innerHTML = `<div class="modal">
-    <div style="font-family:var(--font-display);font-size:21px;color:var(--gold);letter-spacing:.04em;margin-bottom:6px">${title}</div>
-    <p class="muted" style="font-size:12px;margin-bottom:16px">${count} produit${count>1?'s':''} sélectionné${count>1?'s':''}. Choisir une valeur l'applique à tous.</p>
-    <div class="filter-chips" style="margin-bottom:20px">
-      <button class="filter-chip" data-scat-val="">— Aucun(e) —</button>
-      ${items.map(it=>`<button class="filter-chip" data-scat-val="${it.key}">${escHtml(it.label)}</button>`).join('')}
-    </div>
-    <div class="btn-row" style="margin-top:0">
-      <button class="btn btn-ghost" data-bulk-cancel>Annuler</button>
-    </div>
-  </div>`;
-  document.body.appendChild(ov);
-
-  // Highlight on click and apply immediately
-  ov.querySelectorAll('[data-scat-val]').forEach(chip=>{
-    chip.addEventListener('click', async ()=>{
-      const val = chip.getAttribute('data-scat-val') || null;
-      // Apply to all real stock entries (create virtual ones if needed)
-      const allEntries = buildStockEntries();
-      for(const id of ids){
-        const entry = allEntries.find(x=>x.id===id);
-        if(!entry) continue;
-        let s = (state.stock||[]).find(x=>x.id===id);
-        if(!s && entry._virtual){
-          s = { id: uid('s'), ingredientId: entry.ingredientId, name: entry.name,
-                qty: entry.qty, unit: entry.unit, toBuy: false, note: '',
-                store: null, category: null, location: null };
-          if(!state.stock) state.stock = [];
-          state.stock.push(s);
-        }
-        if(!s) continue;
-        if(mode==='cat'){
-          s.category = val;
-          if(s.ingredientId){
-            const ing = state.ingredients.find(i=>i.id===s.ingredientId);
-            if(ing) ing.stockCategory = val;
-          }
-        } else {
-          s.location = val;
-          if(s.ingredientId){
-            const ing = state.ingredients.find(i=>i.id===s.ingredientId);
-            if(ing) ing.stockLocation = val;
-          }
-        }
-      }
-      await persist();
-      ov.remove();
-      const label = val ? items.find(i=>i.key===val)?.label : 'aucun(e)';
-      toast(`${count} produit${count>1?'s':''} → ${label}`);
-      bulkClear();
-      render();
-    });
-  });
-
-  ov.addEventListener('click', e=>{
-    if(e.target===ov || e.target.closest('[data-bulk-cancel]')) ov.remove();
-  });
 }
 
 function openBulkRestoModal(kind){
@@ -3250,11 +3181,11 @@ function ingFieldRow(ing,i,total){
     </div>
     <div style="flex:2;display:flex;align-items:center;gap:4px;min-width:0">
       <span class="link-badge" title="${isLinked?'Lié à un ingrédient':'Pas lié'}" style="font-size:14px;color:${isLinked?'var(--success)':'var(--cream-faint)'};flex-shrink:0">${isLinked?'⌁':'·'}</span>
-      <input class="ing-name-i" name="ing_name" list="ingredients-datalist" value="${escHtml(ing.name||'')}" placeholder="Ingrédient" style="flex:1;min-width:0">
+      <input class="ing-name-i ing-name-trigger" name="ing_name" list="ingredients-datalist" value="${escHtml(ing.name||'')}" placeholder="Ingrédient" style="flex:1;min-width:0" data-ing-row="${i}" autocomplete="off" readonly>
       <button type="button" class="add-ing-db" title="Ajouter aux Ingrédients + Stock automatiquement" style="flex-shrink:0;display:${isLinked?'none':'flex'};align-items:center;justify-content:center;gap:3px;padding:0 8px;height:26px;border-radius:6px;background:rgba(124,196,124,.18);color:var(--success);font-size:11px;font-weight:700;line-height:1;white-space:nowrap">＋ Créer</button>
     </div>
-    <input class="ing-amt-i" name="ing_amount" type="number" inputmode="decimal" step="any" value="${ing.amount==null||ing.unit==='au goût'?'':ing.amount}" placeholder="Qté">
-    <input class="ing-unit-i" name="ing_unit" value="${escHtml(ing.unit||'')}" placeholder="g, ml…">
+    <input class="ing-amt-i ing-amt-trigger" name="ing_amount" type="number" inputmode="decimal" step="any" value="${ing.amount==null||ing.unit==='au goût'?'':ing.amount}" placeholder="Qté" data-ing-row="${i}" readonly>
+    <input class="ing-unit-i ing-unit-trigger" name="ing_unit" value="${escHtml(ing.unit||'')}" placeholder="g, ml…" data-ing-row="${i}" readonly>
     <button type="button" class="rm" data-rm-ing>×</button>
   </div>`;
 }
@@ -4034,6 +3965,7 @@ let stockFilter = 'all'; // 'all' | 'tobuy' | 'low'
 let stockStoreFilter = 'all'; // 'all' | store name | 'none'
 let stockCatFilter = 'all'; // 'all' | category key
 let stockLocFilter = 'all'; // 'all' | location key
+let _stockSearchQuery = ''; // persiste la recherche entre les renders
 
 const DEFAULT_STOCK_CATEGORIES = [
   {key:'viande',    label:'🥩 Viande'},
@@ -4157,9 +4089,8 @@ function renderStock(){
     const lowByThreshold = s.qty!=null && s.minQty!=null && Number(s.minQty)>0 && Number(s.qty)<=Number(s.minQty) && !s.toBuy;
     const catLabel = stockCats.find(c=>c.key===(s.category||'autre'));
     const locLabel = stockLocs.find(l=>l.key===s.location);
-    return `<div class="stock-row ${restock?'tobuy':''} ${s._virtual?'virtual':''} ${bulkActive('stock')?'bulk-mode':''}" data-stock="${s.id}" data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}" style="position:relative">
-      ${bulkCheckHtml('stock', s.id)}
-      <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter" ${bulkActive('stock')?'style="pointer-events:none;opacity:.3"':''}>${restock?'!':''}</button>
+    return `<div class="stock-row ${restock?'tobuy':''} ${s._virtual?'virtual':''}" data-stock="${s.id}" data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}">
+      <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter">${restock?'!':''}</button>
       <div class="stock-body">
         <div class="stock-name">${escHtml(name)}</div>
         <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span>${s.minQty!=null&&Number(s.minQty)>0?` <span style="color:var(--cream-faint);font-size:10px">(seuil ${s.minQty})</span>`:''}${s.store?` · <span style="color:var(--cyan);font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase">${escHtml(s.store)}</span>`:''}</div>
@@ -4179,17 +4110,13 @@ function renderStock(){
     <div class="topbar">
       <button class="back" data-back>‹</button>
       <h1>Stock & courses</h1>
-      <div class="actions">
-        ${isChef() ? `<button class="iconbtn ${bulkActive('stock')?'active':''}" data-bulk-toggle="stock" title="Sélection groupée" aria-label="Sélection groupée">☑</button>` : ''}
-        <button class="iconbtn" id="stockAddFab" aria-label="Ajouter un produit" title="Ajouter un produit">+</button>
-      </div>
+      <div class="actions"><button class="iconbtn" id="stockAddFab" aria-label="Ajouter un produit" title="Ajouter un produit">+</button></div>
     </div>
     <div class="view">
       <div class="seg-tabs">
         <button data-stock-filter="all" class="${stockFilter==='all'?'active':''}">Tous (${all.length})</button>
         <button data-stock-filter="tobuy" class="${stockFilter==='tobuy'?'active':''}">🛒 À racheter (${toBuyCount})</button>
       </div>
-      ${bulkToolbarHtml('stock')}
       ${(()=>{
         const activeFilters = [stockStoreFilter!=='all', stockCatFilter!=='all', stockLocFilter!=='all'].filter(Boolean).length;
         const badge = activeFilters > 0 ? `<span class="ff-badge">${activeFilters} actif${activeFilters>1?'s':''}</span>` : '';
@@ -4210,7 +4137,6 @@ function renderStock(){
       </div>` : ''}
       <div class="list">${list}</div>
       <div class="search-empty" id="searchStock-empty">Aucun produit ne correspond à ta recherche.</div>
-      ${bulkActionBarHtml('stock')}
       <div class="divider"></div>
       <form id="stockForm" class="settings-group" id="stockAddForm">
         <div class="sg-head">Ajouter un produit hors ingrédients</div>
@@ -6197,6 +6123,117 @@ function enableDragReorder(opts){
   container.addEventListener('mousedown', onMouseDown);
 }
 
+/* ========== Ingredient edit modal (mobile) ========== */
+function openIngredientModal(row){
+  if(!row) return;
+  const nameInput  = row.querySelector('[name="ing_name"]');
+  const amtInput   = row.querySelector('[name="ing_amount"]');
+  const unitInput  = row.querySelector('[name="ing_unit"]');
+  if(!nameInput) return;
+
+  const currentName = nameInput.value || '';
+  const currentAmt  = amtInput  ? amtInput.value  : '';
+  const currentUnit = unitInput ? unitInput.value : '';
+
+  // Build datalist options from state
+  const ingOptions = (state.ingredients||[])
+    .map(i=>`<option value="${escHtml(i.name)}">`)
+    .join('');
+
+  const old = document.getElementById('ingEditModal');
+  if(old) old.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'ing-modal-overlay';
+  overlay.id = 'ingEditModal';
+  overlay.innerHTML = `
+    <div class="ing-modal">
+      <div class="ing-modal-head">
+        <span class="ing-modal-title">✎ Ingrédient</span>
+        <button class="edit-modal-close" id="ingModalClose">×</button>
+      </div>
+
+      <datalist id="ingModalDL">${ingOptions}</datalist>
+
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Nom de l'ingrédient</label>
+        <input id="ingModalName" list="ingModalDL"
+               value="${escHtml(currentName)}"
+               placeholder="Ex : Poulet, Sel, Huile d'olive…"
+               autocomplete="off"
+               style="font-size:18px;padding:13px 14px">
+      </div>
+
+      <div class="ing-modal-row">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label>Quantité</label>
+          <input id="ingModalAmt" type="number" inputmode="decimal" step="any"
+                 value="${escHtml(currentAmt)}"
+                 placeholder="0"
+                 style="font-size:18px;padding:13px 14px">
+        </div>
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label>Unité</label>
+          <input id="ingModalUnit"
+                 value="${escHtml(currentUnit)}"
+                 placeholder="g, ml, pcs…"
+                 style="font-size:18px;padding:13px 14px">
+        </div>
+      </div>
+
+      <div id="ingModalLinkStatus" style="margin:10px 0 14px;font-size:12px;color:var(--cream-faint)"></div>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary" id="ingModalSave" style="flex:1;padding:14px;font-size:16px">Confirmer</button>
+        <button class="btn btn-ghost" id="ingModalCancel" style="padding:14px 18px">Annuler</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const nameEl = document.getElementById('ingModalName');
+  const amtEl  = document.getElementById('ingModalAmt');
+  const unitEl = document.getElementById('ingModalUnit');
+  const linkSt = document.getElementById('ingModalLinkStatus');
+
+  // Focus name field with slight delay for animation
+  setTimeout(()=> nameEl.focus(), 80);
+
+  // Live link status
+  const updateLink = ()=>{
+    const v = nameEl.value.trim().toLowerCase();
+    const found = v ? (state.ingredients||[]).find(i=>i.name.toLowerCase()===v) : null;
+    if(found){
+      linkSt.innerHTML = `<span style="color:var(--success)">⌁ Lié à un ingrédient connu</span>`;
+      if(!unitEl.value && found.unit) unitEl.value = found.unit;
+    } else if(v){
+      linkSt.innerHTML = `<span style="color:var(--gold)">· Ingrédient inconnu — il sera ajouté à la recette sans être lié</span>`;
+    } else {
+      linkSt.innerHTML = '';
+    }
+  };
+  nameEl.addEventListener('input', updateLink);
+  updateLink();
+
+  const close = ()=> overlay.remove();
+  overlay.addEventListener('click', e=>{ if(e.target===overlay) close(); });
+  document.getElementById('ingModalClose').addEventListener('click', close);
+  document.getElementById('ingModalCancel').addEventListener('click', close);
+
+  document.getElementById('ingModalSave').addEventListener('click', ()=>{
+    const name = nameEl.value.trim();
+    const amt  = amtEl.value.trim();
+    const unit = unitEl.value.trim();
+    // Write back to the hidden readonly fields in the row
+    nameInput.value = name;
+    if(amtInput)  amtInput.value  = amt;
+    if(unitInput) unitInput.value = unit;
+    // Trigger change event so the link badge updates
+    nameInput.dispatchEvent(new Event('input', {bubbles:true}));
+    nameInput.dispatchEvent(new Event('change', {bubbles:true}));
+    close();
+  });
+}
+
 /* ========== Stock filter bottom sheet ========== */
 function openStockFilterSheet(){
   const stores = state.settings.stores || [];
@@ -6459,6 +6496,21 @@ function attachHandlers(){
     });
   });
 
+  // Ingredient modal triggers (mobile UX)
+  $$('#ingFields .ing-name-trigger, #ingFields .ing-amt-trigger, #ingFields .ing-unit-trigger').forEach(inp=>{
+    inp.addEventListener('click', e=>{
+      e.preventDefault();
+      const row = inp.closest('.dynamic-item');
+      openIngredientModal(row);
+    });
+    inp.addEventListener('focus', e=>{
+      e.preventDefault();
+      inp.blur();
+      const row = inp.closest('.dynamic-item');
+      openIngredientModal(row);
+    });
+  });
+
   // Live update of link badge in recipe edit + quick-add ingredient
   $$('#ingFields .dynamic-item').forEach(row=>{
     const nameInput = row.querySelector('[name="ing_name"]');
@@ -6548,20 +6600,6 @@ function attachHandlers(){
     stockFilter = b.getAttribute('data-stock-filter');
     render();
   }));
-
-  // Stock bulk : clic sur toute la row pour sélectionner/désélectionner
-  if(bulkActive('stock')){
-    $$('.stock-row.bulk-mode').forEach(row=>{
-      row.addEventListener('click', e=>{
-        // Ignore si on clique sur un bouton action (edit, del, etc.)
-        if(e.target.closest('button:not(.stock-check)') || e.target.closest('[data-set-cat]') || e.target.closest('[data-set-loc]')) return;
-        const id = row.getAttribute('data-stock');
-        if(!id) return;
-        if(bulkSelected.has(id)) bulkSelected.delete(id); else bulkSelected.add(id);
-        render();
-      });
-    });
-  }
 
   // Stock filter FAB → opens bottom sheet
   const stockFilterFab = $('#stockFilterFab');
@@ -6907,6 +6945,37 @@ function attachHandlers(){
       const el = div.firstElementChild;
       list.appendChild(el);
       el.querySelector('[data-rm-ing]').addEventListener('click',()=>el.remove());
+      // Modal triggers pour la nouvelle ligne
+      el.querySelectorAll('.ing-name-trigger, .ing-amt-trigger, .ing-unit-trigger').forEach(inp=>{
+        inp.addEventListener('click', e=>{
+          e.preventDefault();
+          openIngredientModal(el);
+        });
+        inp.addEventListener('focus', e=>{
+          e.preventDefault();
+          inp.blur();
+          openIngredientModal(el);
+        });
+      });
+      // Live link badge pour la nouvelle ligne
+      const _nb = el.querySelector('[name="ing_name"]');
+      const _badge = el.querySelector('.link-badge');
+      const _addB  = el.querySelector('.add-ing-db');
+      if(_nb && _badge){
+        const _upd = ()=>{
+          const v = _nb.value.trim().toLowerCase();
+          const found = v ? state.ingredients.find(i=>i.name.toLowerCase()===v) : null;
+          if(found){
+            _badge.textContent='⌁'; _badge.style.color='var(--success)';
+            if(_addB) _addB.style.display='none';
+          } else {
+            _badge.textContent='·'; _badge.style.color='var(--cream-faint)';
+            if(_addB) _addB.style.display=(v?'flex':'none');
+          }
+        };
+        _nb.addEventListener('input',_upd);
+        _nb.addEventListener('change',_upd);
+      }
       el.querySelector('.ing-name-i').focus();
     }));
     $$('#recipeForm [data-rm-ing]').forEach(b=>b.addEventListener('click',()=>b.closest('.dynamic-item').remove()));
@@ -7104,7 +7173,7 @@ function attachHandlers(){
   });
 
   // ===== Bulk-edit bindings =====
-  ['recipes','fiches','ingredients','tasks','routines','stock'].forEach(k=>bindBulkHandlers(k));
+  ['recipes','fiches','ingredients','tasks','routines'].forEach(k=>bindBulkHandlers(k));
 
   // ===== Search bindings =====
   bindSearch('searchRecipes', '#app [data-go^="recipe/"][data-search]');
@@ -7122,7 +7191,25 @@ function attachHandlers(){
     render();
   }));
 
+  // Stock search : restaure la query après render et la persiste
+  const _ssInp = document.getElementById('searchStock');
+  const _ssWrap = document.getElementById('stockSearchWrap');
+  if(_ssInp){
+    // Réouvrir la barre si une query était active
+    if(_stockSearchQuery){
+      if(_ssWrap) _ssWrap.style.display = 'block';
+      const fab = document.getElementById('stockSearchFab');
+      if(fab){ fab.style.background = 'rgba(102,197,219,.18)'; fab.textContent = '✕'; }
+      _ssInp.value = _stockSearchQuery;
+    }
+    // Sauvegarder la query à chaque frappe
+    _ssInp.addEventListener('input', ()=>{ _stockSearchQuery = _ssInp.value; });
+    // Effacer aussi reset la query persistée
+    const _ssClear = _ssWrap && _ssWrap.querySelector('.search-clear');
+    if(_ssClear) _ssClear.addEventListener('click', ()=>{ _stockSearchQuery = ''; });
+  }
   bindSearch('searchStock', '#app .stock-row[data-search]:not([data-prep-row])');
+  // Réappliquer le filtre immédiatement si query active (bindSearch le fait via filter() initial)
   bindSearch('searchPrep', '#app .stock-row[data-prep-row][data-search]');
   bindSearch('searchContacts', '#app .contact-row[data-search]');
   bindSearch('searchNotes', '#app [data-edit-note][data-search]');
