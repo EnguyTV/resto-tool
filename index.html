@@ -4064,14 +4064,17 @@ function renderStock(){
   const stockLocs = getStockLocations();
   const all = buildStockEntries();
   let items = [...all];
+
   if(stockFilter==='tobuy'){
+    // Construire le snapshot si pas encore fait (premier render en mode tobuy)
     if(_tobuySnapshot === null){
-      // Premier render en mode tobuy : créer le snapshot
       _tobuySnapshot = new Set(all.filter(s=>needsRestock(s)).map(s=>s.id));
     }
-    // Garder les items du snapshot (même s'ils ne sont plus "à racheter")
-    // + ceux qui viendraient d'être ajoutés à la liste
-    items = items.filter(s=> _tobuySnapshot.has(s.id));
+    // Toujours inclure les vrais "à racheter" (nouveaux depuis l'entrée)
+    // + tous les items du snapshot (même s'ils ont été réapprovisionnés)
+    items = items.filter(s=> _tobuySnapshot.has(s.id) || needsRestock(s));
+    // Enrichir le snapshot avec les nouveaux vrais "à racheter" détectés
+    items.forEach(s=>{ if(needsRestock(s)) _tobuySnapshot.add(s.id); });
   }
   if(stockStoreFilter!=='all'){
     if(stockStoreFilter==='none') items = items.filter(s=>!s.store);
@@ -6511,6 +6514,12 @@ function attachHandlers(){
       s = { id: uid('s'), ingredientId: v.ingredientId, name: v.name, qty: 0, unit: v.unit, toBuy: false, note: '', store: null, category: v.category||null, location: v.location||null };
       if(!state.stock) state.stock = [];
       state.stock.push(s);
+      // L'entrée virtuelle (id=s_v_xxx) devient réelle (nouveau id) →
+      // mettre à jour le snapshot pour suivre le nouvel id
+      if(_tobuySnapshot && _tobuySnapshot.has(id)){
+        _tobuySnapshot.delete(id);
+        _tobuySnapshot.add(s.id);
+      }
     }
     s.qty = (s.qty||0) + 1;
     // Flash feedback before full re-render
@@ -6530,6 +6539,11 @@ function attachHandlers(){
       s = { id: uid('s'), ingredientId: v.ingredientId, name: v.name, qty: 0, unit: v.unit, toBuy: false, note: '', store: null, category: v.category||null, location: v.location||null };
       if(!state.stock) state.stock = [];
       state.stock.push(s);
+      // Même correction pour −
+      if(_tobuySnapshot && _tobuySnapshot.has(id)){
+        _tobuySnapshot.delete(id);
+        _tobuySnapshot.add(s.id);
+      }
     }
     s.qty = Math.max(0, (s.qty||0) - 1);
     const row = b.closest('.stock-row');
@@ -6591,8 +6605,18 @@ function attachHandlers(){
       s = { id: uid('s'), ingredientId: v.ingredientId, name: v.name, qty: null, unit: v.unit, toBuy: true, note: '', store: null };
       if(!state.stock) state.stock = [];
       state.stock.push(s);
+      // Mettre à jour le snapshot si actif (id virtuel → nouvel id réel)
+      if(_tobuySnapshot && _tobuySnapshot.has(id)){
+        _tobuySnapshot.delete(id);
+        _tobuySnapshot.add(s.id);
+      }
     } else {
       s.toBuy = !s.toBuy;
+    }
+    // Si on est en mode tobuy et qu'on marque un item comme "à racheter",
+    // l'ajouter au snapshot pour qu'il reste visible
+    if(stockFilter==='tobuy' && _tobuySnapshot && s.toBuy){
+      _tobuySnapshot.add(s.id);
     }
     await persist();
     render();
