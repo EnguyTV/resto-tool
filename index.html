@@ -2713,6 +2713,7 @@ function render(){
   // Quitter la page Stock → vider le snapshot tobuy
   if(_lastRouteKey && _lastRouteKey.startsWith('stock|') && !routeKey.startsWith('stock|')){
     _tobuySnapshot = null;
+    _stockOrderSnapshot = null;
   }
   const prevScroll = window.scrollY || window.pageYOffset || 0;
   currentRoute = window.location.hash || '#home';
@@ -3967,6 +3968,8 @@ let stockLocFilter = 'all'; // 'all' | location key
 let _stockSearchQuery = ''; // persiste la recherche entre les renders
 // Snapshot des IDs "à racheter" fixés à l'entrée dans ce filtre
 let _tobuySnapshot = null; // null = pas actif, Set = snapshot actif
+// Ordre figé des IDs pour éviter que les lignes bougent pendant les modifs
+let _stockOrderSnapshot = null; // Array<id> dans l'ordre figé
 
 const DEFAULT_STOCK_CATEGORIES = [
   {key:'viande',    label:'🥩 Viande'},
@@ -4082,11 +4085,26 @@ function renderStock(){
   }
   if(stockCatFilter!=='all') items = items.filter(s=>(s.category||'autre')===stockCatFilter);
   if(stockLocFilter!=='all') items = items.filter(s=>(s.location||'')===stockLocFilter);
+
+  // Ordre figé : évite que les lignes bougent pendant les modifs +/-
+  if(_stockOrderSnapshot === null){
+    // Premier render : calculer l'ordre initial (à racheter en tête, puis alpha)
+    const sorted = [...items].sort((a,b)=>{
+      const ar=needsRestock(a), br=needsRestock(b);
+      if(ar && !br) return -1;
+      if(!ar && br) return 1;
+      return getStockName(a).localeCompare(getStockName(b),'fr');
+    });
+    _stockOrderSnapshot = sorted.map(s=>s.id);
+  }
+  // Appliquer l'ordre figé, les nouveaux items (pas dans snapshot) vont à la fin
   items.sort((a,b)=>{
-    const ar=needsRestock(a), br=needsRestock(b);
-    if(ar && !br) return -1;
-    if(!ar && br) return 1;
-    return getStockName(a).localeCompare(getStockName(b),'fr');
+    const ai = _stockOrderSnapshot.indexOf(a.id);
+    const bi = _stockOrderSnapshot.indexOf(b.id);
+    if(ai===-1 && bi===-1) return getStockName(a).localeCompare(getStockName(b),'fr');
+    if(ai===-1) return 1;
+    if(bi===-1) return -1;
+    return ai - bi;
   });
   const toBuyCount = all.filter(s=>needsRestock(s)).length;
   // Build category counts for filter tabs
@@ -6221,6 +6239,8 @@ function openStockFilterSheet(){
     stockStoreFilter = tmpStore;
     stockCatFilter   = tmpCat;
     stockLocFilter   = tmpLoc;
+    // Nouveau filtre = nouvel ordre
+    _stockOrderSnapshot = null;
     close();
     render();
   });
@@ -6486,8 +6506,9 @@ function attachHandlers(){
   $$('[data-stock-filter]').forEach(b=>b.addEventListener('click',()=>{
     const newFilter = b.getAttribute('data-stock-filter');
     if(newFilter !== stockFilter){
-      // On change de filtre : vider le snapshot pour qu'il se reconstruise proprement
+      // On change de filtre : vider les snapshots pour qu'ils se reconstruisent
       _tobuySnapshot = null;
+      _stockOrderSnapshot = null;
     }
     stockFilter = newFilter;
     render();
@@ -7073,7 +7094,26 @@ function attachHandlers(){
     render();
   }));
 
+  // Stock search : restaure la query après render et la persiste entre les +/-
+  const _ssWrap = document.getElementById('stockSearchWrap');
+  const _ssInp  = document.getElementById('searchStock');
+  const _ssFab  = document.getElementById('stockSearchFab');
+  if(_ssInp){
+    if(_stockSearchQuery){
+      // Réouvrir la barre et réinjecter la valeur
+      if(_ssWrap) _ssWrap.style.display = 'block';
+      if(_ssFab){ _ssFab.style.background = 'rgba(102,197,219,.18)'; _ssFab.textContent = '✕'; }
+      _ssInp.value = _stockSearchQuery;
+    }
+    _ssInp.addEventListener('input', ()=>{ _stockSearchQuery = _ssInp.value; });
+    const _ssClear = _ssWrap && _ssWrap.querySelector('.search-clear');
+    if(_ssClear) _ssClear.addEventListener('click', ()=>{ _stockSearchQuery = ''; });
+  }
   bindSearch('searchStock', '#app .stock-row[data-search]:not([data-prep-row])');
+  // Réappliquer le filtre de recherche immédiatement si query active
+  if(_stockSearchQuery && _ssInp){
+    requestAnimationFrame(()=> _ssInp.dispatchEvent(new Event('input')));
+  }
   bindSearch('searchPrep', '#app .stock-row[data-prep-row][data-search]');
   bindSearch('searchContacts', '#app .contact-row[data-search]');
   bindSearch('searchNotes', '#app [data-edit-note][data-search]');
