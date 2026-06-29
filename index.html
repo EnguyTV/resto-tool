@@ -629,6 +629,18 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .stock-row.tobuy-ghost{opacity:.6;border-color:var(--success);border-style:dashed}
 .stock-row.tobuy-ghost .stock-check{border-color:var(--success);color:var(--success)}
 .stock-row.tobuy-ghost .stock-name::after{content:' ✓';color:var(--success);font-size:12px;font-weight:700;margin-left:4px}
+/* Urgent */
+.stock-row.urgent{border-color:var(--danger);border-width:2px;background:rgba(226,75,74,.06)}
+.urgent-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-top:4px;animation:urgentPulse 2s infinite}
+@keyframes urgentPulse{0%,100%{opacity:1}50%{opacity:.7}}
+.urgent-btn{font-size:11px;padding:5px 9px;border-radius:6px;border:1px solid var(--line);color:var(--cream-faint);transition:all .15s;white-space:nowrap;margin-top:3px}
+.urgent-btn.on{background:var(--danger);color:#fff;border-color:var(--danger);font-weight:700}
+/* Photo gallery inline */
+.stock-photo-thumb{width:52px;height:52px;object-fit:cover;border-radius:7px;cursor:pointer;flex-shrink:0;border:1px solid var(--line)}
+.note-photo-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.note-photo-thumb{width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--line)}
+.photo-fullscreen{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.photo-fullscreen img{max-width:95vw;max-height:90vh;border-radius:10px;object-fit:contain}
 .stock-row.tobuy{border-color:rgba(228,90,64,.4);background:rgba(228,90,64,.06)}
 .stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:13px;cursor:pointer;transition:all .15s}
 .stock-row.tobuy .stock-check{background:var(--danger);border-color:var(--danger);color:var(--cream)}
@@ -4090,6 +4102,8 @@ function renderStock(){
   if(_stockOrderSnapshot === null){
     // Premier render : calculer l'ordre initial (à racheter en tête, puis alpha)
     const sorted = [...items].sort((a,b)=>{
+      if(a.urgent && !b.urgent) return -1;
+      if(!a.urgent && b.urgent) return 1;
       const ar=needsRestock(a), br=needsRestock(b);
       if(ar && !br) return -1;
       if(!ar && br) return 1;
@@ -4120,14 +4134,19 @@ function renderStock(){
     const catLabel = stockCats.find(c=>c.key===(s.category||'autre'));
     const locLabel = stockLocs.find(l=>l.key===s.location);
     const isGhost = stockFilter==='tobuy' && _tobuySnapshot && _tobuySnapshot.has(s.id) && !restock;
-    return `<div class="stock-row ${restock?'tobuy':''} ${isGhost?'tobuy-ghost':''} ${s._virtual?'virtual':''}" data-stock="${s.id}" data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}">
+    return `<div class="stock-row ${restock?'tobuy':''} ${isGhost?'tobuy-ghost':''} ${s.urgent?'urgent':''} ${s._virtual?'virtual':''}" data-stock="${s.id}" data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}">
       <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter">${restock?'!':''}</button>
       <div class="stock-body">
-        <div class="stock-name">${escHtml(name)}</div>
+        <div class="stock-name">${escHtml(name)}${s.urgent?` <span class="urgent-badge">🚨 Urgent</span>`:''}</div>
         <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span>${s.minQty!=null&&Number(s.minQty)>0?` <span style="color:var(--cream-faint);font-size:10px">(seuil ${s.minQty})</span>`:''}${s.store?` · <span style="color:var(--cyan);font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase">${escHtml(s.store)}</span>`:''}</div>
-        ${catLabel||locLabel ? `<div style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap">${catLabel?`<span class="tag">${escHtml(catLabel.label)}</span>`:''}${locLabel?`<span class="tag" style="background:rgba(102,197,219,.12);color:var(--cyan)">${escHtml(locLabel.label)}</span>`:''}</div>` : ''}
+        <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;align-items:center">
+          ${catLabel?`<button class="tag stock-cat-chip" data-set-cat="${s.id}">${escHtml(catLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed" data-set-cat="${s.id}">+ catégorie</button>`}
+          ${locLabel?`<button class="tag stock-cat-chip" style="background:rgba(102,197,219,.2);color:var(--cyan)" data-set-loc="${s.id}">${escHtml(locLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed;background:rgba(102,197,219,.08);color:var(--cyan)" data-set-loc="${s.id}">+ lieu</button>`}
+          <button class="urgent-btn ${s.urgent?'on':''}" data-toggle-urgent="${s.id}">${s.urgent?'🚨 Urgent':'🚨'}</button>
+        </div>
         ${lowByThreshold?`<div class="stock-note" style="color:var(--gold)">⚠ Sous le seuil — à racheter</div>`:''}
         ${s.note?`<div class="stock-note">${escHtml(s.note)}</div>`:''}
+        ${s.photo?`<img class="stock-photo-thumb" src="${s.photo}" data-photo-view="${s.photo}" alt="photo">`:''}
       </div>
       <div style="display:flex;flex-direction:column;align-items:center;gap:3px;margin:0 4px">
         <button class="stock-qty-btn" data-stock-inc="${s.id}" aria-label="+1" style="width:44px;height:44px;border-radius:8px;background:rgba(228,162,9,.15);color:var(--gold);font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1">+</button>
@@ -4290,6 +4309,15 @@ function renderStockEdit(id){
           <span class="toggle-switch ${s.toBuy?'on':''}"></span>
         </button>
         <input type="hidden" name="toBuy" value="${s.toBuy?'1':''}">
+        <button type="button" class="toggle" data-toggle-form="urgent">
+          <span class="toggle-label">🚨 Urgence — besoin immédiat</span>
+          <span class="toggle-switch ${s.urgent?'on':''}"></span>
+        </button>
+        <input type="hidden" name="urgent" value="${s.urgent?'1':''}">
+        <div class="form-group" style="margin-top:14px">
+          <label>Photo (optionnel)</label>
+          ${photoFieldHtml(s.photo||null)}
+        </div>
         <div class="btn-row">
           <button type="submit" class="btn btn-primary">Enregistrer</button>
           ${!isVirtual && !s.ingredientId ? `<button type="button" class="btn btn-danger" data-del-stock="${s.id}">Supprimer</button>` : ''}
@@ -4489,6 +4517,7 @@ function renderNotes(){
         <div class="card-title" style="font-size:17px">${escHtml(n.title||'Sans titre')}${n.pinned?' 📌':''}</div>
         <div class="card-meta">${new Date(n.updatedAt||Date.now()).toLocaleDateString('fr-FR')}${n.author?` · ${escHtml(n.author)}`:''}</div>
         <div style="margin-top:8px;color:var(--cream-dim);font-size:13px;line-height:1.5;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">${escHtml((n.body||'').slice(0,300))}</div>
+        ${(n.photos||[]).length ? `<div class="note-photo-grid">${(n.photos||[]).map(p=>`<img class="note-photo-thumb" src="${p}" data-photo-view="${p}" alt="photo">`).join('')}</div>` : ''}
       </div>
       <div class="card-arrow">›</div>
     </div>`).join('') : `<div class="empty"><div class="empty-ico">📝</div><p>Aucune note.<br>Touche le <b>+</b> pour ajouter une note ou un conseil.</p></div>`;
@@ -4561,6 +4590,7 @@ function openNotifEditor(id){
     </form>
   </div>`;
   document.body.appendChild(ov);
+  bindPhotoHandlers(); // bind photo fields in modal
   const allCb = ov.querySelector('[data-resto-all-cb]');
   if(allCb){
     const specifics = ov.querySelectorAll('input[name="resto_apply"]');
@@ -4612,6 +4642,13 @@ function openNoteEditor(id){
         <label>Contenu</label>
         <textarea name="body" rows="8">${escHtml(n.body||'')}</textarea>
       </div>
+      <div class="form-group">
+        <label>Photos (optionnel)</label>
+        <div id="notePhotosWrap" style="display:flex;flex-direction:column;gap:8px">
+          ${(n.photos||[]).map((p,i)=>photoFieldHtml(p)).join('')}
+          ${photoFieldHtml(null)}
+        </div>
+      </div>
       <label class="toggle" style="cursor:pointer">
         <span class="toggle-label">Épinglée</span>
         <input type="checkbox" name="pinned" ${n.pinned?'checked':''} style="width:auto;padding:0">
@@ -4642,6 +4679,8 @@ function openNoteEditor(id){
     n.body = (fd.get('body')||'').toString();
     n.pinned = !!fd.get('pinned');
     n.restos = readRestosFromForm(e.target);
+    // Collect all photos (multiple photoFieldHtml fields)
+    n.photos = fd.getAll('photo').map(String).filter(Boolean);
     n.updatedAt = Date.now();
     await persist();
     ov.remove();
@@ -6616,6 +6655,35 @@ function attachHandlers(){
     }
   });
   // Stock toggle to-buy (handles virtual entries by materializing)
+  // Toggle urgent inline (depuis la row)
+  $$('[data-toggle-urgent]').forEach(b=>b.addEventListener('click', async e=>{
+    e.stopPropagation();
+    const id = b.getAttribute('data-toggle-urgent');
+    let s = (state.stock||[]).find(x=>x.id===id);
+    if(!s){
+      const all = buildStockEntries();
+      const v = all.find(x=>x.id===id);
+      if(!v) return;
+      s = {id:uid('s'), ingredientId:v.ingredientId, name:v.name, qty:v.qty, unit:v.unit, toBuy:v.toBuy||false, note:'', store:null, category:v.category||null, location:v.location||null, urgent:false};
+      if(!state.stock) state.stock=[];
+      state.stock.push(s);
+      if(_tobuySnapshot && _tobuySnapshot.has(id)){ _tobuySnapshot.delete(id); _tobuySnapshot.add(s.id); }
+    }
+    s.urgent = !s.urgent;
+    if(s.urgent && stockFilter==='tobuy' && _tobuySnapshot) _tobuySnapshot.add(s.id);
+    await persist(); render();
+  }));
+
+  // Quick-set catégorie / emplacement depuis la row (chips inline)
+  $$('[data-set-cat]').forEach(b=>b.addEventListener('click', e=>{
+    e.stopPropagation();
+    openStockQuickSet(b.getAttribute('data-set-cat'), 'cat');
+  }));
+  $$('[data-set-loc]').forEach(b=>b.addEventListener('click', e=>{
+    e.stopPropagation();
+    openStockQuickSet(b.getAttribute('data-set-loc'), 'loc');
+  }));
+
   $$('[data-toggle-stock]').forEach(b=>b.addEventListener('click',async()=>{
     const id = b.getAttribute('data-toggle-stock');
     let s = (state.stock||[]).find(x=>x.id===id);
@@ -6712,6 +6780,9 @@ function attachHandlers(){
       s.store = (fd.get('store')||'').toString().trim() || null;
       s.category = (fd.get('category')||'').toString().trim() || null;
       s.location = (fd.get('location')||'').toString().trim() || null;
+      s.urgent = !!fd.get('urgent');
+      const photoVal = (fd.get('photo')||'').toString().trim();
+      if(photoVal) s.photo = photoVal; else s.photo = null;
       // Mirror category/location to linked ingredient
       if(s.ingredientId){
         const ing = state.ingredients.find(i=>i.id===s.ingredientId);
@@ -6759,6 +6830,18 @@ function attachHandlers(){
 
   // Photo handlers
   bindPhotoHandlers();
+
+  // Photo viewer fullscreen
+  $$('[data-photo-view]').forEach(img=>{
+    img.addEventListener('click', ()=>{
+      const src = img.getAttribute('data-photo-view');
+      const ov = document.createElement('div');
+      ov.className = 'photo-fullscreen';
+      ov.innerHTML = `<img src="${src}" alt="Photo">`;
+      ov.addEventListener('click', ()=> ov.remove());
+      document.body.appendChild(ov);
+    });
+  });
 
   // Accordion toggles (settings)
   $$('[data-accordion]').forEach(head=>{
