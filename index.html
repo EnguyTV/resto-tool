@@ -440,6 +440,17 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .task-edit-panel textarea{min-height:100px;line-height:1.65}
 .task-edit-panel .btn-row{margin-top:14px;display:flex;gap:8px}
 .task-edit-panel .btn-row .btn{flex:1;padding:13px}
+/* ===== Back-to-top + Search FAB ===== */
+.back-to-top{position:fixed;right:16px;z-index:99;width:44px;height:44px;border-radius:50%;background:var(--dark-2);border:1px solid var(--line-strong);color:var(--cyan);font-size:20px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.4);cursor:pointer;transition:opacity .25s,transform .15s;opacity:0;pointer-events:none}
+.back-to-top.visible{opacity:1;pointer-events:auto}
+.back-to-top:active{transform:scale(.9)}
+.search-fab{position:fixed;right:16px;z-index:100;width:48px;height:48px;border-radius:50%;background:var(--dark-2);border:1px solid var(--cyan);color:var(--cyan);font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.4);cursor:pointer;transition:transform .15s,background .15s}
+.search-fab:active{transform:scale(.92);background:rgba(102,197,219,.15)}
+/* Stock compact row */
+.stock-row.compact .stock-cat-chips,.stock-row.compact .stock-note,.stock-row.compact .stock-photo-thumb{display:none!important}
+.stock-row.compact{padding:8px 10px}
+.stock-row.compact .stock-qty{font-size:12px}
+
 /* ===== Filter bottom sheet (stock) ===== */
 .filter-fab{display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;background:var(--dark-2);border:1px solid var(--line-strong);color:var(--cyan);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;cursor:pointer;transition:border-color .15s,background .15s;margin-bottom:14px;width:100%}
 .filter-fab .ff-badge{background:var(--cyan);color:var(--dark);border-radius:10px;padding:1px 7px;font-size:10px;margin-left:auto}
@@ -3982,6 +3993,7 @@ let _stockSearchQuery = ''; // persiste la recherche entre les renders
 let _tobuySnapshot = null; // null = pas actif, Set = snapshot actif
 // Ordre figé des IDs pour éviter que les lignes bougent pendant les modifs
 let _stockOrderSnapshot = null; // Array<id> dans l'ordre figé
+let _stockCompact = false; // true = vue compacte (moins de détails)
 
 const DEFAULT_STOCK_CATEGORIES = [
   {key:'viande',    label:'🥩 Viande'},
@@ -4081,15 +4093,14 @@ function renderStock(){
   let items = [...all];
 
   if(stockFilter==='tobuy'){
-    // Construire le snapshot si pas encore fait (premier render en mode tobuy)
     if(_tobuySnapshot === null){
       _tobuySnapshot = new Set(all.filter(s=>needsRestock(s)).map(s=>s.id));
     }
-    // Toujours inclure les vrais "à racheter" (nouveaux depuis l'entrée)
-    // + tous les items du snapshot (même s'ils ont été réapprovisionnés)
     items = items.filter(s=> _tobuySnapshot.has(s.id) || needsRestock(s));
-    // Enrichir le snapshot avec les nouveaux vrais "à racheter" détectés
     items.forEach(s=>{ if(needsRestock(s)) _tobuySnapshot.add(s.id); });
+  }
+  if(stockFilter==='urgent'){
+    items = items.filter(s=> s.urgent);
   }
   if(stockStoreFilter!=='all'){
     if(stockStoreFilter==='none') items = items.filter(s=>!s.store);
@@ -4121,6 +4132,7 @@ function renderStock(){
     return ai - bi;
   });
   const toBuyCount = all.filter(s=>needsRestock(s)).length;
+  const urgentCount = all.filter(s=>s.urgent).length;
   // Build category counts for filter tabs
   const catCounts = {};
   all.forEach(s=>{ const k=s.category||'autre'; catCounts[k]=(catCounts[k]||0)+1; });
@@ -4134,7 +4146,7 @@ function renderStock(){
     const catLabel = stockCats.find(c=>c.key===(s.category||'autre'));
     const locLabel = stockLocs.find(l=>l.key===s.location);
     const isGhost = stockFilter==='tobuy' && _tobuySnapshot && _tobuySnapshot.has(s.id) && !restock;
-    return `<div class="stock-row ${restock?'tobuy':''} ${isGhost?'tobuy-ghost':''} ${s.urgent?'urgent':''} ${s._virtual?'virtual':''}" data-stock="${s.id}" data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}">
+    return `<div class="stock-row ${restock?'tobuy':''} ${isGhost?'tobuy-ghost':''} ${s.urgent?'urgent':''} ${s._virtual?'virtual':''} ${_stockCompact?'compact':''}" data-stock="${s.id}" data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}">
       <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter">${restock?'!':''}</button>
       <div class="stock-body">
         <div class="stock-name">${escHtml(name)}${s.urgent?` <span class="urgent-badge">🚨 Urgent</span>`:''}</div>
@@ -4160,11 +4172,16 @@ function renderStock(){
     <div class="topbar">
       <button class="back" data-back>‹</button>
       <h1>Stock & courses</h1>
-      <div class="actions"><button class="iconbtn" id="stockAddFab" aria-label="Ajouter un produit" title="Ajouter un produit">+</button></div>
+      <div class="actions">
+        ${isChef() ? `<button class="iconbtn ${bulkActive('stock')?'active':''}" data-bulk-toggle="stock" title="Sélection groupée" aria-label="Sélection groupée">☑</button>` : ''}
+        <button class="iconbtn" id="stockCompactBtn" title="${_stockCompact?'Vue détaillée':'Vue compacte'}" aria-label="Compacte/Détaillée">${_stockCompact?'⊞':'⊟'}</button>
+        <button class="iconbtn" id="stockAddFab" aria-label="Ajouter un produit" title="Ajouter un produit">+</button>
+      </div>
     </div>
     <div class="view">
       <div class="seg-tabs">
         <button data-stock-filter="all" class="${stockFilter==='all'?'active':''}">Tous (${all.length})</button>
+        ${urgentCount>0 ? `<button data-stock-filter="urgent" class="${stockFilter==='urgent'?'active':''}" style="${stockFilter==='urgent'?'':'color:var(--danger);border-color:var(--danger)'}">🚨 Urgent (${urgentCount})</button>` : ''}
         <button data-stock-filter="tobuy" class="${stockFilter==='tobuy'?'active':''}">🛒 À racheter (${toBuyCount})</button>
       </div>
       ${(()=>{
@@ -4178,15 +4195,20 @@ function renderStock(){
         const preview = previewParts.length ? ` · ${previewParts.join(', ')}` : '';
         return `<button class="filter-fab" id="stockFilterFab">⚙ Filtrer${preview}${badge}</button>`;
       })()}
-      <div class="search-wrap">
+      <div class="search-wrap" id="stockSearchWrap">
         <input class="search-input" id="searchStock" placeholder="Rechercher un produit, un magasin…" autocomplete="off">
         <button class="search-clear" aria-label="Effacer">×</button>
       </div>
-      ${stockFilter==='tobuy' && toBuyCount>0 ? `<div class="btn-row" style="margin-bottom:14px">
+      <button class="search-fab" id="stockSearchFab" title="Rechercher" style="bottom:calc(var(--safe-bot) + 88px)">🔍</button>
+      ${(stockFilter==='tobuy' && toBuyCount>0) ? `<div class="btn-row" style="margin-bottom:14px">
         <button class="btn btn-secondary btn-block" id="copyToBuyBtn">📋 Copier la liste à racheter</button>
       </div>` : ''}
-      <div class="list">${list}</div>
+      ${stockFilter==='urgent' && urgentCount>0 ? `<div class="btn-row" style="margin-bottom:14px">
+        <button class="btn btn-secondary btn-block" id="copyUrgentBtn">📋 Copier la liste urgente</button>
+      </div>` : ''}
+      <div class="list" id="stockList">${list}</div>
       <div class="search-empty" id="searchStock-empty">Aucun produit ne correspond à ta recherche.</div>
+      <button class="back-to-top" id="stockBackToTop" aria-label="Remonter en haut">↑</button>
       <div class="divider"></div>
       <form id="stockForm" class="settings-group" id="stockAddForm">
         <div class="sg-head">Ajouter un produit hors ingrédients</div>
@@ -6553,6 +6575,35 @@ function attachHandlers(){
     render();
   }));
 
+  // Compact toggle btn
+  const stockCompactBtn = $('#stockCompactBtn');
+  if(stockCompactBtn) stockCompactBtn.addEventListener('click', ()=>{
+    _stockCompact = !_stockCompact;
+    render();
+  });
+
+  // Loupe FAB (search)
+  const stockSearchFab = $('#stockSearchFab');
+  const stockSearchWrap = document.getElementById('stockSearchWrap');
+  if(stockSearchFab && stockSearchWrap){
+    stockSearchFab.addEventListener('click', ()=>{
+      const isVisible = stockSearchWrap.style.display !== 'none';
+      stockSearchWrap.style.display = isVisible ? 'none' : 'block';
+      if(!isVisible){
+        const inp = document.getElementById('searchStock');
+        if(inp){ inp.focus(); }
+        stockSearchFab.style.background = 'rgba(102,197,219,.18)';
+        stockSearchFab.textContent = '✕';
+      } else {
+        stockSearchFab.style.background = '';
+        stockSearchFab.textContent = '🔍';
+        const inp = document.getElementById('searchStock');
+        if(inp){ inp.value = ''; inp.dispatchEvent(new Event('input')); }
+        _stockSearchQuery = '';
+      }
+    });
+  }
+
   // Stock filter FAB → opens bottom sheet
   const stockFilterFab = $('#stockFilterFab');
   if(stockFilterFab) stockFilterFab.addEventListener('click', ()=> openStockFilterSheet());
@@ -6612,6 +6663,13 @@ function attachHandlers(){
     await persist(); render();
   }));
   // Copy "à racheter" list to clipboard (for sending in WhatsApp/email…)
+  const copyUrgentBtn = $('#copyUrgentBtn');
+  if(copyUrgentBtn) copyUrgentBtn.addEventListener('click', ()=>{
+    const urgentItems = buildStockEntries().filter(s=>s.urgent);
+    const text = '🚨 URGENT\n' + urgentItems.map(s=>`• ${getStockName(s)}${s.qty!=null?' ('+s.qty+(s.unit||'')+')':''}`).join('\n');
+    navigator.clipboard.writeText(text).then(()=>toast('Liste urgente copiée !')).catch(()=>toast('Copie non supportée'));
+  });
+
   const copyToBuyBtn = $('#copyToBuyBtn');
   if(copyToBuyBtn) copyToBuyBtn.addEventListener('click', async ()=>{
     const items = buildStockEntries().filter(needsRestock);
@@ -6830,6 +6888,20 @@ function attachHandlers(){
 
   // Photo handlers
   bindPhotoHandlers();
+
+  // Back-to-top button
+  const backToTop = document.getElementById('stockBackToTop');
+  if(backToTop){
+    // Position juste au-dessus de la loupe FAB (si présente) ou de la nav
+    backToTop.style.bottom = 'calc(var(--safe-bot) + 140px)';
+    const onScroll = ()=>{
+      if(window.scrollY > 300) backToTop.classList.add('visible');
+      else backToTop.classList.remove('visible');
+    };
+    window.addEventListener('scroll', onScroll, {passive:true});
+    backToTop.addEventListener('click', ()=> window.scrollTo({top:0, behavior:'smooth'}));
+    onScroll(); // état initial
+  }
 
   // Photo viewer fullscreen
   $$('[data-photo-view]').forEach(img=>{
