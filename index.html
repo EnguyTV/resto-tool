@@ -447,9 +447,10 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .search-fab{position:fixed;right:16px;z-index:100;width:48px;height:48px;border-radius:50%;background:var(--dark-2);border:1px solid var(--cyan);color:var(--cyan);font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.4);cursor:pointer;transition:transform .15s,background .15s}
 .search-fab:active{transform:scale(.92);background:rgba(102,197,219,.15)}
 /* Stock compact row */
-.stock-row.compact .stock-cat-chips,.stock-row.compact .stock-note,.stock-row.compact .stock-photo-thumb{display:none!important}
+.stock-row.compact .stock-cat-chips,.stock-row.compact .stock-note,.stock-row.compact .stock-photo-thumb,.stock-row.compact .urgent-badge{display:none!important}
 .stock-row.compact{padding:8px 10px}
 .stock-row.compact .stock-qty{font-size:12px}
+.stock-row.compact .stock-qty .unit{font-size:11px}
 
 /* ===== Filter bottom sheet (stock) ===== */
 .filter-fab{display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;background:var(--dark-2);border:1px solid var(--line-strong);color:var(--cyan);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;cursor:pointer;transition:border-color .15s,background .15s;margin-bottom:14px;width:100%}
@@ -4016,6 +4017,30 @@ const DEFAULT_STOCK_LOCATIONS = [
   {key:'cave',      label:'🍷 Cave / Réserve fermée'},
 ];
 
+// Emplacement dans le magasin (rayon, allée, zone…)
+const DEFAULT_SHOP_ZONES = [
+  {key:'rayon_frais',   label:'🥗 Rayon frais'},
+  {key:'rayon_sec',     label:'🥫 Épicerie / Sec'},
+  {key:'rayon_surgele', label:'🧊 Surgelés'},
+  {key:'boucherie',     label:'🥩 Boucherie / Charcuterie'},
+  {key:'poissonnerie',  label:'🐟 Poissonnerie'},
+  {key:'fromagerie',    label:'🧀 Fromagerie / Crémerie'},
+  {key:'boulangerie',   label:'🥖 Boulangerie / Pâtisserie'},
+  {key:'boissons',      label:'🍾 Boissons / Cave'},
+  {key:'hygiene',       label:'🧴 Hygiène / Entretien'},
+  {key:'caisse',        label:'🛒 Caisse / Entrée'},
+  {key:'reserve',       label:'📦 Réserve / Livraisons'},
+];
+
+function getShopZones(){
+  const custom = (state && state.settings && state.settings.customShopZones) || [];
+  const seen = new Set();
+  const out = [];
+  DEFAULT_SHOP_ZONES.forEach(z=>{ if(!seen.has(z.key)){ seen.add(z.key); out.push(z); }});
+  custom.forEach(z=>{ if(!z.key || seen.has(z.key)) return; seen.add(z.key); out.push({key:z.key, label:z.label}); });
+  return out;
+}
+
 function getStockCategories(){
   const custom = (state && state.settings && state.settings.customStockCategories) || [];
   const seen = new Set();
@@ -4059,6 +4084,7 @@ function buildStockEntries(){
         toBuy: false,
         note: '',
         store: null,
+        shopZone: ing.stockShopZone || null,
         category: ing.stockCategory || null,
         location: ing.stockLocation || null,
         _virtual: true
@@ -4150,7 +4176,8 @@ function renderStock(){
       <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter">${restock?'!':''}</button>
       <div class="stock-body">
         <div class="stock-name">${escHtml(name)}${s.urgent?` <span class="urgent-badge">🚨 Urgent</span>`:''}</div>
-        <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span>${s.minQty!=null&&Number(s.minQty)>0?` <span style="color:var(--cream-faint);font-size:10px">(seuil ${s.minQty})</span>`:''}${s.store?` · <span style="color:var(--cyan);font-family:var(--font-body);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase">${escHtml(s.store)}</span>`:''}</div>
+        <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span>${s.minQty!=null&&Number(s.minQty)>0?` <span style="color:var(--cream-faint);font-size:10px">(seuil ${s.minQty})</span>`:''}</div>
+        ${!_stockCompact && (s.store||s.shopZone) ? `<div class="stock-note" style="color:var(--cyan);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:2px">${s.store?'🏪 '+escHtml(s.store):''}${s.store&&s.shopZone?' · ':''}${s.shopZone?(getShopZones().find(z=>z.key===s.shopZone)||{label:s.shopZone}).label:''}</div>` : ''}
         <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;align-items:center">
           ${catLabel?`<button class="tag stock-cat-chip" data-set-cat="${s.id}">${escHtml(catLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed" data-set-cat="${s.id}">+ catégorie</button>`}
           ${locLabel?`<button class="tag stock-cat-chip" style="background:rgba(102,197,219,.2);color:var(--cyan)" data-set-loc="${s.id}">${escHtml(locLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed;background:rgba(102,197,219,.08);color:var(--cyan)" data-set-loc="${s.id}">+ lieu</button>`}
@@ -4229,27 +4256,48 @@ function renderStock(){
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Catégorie</label>
+            <label>Seuil minimum</label>
+            <input name="minQty" type="number" inputmode="decimal" step="any" placeholder="Ex : 5">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Catégorie produit</label>
             <select name="category">
               <option value="">— Aucune —</option>
               ${getStockCategories().map(c=>`<option value="${c.key}">${escHtml(c.label)}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
-            <label>Emplacement</label>
+            <label>Emplacement stock</label>
             <select name="location">
               <option value="">— Aucun —</option>
               ${getStockLocations().map(l=>`<option value="${l.key}">${escHtml(l.label)}</option>`).join('')}
             </select>
           </div>
         </div>
-        ${stores.length ? `<div class="form-group">
-          <label>Magasin</label>
-          <select name="store">
-            <option value="">— Aucun —</option>
-            ${stores.map(st=>`<option value="${escHtml(st)}">${escHtml(st)}</option>`).join('')}
+        ${stores.length ? `<div class="form-row">
+          <div class="form-group">
+            <label>Magasin</label>
+            <select name="store">
+              <option value="">— Aucun —</option>
+              ${stores.map(st=>`<option value="${escHtml(st)}">${escHtml(st)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Zone dans le magasin</label>
+            <select name="shopZone">
+              <option value="">— Aucune —</option>
+              ${getShopZones().map(z=>`<option value="${z.key}">${escHtml(z.label)}</option>`).join('')}
+            </select>
+          </div>
+        </div>` : `<div class="form-group">
+          <label>Zone dans le magasin</label>
+          <select name="shopZone">
+            <option value="">— Aucune —</option>
+            ${getShopZones().map(z=>`<option value="${z.key}">${escHtml(z.label)}</option>`).join('')}
           </select>
-        </div>` : ''}
+        </div>`}
         <div class="form-group">
           <label>Note (optionnel)</label>
           <input name="note" placeholder="Ex : Pack de 100">
@@ -4315,12 +4363,19 @@ function renderStockEdit(id){
             </select>
           </div>
           <div class="form-group">
-            <label>Emplacement</label>
+            <label>Emplacement stock</label>
             <select name="location">
               <option value="">— Aucun —</option>
               ${getStockLocations().map(l=>`<option value="${l.key}" ${(s.location||'')=== l.key?'selected':''}>${escHtml(l.label)}</option>`).join('')}
             </select>
           </div>
+        </div>
+        <div class="form-group">
+          <label>Zone dans le magasin</label>
+          <select name="shopZone">
+            <option value="">— Aucune —</option>
+            ${getShopZones().map(z=>`<option value="${z.key}" ${(s.shopZone||'')=== z.key?'selected':''}>${escHtml(z.label)}</option>`).join('')}
+          </select>
         </div>
         <div class="form-group">
           <label>Note</label>
@@ -4919,6 +4974,19 @@ function renderSettings(){
             </div>
             <button type="button" class="add-btn" id="addStockLocBtn">+ Ajouter un emplacement</button>
             <button type="button" class="btn btn-secondary btn-block" id="saveStockLocsBtn" style="margin-top:10px">Enregistrer les emplacements</button>
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
+            <div class="sg-head" style="margin-bottom:10px">🛒 Zones dans le magasin</div>
+            <div class="muted" style="margin-bottom:8px;font-size:11px">Rayons ou zones où acheter (rayon frais, boucherie, caisse…).</div>
+            <div class="dynamic-list" id="shopZonesList">
+              ${(state.settings.customShopZones||[]).map((z,i)=>`<div class="dynamic-item" data-shopzone-row="${i}">
+                <input class="ing-name-i" name="shopzone_name" value="${escHtml(z.label)}" placeholder="Ex: 🥩 Rayon boucherie">
+                <button type="button" class="rm" data-rm-shopzone>×</button>
+              </div>`).join('')}
+            </div>
+            <button type="button" class="add-btn" id="addShopZoneBtn">+ Ajouter une zone</button>
+            <button type="button" class="btn btn-secondary btn-block" id="saveShopZonesBtn" style="margin-top:10px">Enregistrer les zones magasin</button>
           </div>
         `}
       </div>
@@ -5968,6 +6036,34 @@ function bindCategoriesHandlers(){
       await persist(); toast('Emplacements enregistrés'); render();
     });
   }
+
+  // ── Shop zones (zones magasin) ──
+  const shopZonesList = $('#shopZonesList');
+  const addShopZoneBtn = $('#addShopZoneBtn');
+  const saveShopZonesBtn = $('#saveShopZonesBtn');
+  if(shopZonesList){
+    shopZonesList.querySelectorAll('[data-rm-shopzone]').forEach(b=>b.addEventListener('click',()=>b.closest('.dynamic-item').remove()));
+  }
+  if(addShopZoneBtn && shopZonesList){
+    addShopZoneBtn.addEventListener('click',()=>{
+      const div = document.createElement('div');
+      div.innerHTML = `<div class="dynamic-item"><input class="ing-name-i" name="shopzone_name" placeholder="Ex: 🥩 Rayon boucherie"><button type="button" class="rm" data-rm-shopzone>×</button></div>`;
+      const el = div.firstElementChild;
+      shopZonesList.appendChild(el);
+      el.querySelector('[data-rm-shopzone]').addEventListener('click',()=>el.remove());
+      el.querySelector('input').focus();
+    });
+  }
+  if(saveShopZonesBtn){
+    saveShopZonesBtn.addEventListener('click',async()=>{
+      const zones = $$('#shopZonesList input[name="shopzone_name"]').map(i=>i.value.trim()).filter(Boolean);
+      state.settings.customShopZones = zones.map(label=>{
+        const slug = label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,30) || ('sz_'+Date.now().toString(36).slice(-4));
+        return {key:slug, label};
+      });
+      await persist(); toast('Zones magasin enregistrées'); render();
+    });
+  }
 }
 
 /* ---------- Search (in-list filter) ---------- */
@@ -6798,9 +6894,11 @@ function attachHandlers(){
         name,
         qty: fd.get('qty')!=='' ? parseFloat(fd.get('qty')) : null,
         unit: fd.get('unit').toString().trim(),
+        minQty: fd.get('minQty')!=='' ? parseFloat(fd.get('minQty')) : null,
         toBuy: false,
         note: fd.get('note').toString().trim(),
         store: (fd.get('store')||'').toString().trim() || null,
+        shopZone: (fd.get('shopZone')||'').toString().trim() || null,
         category: (fd.get('category')||'').toString().trim() || null,
         location: (fd.get('location')||'').toString().trim() || null
       });
@@ -6838,6 +6936,7 @@ function attachHandlers(){
       s.store = (fd.get('store')||'').toString().trim() || null;
       s.category = (fd.get('category')||'').toString().trim() || null;
       s.location = (fd.get('location')||'').toString().trim() || null;
+      s.shopZone = (fd.get('shopZone')||'').toString().trim() || null;
       s.urgent = !!fd.get('urgent');
       const photoVal = (fd.get('photo')||'').toString().trim();
       if(photoVal) s.photo = photoVal; else s.photo = null;
