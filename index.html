@@ -2987,11 +2987,29 @@ function renderRecipeDetail(id){
   const r = state.recipes.find(x=>x.id===id);
   if(!r) return notFound('Préparation introuvable','recipes');
 
-  const cookingHtml = (r.prepTime || r.cookTemp || r.cookTime) ? `
+  // Calcul du poids total et nutrition
+  const nut = recipeNutrition(r);
+  const showCal = state.settings.showCalories;
+
+  // Formatage du poids total
+  function fmtWeight(g){
+    if(!g || g<=0) return null;
+    if(g >= 1000) return (Math.round(g/10)/100).toFixed(2).replace('.',',') + ' kg';
+    return Math.round(g) + ' g';
+  }
+  const totalWeightStr = fmtWeight(nut.totalG);
+  // Poids par portion (si baseAmount est un nombre de portions/pièces)
+  const portions = r.baseUnit && ['portion','portions','pièce','pièces','part','parts','pers.','personnes'].includes(r.baseUnit.toLowerCase().trim()) ? r.baseAmount : null;
+  const weightPerPortion = (portions && portions > 0 && nut.totalG > 0) ? fmtWeight(nut.totalG / portions) : null;
+
+  const cookingHtml = (r.prepTime || r.cookTemp || r.cookTime || totalWeightStr) ? `
     <div class="cooking-info">
       ${r.prepTime ? `<div class="cooking-pill cyan"><span class="lbl">Préparation</span><span class="val">${fmtMin(r.prepTime)}</span></div>`:''}
       ${r.cookTemp ? `<div class="cooking-pill"><span class="lbl">Temp.</span><span class="val">${r.cookTemp}°C</span></div>`:''}
       ${r.cookTime ? `<div class="cooking-pill"><span class="lbl">Cuisson</span><span class="val">${fmtMin(r.cookTime)}</span></div>`:''}
+      ${totalWeightStr ? `<div class="cooking-pill" title="Poids total des ingrédients quantifiés en g/kg/L/mL"><span class="lbl">Poids total</span><span class="val">${totalWeightStr}</span></div>`:''}
+      ${weightPerPortion ? `<div class="cooking-pill"><span class="lbl">Par ${r.baseUnit.replace(/s$/,'')}</span><span class="val">${weightPerPortion}</span></div>`:''}
+      ${(showCal && nut.kcal>0) ? `<div class="cooking-pill"><span class="lbl">Calories</span><span class="val">${nut.kcal} kcal</span></div>`:''}
     </div>` : '';
 
   const ingsHtml = r.ingredients.map((ing,idx)=>{
@@ -3046,6 +3064,10 @@ function renderRecipeDetail(id){
       <div class="section-block">
         <div class="block-title">Ingrédients</div>
         <div class="ing-list" id="ingList">${ingsHtml}</div>
+        ${totalWeightStr ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;margin-top:4px;background:rgba(228,162,9,.08);border-radius:8px;border-top:2px solid var(--gold)">
+          <span style="font-family:var(--font-display);font-size:15px;color:var(--gold);letter-spacing:.05em;text-transform:uppercase">Poids total</span>
+          <span style="font-family:var(--font-display);font-size:20px;color:var(--gold);letter-spacing:.03em">${totalWeightStr}${weightPerPortion?` <span style="font-size:12px;color:var(--cream-faint);font-family:var(--font-body);font-weight:600">/ ${weightPerPortion} par ${(r.baseUnit||'').replace(/s$/,'')}</span>`:''}</span>
+        </div>` : ''}
       </div>
 
       ${r.instructions ? `
