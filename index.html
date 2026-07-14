@@ -3007,9 +3007,9 @@ function renderRecipeDetail(id){
       ${r.prepTime ? `<div class="cooking-pill cyan"><span class="lbl">Préparation</span><span class="val">${fmtMin(r.prepTime)}</span></div>`:''}
       ${r.cookTemp ? `<div class="cooking-pill"><span class="lbl">Temp.</span><span class="val">${r.cookTemp}°C</span></div>`:''}
       ${r.cookTime ? `<div class="cooking-pill"><span class="lbl">Cuisson</span><span class="val">${fmtMin(r.cookTime)}</span></div>`:''}
-      ${totalWeightStr ? `<div class="cooking-pill" title="Poids total des ingrédients quantifiés en g/kg/L/mL"><span class="lbl">Poids total</span><span class="val">${totalWeightStr}</span></div>`:''}
-      ${weightPerPortion ? `<div class="cooking-pill"><span class="lbl">Par ${r.baseUnit.replace(/s$/,'')}</span><span class="val">${weightPerPortion}</span></div>`:''}
-      ${(showCal && nut.kcal>0) ? `<div class="cooking-pill"><span class="lbl">Calories</span><span class="val">${nut.kcal} kcal</span></div>`:''}
+      ${totalWeightStr ? `<div class="cooking-pill" title="Poids total des ingrédients quantifiés en g/kg/L/mL"><span class="lbl">Poids total</span><span class="val" id="recipeTotalWeightVal">${totalWeightStr}</span></div>`:''}
+      ${weightPerPortion ? `<div class="cooking-pill"><span class="lbl">Par ${r.baseUnit.replace(/s$/,'')}</span><span class="val" id="recipePerPortionVal">${weightPerPortion}</span></div>`:''}
+      ${(showCal && nut.kcal>0) ? `<div class="cooking-pill"><span class="lbl">Calories</span><span class="val" id="recipeKcalVal">${nut.kcal} kcal</span></div>`:''}
     </div>` : '';
 
   const ingsHtml = r.ingredients.map((ing,idx)=>{
@@ -3046,7 +3046,7 @@ function renderRecipeDetail(id){
         <h2>${escHtml(r.name)}</h2>
         <div class="cat">${escHtml(r.category||'Recette')}</div>
         ${cookingHtml}
-        <div class="scaler" id="scaler" data-base="${r.baseAmount}" data-unit="${r.baseUnit}">
+        <div class="scaler" id="scaler" data-base="${r.baseAmount}" data-unit="${r.baseUnit}" data-total-g="${nut.totalG}" data-kcal="${nut.kcal}">
           <div class="scaler-label">Règle de 3 — adapte la quantité</div>
           <div class="scaler-row">
             <div class="scaler-name">${escHtml(r.baseLabel||'Base')}</div>
@@ -3066,7 +3066,7 @@ function renderRecipeDetail(id){
         <div class="ing-list" id="ingList">${ingsHtml}</div>
         ${totalWeightStr ? `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;margin-top:4px;background:rgba(228,162,9,.08);border-radius:8px;border-top:2px solid var(--gold)">
           <span style="font-family:var(--font-display);font-size:15px;color:var(--gold);letter-spacing:.05em;text-transform:uppercase">Poids total</span>
-          <span style="font-family:var(--font-display);font-size:20px;color:var(--gold);letter-spacing:.03em">${totalWeightStr}${weightPerPortion?` <span style="font-size:12px;color:var(--cream-faint);font-family:var(--font-body);font-weight:600">/ ${weightPerPortion} par ${(r.baseUnit||'').replace(/s$/,'')}</span>`:''}</span>
+          <span id="recipeTotalWeightRow" style="font-family:var(--font-display);font-size:20px;color:var(--gold);letter-spacing:.03em">${totalWeightStr}${weightPerPortion?` <span style="font-size:12px;color:var(--cream-faint);font-family:var(--font-body);font-weight:600">/ ${weightPerPortion} par ${(r.baseUnit||'').replace(/s$/,'')}</span>`:''}</span>
         </div>` : ''}
       </div>
 
@@ -7122,17 +7122,64 @@ function attachHandlers(){
     const base = parseFloat(scaler.getAttribute('data-base'));
     const input = $('#scalerVal');
     const multSpan = $('#scalerMult');
+    // Base values (×1) read from data attributes set at render time
+    const baseTotalG   = parseFloat(scaler.getAttribute('data-total-g')||'0');
+    const baseKcal     = parseFloat(scaler.getAttribute('data-kcal')||'0');
+    const baseUnit     = scaler.getAttribute('data-unit')||'';
+
     const update = ()=>{
       const cur = parseFloat(input.value);
       if(isNaN(cur) || cur<=0){ multSpan.textContent='×?'; return; }
       const mult = cur/base;
       multSpan.textContent = '×'+(Math.round(mult*100)/100).toString().replace('.',',');
+
+      // Mettre à jour les quantités d'ingrédients
       $$('#ingList .ing-amt-cell').forEach(cell=>{
         const b = parseFloat(cell.getAttribute('data-base'));
         const u = cell.getAttribute('data-unit');
         if(isNaN(b) || b===0){ /* keep "au goût" */ return; }
         cell.innerHTML = fmtAmount(b*mult,u);
       });
+
+      // Mettre à jour poids total en live
+      const scaledG = baseTotalG * mult;
+      const weightStr = scaledG > 0
+        ? (scaledG >= 1000
+            ? (Math.round(scaledG/10)/100).toFixed(2).replace('.',',') + ' kg'
+            : Math.round(scaledG) + ' g')
+        : null;
+
+      // Portions
+      const portionUnits = ['portion','portions','pièce','pièces','part','parts','pers.','personnes'];
+      const isPortionUnit = portionUnits.includes(baseUnit.toLowerCase().trim());
+      const portions = isPortionUnit ? cur : null;
+      const perPortionStr = (portions && portions > 0 && scaledG > 0)
+        ? (scaledG/portions >= 1000
+            ? (Math.round(scaledG/portions/10)/100).toFixed(2).replace('.',',') + ' kg'
+            : Math.round(scaledG/portions) + ' g')
+        : null;
+
+      // Update pill "Poids total"
+      const weightPill = document.getElementById('recipeTotalWeightVal');
+      if(weightPill && weightStr) weightPill.textContent = weightStr;
+
+      // Update pill "Par portion"
+      const portionPill = document.getElementById('recipePerPortionVal');
+      if(portionPill) portionPill.textContent = perPortionStr || '—';
+
+      // Update total weight row under ing list
+      const weightRowVal = document.getElementById('recipeTotalWeightRow');
+      if(weightRowVal && weightStr){
+        weightRowVal.textContent = weightStr
+          + (perPortionStr ? ` — ${perPortionStr} par ${baseUnit.replace(/s$/,'')}` : '');
+      }
+
+      // Update kcal pill
+      if(baseKcal > 0){
+        const scaledKcal = Math.round(baseKcal * mult);
+        const kcalPill = document.getElementById('recipeKcalVal');
+        if(kcalPill) kcalPill.textContent = scaledKcal + ' kcal';
+      }
     };
     input.addEventListener('input',update);
     $$('#scaler [data-step]').forEach(btn=>btn.addEventListener('click',()=>{
