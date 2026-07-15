@@ -1481,7 +1481,6 @@ async function cloudPull(silent){
   if(!cfg || !cfg.token){ if(!silent) toast('Sync non configurée'); return false; }
   _syncStatus = 'syncing'; updateSyncStatusUI();
   try{
-    // Fetch both files
     const [libRes, sharedRes] = await Promise.all([
       GitHubSync.fetchFile(cfg, currentLibraryFile()).catch(e=>({error:e})),
       GitHubSync.fetchFile(cfg, currentSharedFile()).catch(e=>({error:e}))
@@ -1501,37 +1500,58 @@ async function cloudPull(silent){
       _sharedETag = sharedRes.etag;
     }
 
-    // Detect old single-file format on library path (pre-v4): full state in resto-data.json
+    // Detect old single-file format (pre-v4)
     if(libData && libData.schema !== 'library'){
-      // Old format: contains everything mashed together
-      // Apply it wholesale as the state, but mark as "needs republish in new format"
       state = libData;
       ensureDefaults();
-      _lastPushedLibHash = null; // force fresh push to upgrade format
+      _lastPushedLibHash = null;
       _lastPushedSharedHash = null;
     } else {
+      // MERGE FIRST — sauvegarder le stock local avant d'appliquer le cloud
+      const localStockBefore = (state.stock||[]).map(s=>({...s}));
+
       if(libData) applyLibraryFromCloud(libData);
       if(sharedData) applySharedFromCloud(sharedData);
+
+      // Re-merger : le cloud vient d'écraser state.stock
+      // On remerge pour ne pas perdre le local
+      if(localStockBefore.length > 0){
+        state.stock = mergeStock(localStockBefore, state.stock);
+      }
     }
 
     cfg.lastSync = Date.now();
     SyncConfig.save(cfg);
-    // Save locally without retriggering push
+    // Sauvegarder sans déclencher un push automatique
     const oldAuto = cfg.auto;
     cfg.auto = false; SyncConfig.save(cfg);
     await Storage.save(state);
     cfg.auto = oldAuto; SyncConfig.save(cfg);
-    // Mark current cloud state as "last pushed" so we don't push back immediately
+
+    // Mettre à jour les hashes AVANT le push pour éviter les doublons
     const split = splitState();
     _lastPushedLibHash = stableLibHash(split.library);
     _lastPushedSharedHash = stableSharedHash(split.shared);
+
+    // PUSH le résultat mergé sur GitHub pour que tout le monde reçoive la version fusionnée
+    if(cfg.auto && navigator.onLine){
+      try{
+        const sr = await GitHubSync.putFile(cfg, split.shared, _sharedSha, currentSharedFile());
+        _sharedSha = sr.sha;
+        _lastPushedSharedHash = stableSharedHash(split.shared);
+      }catch(pushErr){
+        // Échec du push mergé — pas grave, le prochain autoPushIfDirty le retentera
+        console.warn('[RestoTool] merge-push failed:', pushErr);
+      }
+    }
+
     _syncStatus = 'ok'; _syncError = '';
-    if(!silent) toast('Données récupérées depuis GitHub');
+    if(!silent) toast('Données synchronisées');
     render();
     return true;
   }catch(err){
     _syncStatus = 'error'; _syncError = err.message || String(err);
-    if(!silent) alert('Erreur de pull : '+_syncError);
+    if(!silent) alert('Erreur de sync : '+_syncError);
     updateSyncStatusUI();
     return false;
   }
@@ -8271,15 +8291,13 @@ async function init(){
   // Auto-pull at startup if sync configured + start polling
   const syncCfg = SyncConfig.load();
   if(syncCfg && syncCfg.token && syncCfg.owner && syncCfg.repo){
-    setTimeout(()=>{
-      // Load tenants directory first so currentLibraryFile/currentSharedFile resolve correctly
-      loadTenantsFromCloud().finally(()=>{
-        cloudPull(true).then(()=>{
-          updateSyncStatusUI();
-          startPolling();
-        });
+    // Boot sync : merge local + cloud puis démarrer le polling
+    loadTenantsFromCloud().finally(()=>{
+      cloudPull(true).then(()=>{
+        updateSyncStatusUI();
+        startPolling();
       });
-    }, 500);
+    });
   }
 }
 
