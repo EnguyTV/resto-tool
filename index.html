@@ -839,7 +839,7 @@ let _syncStatus = 'idle';
 let _syncError = '';
 let _lastPushedLibHash = null;
 let _lastPushedSharedHash = null;
-const POLL_INTERVAL_MS = 15000; // 15s — sync plus réactive entre appareils
+const POLL_INTERVAL_MS = 20000; // 20s — équilibre réactivité/stabilité multi-appareils
 const LIBRARY_FILE = 'resto-data.json';   // legacy default — kept for fallback
 const SHARED_FILE  = 'resto-shared.json'; // legacy default — kept for fallback
 const TENANTS_FILE = 'resto-tenants.json';
@@ -1093,9 +1093,63 @@ function applyLibraryFromCloud(lib){
   }));
 }
 
+function mergeStock(localStock, remoteStock){
+  // Merge par ID : on ne perd jamais une modification locale plus récente
+  // que ce qu'il y a sur GitHub
+  const localMap = new Map((localStock||[]).map(s=>[s.id, s]));
+  const remoteMap = new Map((remoteStock||[]).map(s=>[s.id, s]));
+  const merged = [];
+
+  // Parcourir tous les IDs connus (local + remote)
+  const allIds = new Set([...localMap.keys(), ...remoteMap.keys()]);
+  allIds.forEach(id=>{
+    const local  = localMap.get(id);
+    const remote = remoteMap.get(id);
+
+    if(!remote){
+      // Item local seulement → garder (pas encore pushé ou supprimé en remote)
+      // On le garde s'il a été modifié (urgent, toBuy, qty non null)
+      if(local && (local.urgent || local.toBuy || local.qty != null || local._keepLocal)){
+        merged.push(local);
+      }
+      // Sinon on ne le garde pas (supprimé en remote)
+      return;
+    }
+    if(!local){
+      // Item remote seulement → ajouter
+      merged.push(remote);
+      return;
+    }
+
+    // Les deux existent → merge champ par champ en favorisant le plus récent
+    const localTs  = local.updatedAt  || local._ts  || 0;
+    const remoteTs = remote.updatedAt || remote._ts || 0;
+
+    if(localTs >= remoteTs){
+      // Local plus récent : garder local mais enrichir avec champs remote manquants
+      merged.push({ ...remote, ...local });
+    } else {
+      // Remote plus récent : garder remote mais préserver les flags locaux critiques
+      // seulement si local les a modifiés APRÈS le dernier push connu
+      const entry = { ...local, ...remote };
+      // Champs "critiques" — on les garde locaux s'ils ont été touchés récemment
+      const criticalFields = ['urgent','toBuy','qty','minQty','note','store','shopZone','category','location'];
+      criticalFields.forEach(field=>{
+        if(local[field] !== undefined && local._localFields && local._localFields.includes(field)){
+          entry[field] = local[field];
+        }
+      });
+      merged.push(entry);
+    }
+  });
+
+  return merged;
+}
+
 function applySharedFromCloud(sh){
   if(!sh) return;
-  state.stock = sh.stock || [];
+  // Merge intelligent : ne pas écraser les modifications locales
+  state.stock = mergeStock(state.stock, sh.stock);
   state.prep = sh.prep || {};
   // Merge device registry: keep the most recent lastSeen per device id
   const incoming = sh.devices || {};
@@ -1600,6 +1654,11 @@ async function pollSync(){
       // Apply only if it differs from what we last pushed
       const remoteHash = JSON.stringify(r.data);
       if(remoteHash !== _lastPushedSharedHash){
+        // Ne pas écraser si un push est en attente (évite race condition)
+        if(_syncStatus === 'syncing'){
+          // Un push est en cours — on ignore ce poll, le prochain prendra la bonne valeur
+          return;
+        }
         applySharedFromCloud(r.data);
         _lastPushedSharedHash = JSON.stringify(splitState().shared);
         const oldAuto = cfg.auto;
@@ -6793,6 +6852,8 @@ function attachHandlers(){
       }
     }
     s.qty = (s.qty||0) + 1;
+    s.updatedAt = Date.now();
+    s.updatedAt = Date.now();
     // Flash feedback before full re-render
     const row = b.closest('.stock-row');
     const qtyEl = row && row.querySelector('.stock-qty');
@@ -6817,7 +6878,9 @@ function attachHandlers(){
       }
     }
     s.qty = Math.max(0, (s.qty||0) - 1);
+    s.updatedAt = Date.now();
     const row = b.closest('.stock-row');
+    s.updatedAt = Date.now();
     const qtyEl = row && row.querySelector('.stock-qty');
     if(qtyEl){ qtyEl.classList.remove('qty-flash-up'); qtyEl.classList.add('qty-flash-down'); }
     await persist(); render();
@@ -6888,6 +6951,7 @@ function attachHandlers(){
       if(_tobuySnapshot && _tobuySnapshot.has(id)){ _tobuySnapshot.delete(id); _tobuySnapshot.add(s.id); }
     }
     s.urgent = !s.urgent;
+    s.updatedAt = Date.now(); // timestamp pour le merge multi-appareils
     if(s.urgent && stockFilter==='tobuy' && _tobuySnapshot) _tobuySnapshot.add(s.id);
     await persistNow(); render(); // persistNow = push immédiat, pas de perte si rechargement
   }));
@@ -6919,6 +6983,7 @@ function attachHandlers(){
       }
     } else {
       s.toBuy = !s.toBuy;
+    s.updatedAt = Date.now();
     }
     // Si on est en mode tobuy et qu'on marque un item comme "à racheter",
     // l'ajouter au snapshot pour qu'il reste visible
@@ -7002,6 +7067,8 @@ function attachHandlers(){
       s.location = (fd.get('location')||'').toString().trim() || null;
       s.shopZone = (fd.get('shopZone')||'').toString().trim() || null;
       s.urgent = !!fd.get('urgent');
+      s.updatedAt = Date.now();
+      s.updatedAt = Date.now();
       const photoVal = (fd.get('photo')||'').toString().trim();
       if(photoVal) s.photo = photoVal; else s.photo = null;
       // Mirror category/location to linked ingredient
