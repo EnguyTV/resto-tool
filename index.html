@@ -446,11 +446,26 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .back-to-top:active{transform:scale(.9)}
 .search-fab{position:fixed;right:16px;z-index:100;width:48px;height:48px;border-radius:50%;background:var(--dark-2);border:1px solid var(--cyan);color:var(--cyan);font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.4);cursor:pointer;transition:transform .15s,background .15s}
 .search-fab:active{transform:scale(.92);background:rgba(102,197,219,.15)}
-/* Stock compact row */
+/* Stock row controls (del / edit / qty stepper) */
+.stock-row .stock-ctrls{display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:auto}
+.stock-row .stock-edit,.stock-row .stock-del{width:36px;height:36px;min-width:36px;min-height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;opacity:.85;transition:opacity .15s,background .15s;cursor:pointer}
+.stock-row .stock-edit{color:var(--cyan);font-size:16px;background:rgba(102,197,219,.12)}
+.stock-row .stock-edit:active{opacity:1;background:rgba(102,197,219,.24)}
+.stock-row .stock-del{color:var(--danger);font-size:17px;background:rgba(226,75,74,.1)}
+.stock-row .stock-del:active{opacity:1;background:rgba(226,75,74,.22)}
+.stock-row .stock-qtybox{display:flex;align-items:stretch;border-radius:8px;overflow:hidden;border:1px solid var(--line-strong)}
+.stock-row .stock-qtybox .stock-qty-btn{width:38px;height:36px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;line-height:1;cursor:pointer}
+.stock-row .stock-qtybox .stock-qty-btn.dec{background:rgba(228,90,64,.12);color:var(--danger)}
+.stock-row .stock-qtybox .stock-qty-btn.inc{background:rgba(228,162,9,.18);color:var(--gold);border-left:1px solid var(--line-strong)}
+/* Stock compact row — trims each row down to ~2 lines so more products fit on screen */
 .stock-row.compact .stock-cat-chips,.stock-row.compact .stock-note,.stock-row.compact .stock-photo-thumb,.stock-row.compact .urgent-badge{display:none!important}
-.stock-row.compact{padding:8px 10px}
+.stock-row.compact{padding:8px 10px;gap:8px}
 .stock-row.compact .stock-qty{font-size:12px}
 .stock-row.compact .stock-qty .unit{font-size:11px}
+.stock-row.compact .stock-check{width:20px;height:20px}
+.stock-row.compact .stock-ctrls{gap:4px}
+.stock-row.compact .stock-edit,.stock-row.compact .stock-del{width:30px;height:30px;min-width:30px;min-height:30px;font-size:14px}
+.stock-row.compact .stock-qtybox .stock-qty-btn{width:32px;height:30px;font-size:15px}
 
 /* ===== Filter bottom sheet (stock) ===== */
 .filter-fab{display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;background:var(--dark-2);border:1px solid var(--line-strong);color:var(--cyan);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;cursor:pointer;transition:border-color .15s,background .15s;margin-bottom:14px;width:100%}
@@ -662,10 +677,6 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .stock-row .stock-qty .unit{font-family:var(--font-body);font-size:11px;color:var(--cream-dim);font-weight:600;margin-left:2px}
 .stock-row .stock-qty.zero{color:var(--danger)}
 .stock-row .stock-note{font-size:11px;color:var(--cream-dim);margin-top:2px;font-style:italic}
-.stock-row .stock-edit{color:var(--cyan);font-size:18px;padding:10px 8px;cursor:pointer;opacity:.3;transition:opacity .15s;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
-.stock-row .stock-edit:active,.stock-row:hover .stock-edit{opacity:.9}
-.stock-row .stock-del{color:var(--danger);font-size:18px;padding:10px 8px;opacity:.25;cursor:pointer;transition:opacity .15s;min-width:44px;min-height:44px;display:flex;align-items:center;justify-content:center}
-.stock-row .stock-del:active,.stock-row:hover .stock-del{opacity:1}
 
 /* Reorder buttons in dynamic list */
 .dynamic-item .reorder{display:flex;flex-direction:column;gap:1px;flex-shrink:0}
@@ -4334,7 +4345,7 @@ function renderStock(){
         <div class="stock-name">${escHtml(name)}${s.urgent?` <span class="urgent-badge">🚨 Urgent</span>`:''}</div>
         <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span>${s.minQty!=null&&Number(s.minQty)>0?` <span style="color:var(--cream-faint);font-size:10px">(seuil ${s.minQty})</span>`:''}</div>
         ${!_stockCompact && (s.store||s.shopZone) ? `<div class="stock-note" style="color:var(--cyan);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:2px">${s.store?'🏪 '+escHtml(s.store):''}${s.store&&s.shopZone?' · ':''}${s.shopZone?(getShopZones().find(z=>z.key===s.shopZone)||{label:s.shopZone}).label:''}</div>` : ''}
-        <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;align-items:center">
+        <div class="stock-cat-chips" style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;align-items:center">
           ${catLabel?`<button class="tag stock-cat-chip" data-set-cat="${s.id}">${escHtml(catLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed" data-set-cat="${s.id}">+ catégorie</button>`}
           ${locLabel?`<button class="tag stock-cat-chip" style="background:rgba(102,197,219,.2);color:var(--cyan)" data-set-loc="${s.id}">${escHtml(locLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed;background:rgba(102,197,219,.08);color:var(--cyan)" data-set-loc="${s.id}">+ lieu</button>`}
           <button class="urgent-btn ${s.urgent?'on':''}" data-toggle-urgent="${s.id}">${s.urgent?'🚨 Urgent':'🚨'}</button>
@@ -4343,12 +4354,14 @@ function renderStock(){
         ${s.note?`<div class="stock-note">${escHtml(s.note)}</div>`:''}
         ${s.photo?`<img class="stock-photo-thumb" src="${s.photo}" data-photo-view="${s.photo}" alt="photo">`:''}
       </div>
-      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;margin:0 4px">
-        <button class="stock-qty-btn" data-stock-inc="${s.id}" aria-label="+1" style="width:44px;height:44px;border-radius:8px;background:rgba(228,162,9,.15);color:var(--gold);font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1">+</button>
-        <button class="stock-qty-btn" data-stock-dec="${s.id}" aria-label="-1" style="width:44px;height:44px;border-radius:8px;background:rgba(228,90,64,.1);color:var(--danger);font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1">−</button>
+      <div class="stock-ctrls">
+        ${!s._virtual && !s.ingredientId ? `<button class="stock-del" data-del-stock="${s.id}" aria-label="Supprimer">×</button>` : ''}
+        <button class="stock-edit" data-edit-stock="${s.id}" aria-label="Éditer">✎</button>
+        <div class="stock-qtybox">
+          <button class="stock-qty-btn dec" data-stock-dec="${s.id}" aria-label="-1">−</button>
+          <button class="stock-qty-btn inc" data-stock-inc="${s.id}" aria-label="+1">+</button>
+        </div>
       </div>
-      <button class="stock-edit" data-edit-stock="${s.id}" aria-label="Éditer">✎</button>
-      ${!s._virtual && !s.ingredientId ? `<button class="stock-del" data-del-stock="${s.id}" aria-label="Supprimer">×</button>` : ''}
     </div>`;
   }).join('') : `<div class="empty"><div class="empty-ico">🛒</div><p>Aucun produit dans ce filtre.</p></div>`;
   return `
