@@ -660,8 +660,6 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .stock-row.urgent{border-color:var(--danger);border-width:2px;background:rgba(226,75,74,.06)}
 .urgent-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-top:4px;animation:urgentPulse 2s infinite}
 @keyframes urgentPulse{0%,100%{opacity:1}50%{opacity:.7}}
-.urgent-btn{font-size:11px;padding:5px 9px;border-radius:6px;border:1px solid var(--line);color:var(--cream-faint);transition:all .15s;white-space:nowrap;margin-top:3px}
-.urgent-btn.on{background:var(--danger);color:#fff;border-color:var(--danger);font-weight:700}
 /* Photo gallery inline */
 .stock-photo-thumb{width:52px;height:52px;object-fit:cover;border-radius:7px;cursor:pointer;flex-shrink:0;border:1px solid var(--line)}
 .note-photo-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
@@ -669,8 +667,14 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .photo-fullscreen{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;cursor:pointer}
 .photo-fullscreen img{max-width:95vw;max-height:90vh;border-radius:10px;object-fit:contain}
 .stock-row.tobuy{border-color:rgba(228,90,64,.4);background:rgba(228,90,64,.06)}
-.stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:13px;cursor:pointer;transition:all .15s}
+/* Left column: "à racheter" checkbox on top, "urgent" checkbox below — always same spot per line */
+.stock-row .stock-left{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
+.stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:12px;cursor:pointer;transition:all .15s}
 .stock-row.tobuy .stock-check{background:var(--danger);border-color:var(--danger);color:var(--cream)}
+.stock-row .stock-urgent-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--line);background:transparent;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;opacity:.4;transition:all .15s}
+.stock-row .stock-urgent-check.on{border-color:var(--danger);background:var(--danger);opacity:1}
+.stock-row.compact .stock-left{gap:4px}
+.stock-row.compact .stock-urgent-check{width:20px;height:20px}
 .stock-row .stock-body{flex:1;min-width:0}
 .stock-row .stock-name{font-size:14px;color:var(--cream);font-weight:500;line-height:1.2}
 .stock-row .stock-qty{font-family:var(--font-display);font-size:18px;color:var(--gold);letter-spacing:.04em;line-height:1;margin-top:3px}
@@ -4278,6 +4282,13 @@ function needsRestock(s){
   return false;
 }
 
+// "Urgent" ne sert qu'à prioriser un produit à racheter : dès que le produit
+// n'est plus à racheter (seuil dépassé, remis en stock, ou décoché), on retire
+// automatiquement le flag urgent — il n'a plus de raison d'être.
+function syncUrgentWithRestock(s){
+  if(s && s.urgent && !needsRestock(s)) s.urgent = false;
+}
+
 function renderStock(){
   const stores = state.settings.stores || [];
   const stockCats = getStockCategories();
@@ -4340,7 +4351,10 @@ function renderStock(){
     const locLabel = stockLocs.find(l=>l.key===s.location);
     const isGhost = stockFilter==='tobuy' && _tobuySnapshot && _tobuySnapshot.has(s.id) && !restock;
     return `<div class="stock-row ${restock?'tobuy':''} ${isGhost?'tobuy-ghost':''} ${s.urgent?'urgent':''} ${s._virtual?'virtual':''} ${_stockCompact?'compact':''}" data-stock="${s.id}" data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}">
-      <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter">${restock?'!':''}</button>
+      <div class="stock-left">
+        <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter">${restock?'🛒':''}</button>
+        <button class="stock-urgent-check ${s.urgent?'on':''}" data-toggle-urgent="${s.id}" aria-label="Marquer urgent">🚨</button>
+      </div>
       <div class="stock-body">
         <div class="stock-name">${escHtml(name)}${s.urgent?` <span class="urgent-badge">🚨 Urgent</span>`:''}</div>
         <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span>${s.minQty!=null&&Number(s.minQty)>0?` <span style="color:var(--cream-faint);font-size:10px">(seuil ${s.minQty})</span>`:''}</div>
@@ -4348,7 +4362,6 @@ function renderStock(){
         <div class="stock-cat-chips" style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;align-items:center">
           ${catLabel?`<button class="tag stock-cat-chip" data-set-cat="${s.id}">${escHtml(catLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed" data-set-cat="${s.id}">+ catégorie</button>`}
           ${locLabel?`<button class="tag stock-cat-chip" style="background:rgba(102,197,219,.2);color:var(--cyan)" data-set-loc="${s.id}">${escHtml(locLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed;background:rgba(102,197,219,.08);color:var(--cyan)" data-set-loc="${s.id}">+ lieu</button>`}
-          <button class="urgent-btn ${s.urgent?'on':''}" data-toggle-urgent="${s.id}">${s.urgent?'🚨 Urgent':'🚨'}</button>
         </div>
         ${lowByThreshold?`<div class="stock-note" style="color:var(--gold)">⚠ Sous le seuil — à racheter</div>`:''}
         ${s.note?`<div class="stock-note">${escHtml(s.note)}</div>`:''}
@@ -6910,6 +6923,7 @@ function attachHandlers(){
       }
     }
     s.qty = (s.qty||0) + 1;
+    syncUrgentWithRestock(s);
     s.updatedAt = Date.now();
     s.updatedAt = Date.now();
     // Flash feedback before full re-render
@@ -6936,6 +6950,7 @@ function attachHandlers(){
       }
     }
     s.qty = Math.max(0, (s.qty||0) - 1);
+    syncUrgentWithRestock(s);
     s.updatedAt = Date.now();
     const row = b.closest('.stock-row');
     s.updatedAt = Date.now();
@@ -7041,6 +7056,7 @@ function attachHandlers(){
       }
     } else {
       s.toBuy = !s.toBuy;
+      syncUrgentWithRestock(s);
     s.updatedAt = Date.now();
     }
     // Si on est en mode tobuy et qu'on marque un item comme "à racheter",
@@ -7125,6 +7141,7 @@ function attachHandlers(){
       s.location = (fd.get('location')||'').toString().trim() || null;
       s.shopZone = (fd.get('shopZone')||'').toString().trim() || null;
       s.urgent = !!fd.get('urgent');
+      syncUrgentWithRestock(s);
       s.updatedAt = Date.now();
       s.updatedAt = Date.now();
       const photoVal = (fd.get('photo')||'').toString().trim();
