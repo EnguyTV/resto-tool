@@ -1131,7 +1131,7 @@ function mergeStock(localStock, remoteStock){
     if(!remote){
       // Item local seulement → garder (pas encore pushé ou supprimé en remote)
       // On le garde s'il a été modifié (urgent, toBuy, qty non null)
-      if(local && (local.urgent || local.toBuy || local.qty != null || local.neverRestock || local.targetQty != null || local._keepLocal)){
+      if(local && (local.urgent || local.toBuy || local.qty != null || local.neverRestock || local.targetQty != null || local.restockTrigger || local._keepLocal)){
         merged.push(local);
       }
       // Sinon on ne le garde pas (supprimé en remote)
@@ -1155,7 +1155,7 @@ function mergeStock(localStock, remoteStock){
       // seulement si local les a modifiés APRÈS le dernier push connu
       const entry = { ...local, ...remote };
       // Champs "critiques" — on les garde locaux s'ils ont été touchés récemment
-      const criticalFields = ['urgent','toBuy','qty','minQty','targetQty','neverRestock','note','store','shopZone','category','location'];
+      const criticalFields = ['urgent','toBuy','qty','minQty','targetQty','neverRestock','restockTrigger','note','store','shopZone','category','location'];
       criticalFields.forEach(field=>{
         if(local[field] !== undefined && local._localFields && local._localFields.includes(field)){
           entry[field] = local[field];
@@ -4363,6 +4363,13 @@ function buildStockEntries(){
   return result;
 }
 
+function stockTriggerHintHtml(s){
+  if(!s.restockTrigger) return '';
+  const trig = findStockEntryById(s.restockTrigger);
+  if(!trig) return '';
+  const active = isBelowMinThreshold(trig);
+  return `<div class="stock-note" style="color:${active?'var(--gold)':'var(--cream-faint)'}">🔗 Lié à ${escHtml(getStockName(trig))}${active?' — seuil atteint':' — pas encore sous son seuil'}</div>`;
+}
 function getStockName(s){
   if(s.ingredientId){
     const ing = state.ingredients.find(i=>i.id===s.ingredientId);
@@ -4373,11 +4380,30 @@ function getStockName(s){
 
 // True if this item should appear in the "à racheter" list:
 // manual flag OR explicitly empty OR at/below its minimum threshold.
+// Seuil franchi, indépendamment de neverRestock/toBuy — sert de signal brut
+// pour les liens entre lignes de stock (ex : Guacamole sous son seuil → les
+// avocats ont le droit de passer à racheter), même si le produit "déclencheur"
+// est lui-même en "Ne jamais à racheter" (cas normal pour une préparation).
+function isBelowMinThreshold(s){
+  return s && s.qty != null && s.minQty != null && Number(s.minQty) > 0 && Number(s.qty) <= Number(s.minQty);
+}
+function findStockEntryById(id){
+  if(!id) return null;
+  return (state.stock||[]).find(x=>x.id===id) || buildStockEntries().find(x=>x.id===id) || null;
+}
 function needsRestock(s){
   if(s.neverRestock) return false;
   if(s.toBuy === true) return true;
   if(s.qty != null && Number(s.qty) === 0) return true;
-  if(s.qty != null && s.minQty != null && Number(s.minQty) > 0 && Number(s.qty) <= Number(s.minQty)) return true;
+  if(isBelowMinThreshold(s)){
+    if(s.restockTrigger){
+      const trig = findStockEntryById(s.restockTrigger);
+      // Lié à une préparation : le passage à racheter n'est autorisé que si
+      // cette préparation est elle-même sous son propre seuil.
+      return !!(trig && isBelowMinThreshold(trig));
+    }
+    return true;
+  }
   return false;
 }
 
@@ -4445,7 +4471,7 @@ function renderStock(){
     const restock = needsRestock(s);
     const isZero = (s.qty===0 || s.qty==null);
     const name = getStockName(s);
-    const lowByThreshold = s.qty!=null && s.minQty!=null && Number(s.minQty)>0 && Number(s.qty)<=Number(s.minQty) && !s.toBuy;
+    const lowByThreshold = restock && !s.toBuy && isBelowMinThreshold(s);
     const targetDeficit = (!s.neverRestock && s.targetQty!=null && Number(s.targetQty)>0) ? Math.max(0, Number(s.targetQty) - Number(s.qty||0)) : 0;
     const catLabel = stockCats.find(c=>c.key===(s.category||'autre'));
     const locLabel = stockLocs.find(l=>l.key===s.location);
@@ -4466,6 +4492,7 @@ function renderStock(){
           ${locLabel?`<button class="tag stock-cat-chip" style="background:rgba(102,197,219,.2);color:var(--cyan)" data-set-loc="${s.id}">${escHtml(locLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed;background:rgba(102,197,219,.08);color:var(--cyan)" data-set-loc="${s.id}">+ lieu</button>`}
         </div>` : ''}
         ${lowByThreshold?`<div class="stock-note" style="color:var(--gold)">⚠ Sous le seuil — à racheter</div>`:''}
+        ${stockTriggerHintHtml(s)}
         ${s.note?`<div class="stock-note">${escHtml(s.note)}</div>`:''}
         ${s.photo?`<img class="stock-photo-thumb" src="${s.photo}" data-photo-view="${s.photo}" alt="photo">`:''}
       </div>
@@ -4645,6 +4672,14 @@ function renderStockEdit(id){
         </button>
         <input type="hidden" name="neverRestock" value="${s.neverRestock?'1':''}">
         <p class="muted" style="margin-top:-8px;margin-bottom:14px;font-size:11px">Ce produit ignore son seuil et son stock voulu : il ne passera jamais automatiquement dans « à racheter » ni « urgent ».</p>
+        <div class="form-group">
+          <label>🔗 Lier à une préparation</label>
+          <select name="restockTrigger">
+            <option value="">— Aucun lien —</option>
+            ${buildStockEntries().filter(x=>x.id!==s.id).sort((a,b)=>getStockName(a).localeCompare(getStockName(b))).map(x=>`<option value="${x.id}" ${s.restockTrigger===x.id?'selected':''}>${escHtml(getStockName(x))}</option>`).join('')}
+          </select>
+          <p class="muted" style="margin-top:4px;font-size:11px">Si un lien est choisi, ce produit ne passe « à racheter » via son seuil que si le produit lié est lui-même sous son propre seuil (ex : lier « Avocats » à « Guacamole » — les avocats ne passent à racheter que quand le stock de guacamole est bas). Pense à mettre la préparation liée en « Ne jamais à racheter », puisque ce n'est pas elle qu'on achète.</p>
+        </div>
         ${stores.length ? `<div class="form-group">
           <label>Magasin où acheter</label>
           <select name="store">
@@ -7267,6 +7302,7 @@ function attachHandlers(){
       s.shopZone = (fd.get('shopZone')||'').toString().trim() || null;
       s.urgent = !!fd.get('urgent');
       s.neverRestock = !!fd.get('neverRestock');
+      s.restockTrigger = (fd.get('restockTrigger')||'').toString().trim() || null;
       if(s.neverRestock){ s.toBuy = false; s.urgent = false; }
       syncUrgentWithRestock(s);
       s.updatedAt = Date.now();
