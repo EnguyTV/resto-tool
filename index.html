@@ -667,6 +667,8 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .photo-fullscreen{position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;cursor:pointer}
 .photo-fullscreen img{max-width:95vw;max-height:90vh;border-radius:10px;object-fit:contain}
 .stock-row.tobuy{border-color:rgba(228,90,64,.4);background:rgba(228,90,64,.06)}
+.stock-row.bulk-row{cursor:pointer}
+.stock-row.bulk-picked{border-color:var(--cyan);background:rgba(102,197,219,.08)}
 /* Left column: "à racheter" checkbox on top, "urgent" checkbox below — always same spot per line */
 .stock-row .stock-left{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
 .stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:12px;cursor:pointer;transition:all .15s}
@@ -1275,7 +1277,21 @@ function bulkArrayFor(kind){
   if(kind==='ingredients') return state.ingredients||[];
   if(kind==='tasks') return state.tasks||[];
   if(kind==='routines') return state.routines||[];
+  if(kind==='stock') return buildStockEntries();
   return [];
+}
+// Trouve l'enregistrement stock réel pour un id, ou le matérialise depuis une
+// entrée virtuelle (ingrédient pas encore présent dans state.stock) — utilisé
+// par les actions groupées pour pouvoir écrire une catégorie/lieu/magasin.
+function getOrCreateStockRecord(id){
+  let s = (state.stock||[]).find(x=>x.id===id);
+  if(s) return s;
+  const v = buildStockEntries().find(x=>x.id===id);
+  if(!v) return null;
+  s = { id: uid('s'), ingredientId: v.ingredientId||null, name: v.name, qty: v.qty!=null?v.qty:null, unit: v.unit||'', toBuy: v.toBuy||false, note:'', store:null, category: v.category||null, location: v.location||null, urgent:false };
+  if(!state.stock) state.stock = [];
+  state.stock.push(s);
+  return s;
 }
 // Toolbar shown at top of a list when entering/leaving select mode
 function bulkToolbarHtml(kind){
@@ -1297,11 +1313,15 @@ function bulkActionBarHtml(kind){
   if(!bulkActive(kind) || bulkSelected.size===0) return '';
   const dietBtn = kind==='ingredients'
     ? `<button class="bulk-act" data-bulk-diet="${kind}">🥗 Propriétés</button>` : '';
+  const stockBtn = kind==='stock'
+    ? `<button class="bulk-act" data-bulk-stock="${kind}">🏷️ Catégorie / Lieu / Magasin</button>` : '';
+  const restoBtn = kind==='stock' ? '' : `<button class="bulk-act" data-bulk-resto="${kind}">🏪 Restaurants</button>`;
   return `<div class="bulk-actionbar">
     <div class="bulk-actionbar-inner">
       <span>${bulkSelected.size} élément${bulkSelected.size>1?'s':''}</span>
       <div class="bulk-acts">
-        <button class="bulk-act" data-bulk-resto="${kind}">🏪 Restaurants</button>
+        ${restoBtn}
+        ${stockBtn}
         ${dietBtn}
       </div>
     </div>
@@ -1332,6 +1352,7 @@ function bindBulkHandlers(kind){
   }));
   $$(`[data-bulk-resto="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkRestoModal(kind)));
   $$(`[data-bulk-diet="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkDietModal(kind)));
+  $$(`[data-bulk-stock="${kind}"]`).forEach(b=>b.addEventListener('click',()=>openBulkStockModal()));
 }
 
 function openBulkRestoModal(kind){
@@ -1448,6 +1469,70 @@ function openBulkDietModal(kind){
       await persist();
       ov.remove();
       toast(ids.length+' ingrédient(s) mis à jour');
+      bulkClear();
+      render();
+    }
+  });
+}
+
+function openBulkStockModal(){
+  const ids = Array.from(bulkSelected);
+  const cats = getStockCategories();
+  const locs = getStockLocations();
+  const stores = state.settings.stores || [];
+  const ov = document.createElement('div');
+  ov.className = 'modal-bg';
+  ov.innerHTML = `<div class="modal">
+    <div style="font-family:var(--font-display);font-size:21px;color:var(--gold);letter-spacing:.04em;margin-bottom:6px">🏷️ Modifier en groupe</div>
+    <p class="muted" style="font-size:12px;margin-bottom:14px">Applique à ${ids.length} produit${ids.length>1?'s':''}. Choisis une valeur pour ce que tu veux changer ; laisse sur « Ne pas changer » pour le reste.</p>
+    <div class="form-group">
+      <label>Catégorie produit</label>
+      <select data-bs-cat>
+        <option value="__nochange">Ne pas changer</option>
+        <option value="">— Aucune —</option>
+        ${cats.map(c=>`<option value="${c.key}">${escHtml(c.label)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Emplacement stock</label>
+      <select data-bs-loc>
+        <option value="__nochange">Ne pas changer</option>
+        <option value="">— Aucun —</option>
+        ${locs.map(l=>`<option value="${l.key}">${escHtml(l.label)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Magasin où acheter</label>
+      <select data-bs-store>
+        <option value="__nochange">Ne pas changer</option>
+        <option value="">— Aucun —</option>
+        ${stores.map(st=>`<option value="${escHtml(st)}">${escHtml(st)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" data-bulk-stock-apply>Appliquer</button>
+      <button class="btn btn-ghost" data-bulk-cancel>Annuler</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click', async e=>{
+    if(e.target===ov || e.target.closest('[data-bulk-cancel]')){ ov.remove(); return; }
+    if(e.target.closest('[data-bulk-stock-apply]')){
+      const catVal = (ov.querySelector('[data-bs-cat]')||{}).value;
+      const locVal = (ov.querySelector('[data-bs-loc]')||{}).value;
+      const storeVal = (ov.querySelector('[data-bs-store]')||{}).value;
+      if(catVal==='__nochange' && locVal==='__nochange' && storeVal==='__nochange'){ ov.remove(); return; }
+      ids.forEach(id=>{
+        const s = getOrCreateStockRecord(id);
+        if(!s) return;
+        if(catVal!=='__nochange') s.category = catVal || null;
+        if(locVal!=='__nochange') s.location = locVal || null;
+        if(storeVal!=='__nochange') s.store = storeVal || null;
+        s.updatedAt = Date.now();
+      });
+      await persistNow();
+      ov.remove();
+      toast(ids.length+' produit(s) mis à jour');
       bulkClear();
       render();
     }
@@ -2874,6 +2959,10 @@ function navigate(hash){
   if(hash && hash.charAt(0)!=='#') hash='#'+hash;
   // Leaving a list cancels any active bulk-select session
   if(typeof bulkClear==='function') bulkClear();
+  // On capture le scroll actuel AVANT de changer le hash : le navigateur saute
+  // sinon lui-même en haut de page dès l'assignation, avant que notre handler
+  // 'hashchange' n'ait la moindre chance de lire la position d'origine.
+  if(_lastRouteKey){ _scrollByRoute[_lastRouteKey] = window.scrollY || window.pageYOffset || 0; }
   window.location.hash = hash || '#home';
 }
 function parseRoute(){
@@ -2884,6 +2973,7 @@ function parseRoute(){
 
 /* ---------- Render dispatch ---------- */
 let _lastRouteKey = null;
+let _scrollByRoute = {};
 function render(){
   const route = parseRoute();
   const routeKey = `${route.path}|${route.id||''}|${route.action||''}`;
@@ -2941,6 +3031,9 @@ function render(){
   if(sameRoute){
     // Re-render of the same page (state update like ticking a task): keep scroll
     window.scrollTo(0, prevScroll);
+  } else if(_scrollByRoute[routeKey] !== undefined){
+    // Retour sur une route déjà visitée (ex : liste Stock après une édition) : restaure sa position
+    window.scrollTo(0, _scrollByRoute[routeKey]);
   } else {
     window.scrollTo(0, 0);
   }
@@ -4357,31 +4450,33 @@ function renderStock(){
     const catLabel = stockCats.find(c=>c.key===(s.category||'autre'));
     const locLabel = stockLocs.find(l=>l.key===s.location);
     const isGhost = stockFilter==='tobuy' && _tobuySnapshot && _tobuySnapshot.has(s.id) && !restock;
-    return `<div class="stock-row ${restock?'tobuy':''} ${isGhost?'tobuy-ghost':''} ${s.urgent?'urgent':''} ${s._virtual?'virtual':''} ${_stockCompact?'compact':''}" data-stock="${s.id}" data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}">
-      <div class="stock-left ${s.neverRestock?'muted-locked':''}">
+    const bulkOn = bulkActive('stock');
+    const picked = bulkOn && bulkSelected.has(s.id);
+    return `<div class="stock-row ${restock?'tobuy':''} ${isGhost?'tobuy-ghost':''} ${s.urgent?'urgent':''} ${s._virtual?'virtual':''} ${_stockCompact?'compact':''} ${bulkOn?'bulk-row':''} ${picked?'bulk-picked':''}" data-stock="${s.id}" ${bulkOn?`data-bulk-pick="${s.id}"`:''} data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}">
+      ${bulkOn ? `<span class="bulk-check" style="position:static;flex-shrink:0;border-radius:7px;${picked?'':'background:transparent'}"><span class="${picked?'on':''}" style="display:flex;width:100%;height:100%;align-items:center;justify-content:center">${picked?'✓':''}</span></span>` : `<div class="stock-left ${s.neverRestock?'muted-locked':''}">
         <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter" ${s.neverRestock?'disabled':''}>${restock?'🛒':''}</button>
         <button class="stock-urgent-check ${s.urgent?'on':''}" data-toggle-urgent="${s.id}" aria-label="Marquer urgent" ${s.neverRestock?'disabled':''}>🚨</button>
-      </div>
+      </div>`}
       <div class="stock-body">
         <div class="stock-name">${escHtml(name)}${s.urgent?` <span class="urgent-badge">🚨 Urgent</span>`:''}${s.neverRestock?` <span class="never-badge" title="Jamais à racheter">🚫</span>`:''}</div>
         <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span>${s.minQty!=null&&Number(s.minQty)>0?` <span style="color:var(--cream-faint);font-size:10px">(seuil ${s.minQty})</span>`:''}${targetDeficit>0?` <span class="stock-target-diff">${targetDeficit}${escHtml(s.unit||'')} à racheter</span>`:''}</div>
         ${!_stockCompact && (s.store||s.shopZone) ? `<div class="stock-note" style="color:var(--cyan);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:2px">${s.store?'🏪 '+escHtml(s.store):''}${s.store&&s.shopZone?' · ':''}${s.shopZone?(getShopZones().find(z=>z.key===s.shopZone)||{label:s.shopZone}).label:''}</div>` : ''}
-        <div class="stock-cat-chips" style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;align-items:center">
+        ${!bulkOn ? `<div class="stock-cat-chips" style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;align-items:center">
           ${catLabel?`<button class="tag stock-cat-chip" data-set-cat="${s.id}">${escHtml(catLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed" data-set-cat="${s.id}">+ catégorie</button>`}
           ${locLabel?`<button class="tag stock-cat-chip" style="background:rgba(102,197,219,.2);color:var(--cyan)" data-set-loc="${s.id}">${escHtml(locLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed;background:rgba(102,197,219,.08);color:var(--cyan)" data-set-loc="${s.id}">+ lieu</button>`}
-        </div>
+        </div>` : ''}
         ${lowByThreshold?`<div class="stock-note" style="color:var(--gold)">⚠ Sous le seuil — à racheter</div>`:''}
         ${s.note?`<div class="stock-note">${escHtml(s.note)}</div>`:''}
         ${s.photo?`<img class="stock-photo-thumb" src="${s.photo}" data-photo-view="${s.photo}" alt="photo">`:''}
       </div>
-      <div class="stock-ctrls">
+      ${bulkOn ? '' : `<div class="stock-ctrls">
         ${!s._virtual && !s.ingredientId ? `<button class="stock-del" data-del-stock="${s.id}" aria-label="Supprimer">×</button>` : ''}
         <button class="stock-edit" data-edit-stock="${s.id}" aria-label="Éditer">✎</button>
         <div class="stock-qtybox">
           <button class="stock-qty-btn dec" data-stock-dec="${s.id}" aria-label="-1">−</button>
           <button class="stock-qty-btn inc" data-stock-inc="${s.id}" aria-label="+1">+</button>
         </div>
-      </div>
+      </div>`}
     </div>`;
   }).join('') : `<div class="empty"><div class="empty-ico">🛒</div><p>Aucun produit dans ce filtre.</p></div>`;
   return `
@@ -4417,6 +4512,7 @@ function renderStock(){
         <button class="search-clear" aria-label="Effacer">×</button>
       </div>
       <button class="search-fab" id="stockSearchFab" title="Rechercher" style="bottom:calc(var(--safe-bot) + 88px)">🔍</button>
+      ${bulkToolbarHtml('stock')}
       ${(stockFilter==='tobuy' && toBuyCount>0) ? `<div class="btn-row" style="margin-bottom:14px">
         <button class="btn btn-secondary btn-block" id="copyToBuyBtn">📋 Copier la liste à racheter</button>
       </div>` : ''}
@@ -4495,6 +4591,7 @@ function renderStock(){
         <button type="submit" class="btn btn-primary btn-block">Ajouter à la liste</button>
       </form>
     </div>
+    ${bulkActionBarHtml('stock')}
   `;
 }
 
@@ -7626,7 +7723,7 @@ function attachHandlers(){
   });
 
   // ===== Bulk-edit bindings =====
-  ['recipes','fiches','ingredients','tasks','routines'].forEach(k=>bindBulkHandlers(k));
+  ['recipes','fiches','ingredients','tasks','routines','stock'].forEach(k=>bindBulkHandlers(k));
 
   // ===== Search bindings =====
   bindSearch('searchRecipes', '#app [data-go^="recipe/"][data-search]');
@@ -8358,6 +8455,7 @@ async function init(){
   if(!loaded.restaurants || !loaded.restaurants.length) loaded.restaurants = [{id:'r_main', name:'Mexy Fresh by TheLab'}];
 
   state = loaded;
+  if('scrollRestoration' in history) history.scrollRestoration = 'manual';
   window.addEventListener('hashchange',render);
   render();
 
