@@ -1814,11 +1814,20 @@ async function pollSync(){
         cfg.auto = false; SyncConfig.save(cfg);
         await Storage.save(state);
         cfg.auto = oldAuto; SyncConfig.save(cfg);
-        // Notifier l'utilisateur uniquement si on est sur une page visible
-        if(document.visibilityState==='visible'){
-          toast('🔄 Stock mis à jour depuis un autre appareil');
+        // Si l'utilisateur est en train de remplir un formulaire (ex : une recette),
+        // on NE reconstruit PAS le DOM — ça effacerait sa saisie en cours. Les
+        // données sont déjà fusionnées et sauvegardées ; l'affichage se mettra à
+        // jour tout seul dès qu'il quittera cette page.
+        if(isFormActive()){
+          if(document.visibilityState==='visible'){
+            toast('🔄 Mise à jour reçue — visible en quittant cette page');
+          }
+        } else {
+          if(document.visibilityState==='visible'){
+            toast('🔄 Stock mis à jour depuis un autre appareil');
+          }
+          render();
         }
-        render();
       }
     }
     // Library: throttled - every ~5 polls (~2.5 min)
@@ -1839,7 +1848,13 @@ async function pollSync(){
           cfg.auto = false; SyncConfig.save(cfg);
           await Storage.save(state);
           cfg.auto = oldAuto; SyncConfig.save(cfg);
-          render();
+          if(isFormActive()){
+            if(document.visibilityState==='visible'){
+              toast('🔄 Mise à jour reçue — visible en quittant cette page');
+            }
+          } else {
+            render();
+          }
         }
       }
     }
@@ -2969,6 +2984,16 @@ function parseRoute(){
   const h = (window.location.hash || '#home').slice(1);
   const parts = h.split('/');
   return { path: parts[0]||'home', id: parts[1]||null, action: parts[2]||null };
+}
+// Vrai si l'utilisateur est en train de remplir un formulaire (édition, création,
+// ou simplement focus dans un champ) — dans ce cas, un rendu déclenché par la
+// synchro en arrière-plan effacerait sa saisie en cours en remplaçant tout le DOM.
+function isFormActive(){
+  const route = parseRoute();
+  if(route.action==='edit' || route.id==='new') return true;
+  const el = document.activeElement;
+  if(el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && el.closest('form')) return true;
+  return false;
 }
 
 /* ---------- Render dispatch ---------- */
