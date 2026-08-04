@@ -2930,13 +2930,13 @@ function photoFieldHtml(photo){
         <button type="button" data-photo-change aria-label="Changer">📷</button>
         <button type="button" data-photo-remove aria-label="Supprimer">×</button>
       </div>
-      <input type="file" accept="image/*" capture="environment" data-photo-input style="display:none">
+      <input type="file" accept="image/*" data-photo-input style="display:none">
       <input type="hidden" name="photo" value="${escHtml(photo)}">
     </div>`;
   }
   return `<div class="photo-empty" data-photo-empty>
     <span>📷  Touche pour ajouter une photo</span>
-    <input type="file" accept="image/*" capture="environment" data-photo-input style="display:none">
+    <input type="file" accept="image/*" data-photo-input style="display:none">
     <input type="hidden" name="photo" value="">
   </div>`;
 }
