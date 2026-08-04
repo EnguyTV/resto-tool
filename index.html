@@ -4363,6 +4363,9 @@ function buildStockEntries(){
   return result;
 }
 
+function isOrphanedStock(s){
+  return !!(s.ingredientId && !state.ingredients.find(i=>i.id===s.ingredientId));
+}
 function stockTriggerHintHtml(s){
   if(!s.restockTrigger) return '';
   const trig = findStockEntryById(s.restockTrigger);
@@ -4494,11 +4497,12 @@ function renderStock(){
         </div>` : ''}
         ${lowByThreshold?`<div class="stock-note" style="color:var(--gold)">⚠ Sous le seuil — à racheter</div>`:''}
         ${stockTriggerHintHtml(s)}
+        ${isOrphanedStock(s)?`<div class="stock-note" style="color:var(--danger)">⚠ Ingrédient lié supprimé — cette ligne peut être retirée</div>`:''}
         ${s.note?`<div class="stock-note">${escHtml(s.note)}</div>`:''}
         ${s.photo?`<img class="stock-photo-thumb" src="${s.photo}" data-photo-view="${s.photo}" alt="photo">`:''}
       </div>
       ${bulkOn ? '' : `<div class="stock-ctrls">
-        ${!s._virtual && !s.ingredientId ? `<button class="stock-del" data-del-stock="${s.id}" aria-label="Supprimer">×</button>` : ''}
+        ${!s._virtual && (!s.ingredientId || isOrphanedStock(s)) ? `<button class="stock-del" data-del-stock="${s.id}" aria-label="Supprimer">×</button>` : ''}
         <button class="stock-edit" data-edit-stock="${s.id}" aria-label="Éditer">✎</button>
         <div class="stock-qtybox">
           <button class="stock-qty-btn dec" data-stock-dec="${s.id}" aria-label="-1">−</button>
@@ -4731,7 +4735,7 @@ function renderStockEdit(id){
         </div>
         <div class="btn-row">
           <button type="submit" class="btn btn-primary">Enregistrer</button>
-          ${!isVirtual && !s.ingredientId ? `<button type="button" class="btn btn-danger" data-del-stock="${s.id}">Supprimer</button>` : ''}
+          ${!isVirtual && (!s.ingredientId || isOrphanedStock(s)) ? `<button type="button" class="btn btn-danger" data-del-stock="${s.id}">Supprimer</button>` : ''}
           <button type="button" class="btn btn-ghost" data-back>Annuler</button>
         </div>
       </form>
