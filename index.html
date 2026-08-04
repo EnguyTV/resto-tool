@@ -4394,12 +4394,13 @@ function findStockEntryById(id){
 function needsRestock(s){
   if(s.neverRestock) return false;
   if(s.toBuy === true) return true;
-  if(s.qty != null && Number(s.qty) === 0) return true;
-  if(isBelowMinThreshold(s)){
+  const rawLow = (s.qty != null && Number(s.qty) === 0) || isBelowMinThreshold(s);
+  if(rawLow){
     if(s.restockTrigger){
       const trig = findStockEntryById(s.restockTrigger);
-      // Lié à une préparation : le passage à racheter n'est autorisé que si
-      // cette préparation est elle-même sous son propre seuil.
+      // Lié à une préparation : le passage à racheter (que ce soit à 0 ou sous
+      // le seuil) n'est autorisé que si cette préparation est elle-même sous
+      // son propre seuil.
       return !!(trig && isBelowMinThreshold(trig));
     }
     return true;
