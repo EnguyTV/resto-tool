@@ -7313,7 +7313,7 @@ function attachHandlers(){
     s.urgent = !s.urgent;
     s.updatedAt = Date.now(); // timestamp pour le merge multi-appareils
     if(s.urgent && stockFilter==='tobuy' && _tobuySnapshot) _tobuySnapshot.add(s.id);
-    await persistNow(); render(); // persistNow = push immédiat, pas de perte si rechargement
+    render(); persistNow().catch(err=>console.error('sync push', err)); // affichage instantané, la sauvegarde/push se fait en arrière-plan
   }));
 
   // Quick-set catégorie / emplacement depuis la row (chips inline)
@@ -7352,8 +7352,7 @@ function attachHandlers(){
     if(stockFilter==='tobuy' && _tobuySnapshot && s.toBuy){
       _tobuySnapshot.add(s.id);
     }
-    await persistNow(); // push immédiat pour ne pas perdre l'état à racheter
-    render();
+    render(); persistNow().catch(err=>console.error('sync push', err)); // affichage instantané, la sauvegarde/push se fait en arrière-plan
   }));
   $$('[data-edit-stock]').forEach(b=>b.addEventListener('click',()=>{
     navigate('#stock/'+b.getAttribute('data-edit-stock')+'/edit');
