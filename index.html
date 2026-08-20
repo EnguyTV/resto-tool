@@ -1011,6 +1011,14 @@ async function initializeTenantFiles(tenant){
   await GitHubSync.putFile(cfg, emptyShared, null, tenant.sharedFile);
 }
 
+function pruneStockTombstones(tombstones){
+  const cutoff = Date.now() - 90*24*60*60*1000; // 90 jours
+  const kept = {};
+  Object.keys(tombstones||{}).forEach(id=>{
+    if(tombstones[id] >= cutoff) kept[id] = tombstones[id];
+  });
+  return kept;
+}
 function splitState(){
   // Returns { library, shared }
   const library = {
@@ -1038,6 +1046,7 @@ function splitState(){
     version: 4,
     schema: 'shared',
     stock: state.stock || [],
+    stockTombstones: pruneStockTombstones(state._stockTombstones || {}),
     prep: state.prep || {},
     taskDone: {},
     routineChecked: {},
@@ -1115,9 +1124,10 @@ function applyLibraryFromCloud(lib){
   }));
 }
 
-function mergeStock(localStock, remoteStock){
+function mergeStock(localStock, remoteStock, tombstones){
   // Merge par ID : on ne perd jamais une modification locale plus récente
   // que ce qu'il y a sur GitHub
+  tombstones = tombstones || {};
   const localMap = new Map((localStock||[]).map(s=>[s.id, s]));
   const remoteMap = new Map((remoteStock||[]).map(s=>[s.id, s]));
   const merged = [];
@@ -1138,7 +1148,14 @@ function mergeStock(localStock, remoteStock){
       return;
     }
     if(!local){
-      // Item remote seulement → ajouter
+      // Item remote seulement. Si on l'a explicitement supprimé localement
+      // (tombstone) et que le remote qu'on vient de lire n'a pas été modifié
+      // depuis cette suppression, on NE LE RESSUSCITE PAS — sinon un pull qui
+      // récupère une version pas encore à jour (CDN en retard, autre appareil
+      // pas encore synchro) fait réapparaître une ligne qu'on vient de supprimer.
+      const deletedAt = tombstones[id];
+      const remoteTs = remote.updatedAt || remote._ts || 0;
+      if(deletedAt && deletedAt >= remoteTs) return;
       merged.push(remote);
       return;
     }
@@ -1171,7 +1188,15 @@ function mergeStock(localStock, remoteStock){
 function applySharedFromCloud(sh){
   if(!sh) return;
   // Merge intelligent : ne pas écraser les modifications locales
-  state.stock = mergeStock(state.stock, sh.stock);
+  // Fusionner d'abord les tombstones (suppressions) des deux côtés — on garde
+  // la date la plus récente pour chaque id supprimé.
+  const incomingTombstones = sh.stockTombstones || {};
+  const tombstones = Object.assign({}, state._stockTombstones || {});
+  Object.keys(incomingTombstones).forEach(id=>{
+    if(!tombstones[id] || incomingTombstones[id] > tombstones[id]) tombstones[id] = incomingTombstones[id];
+  });
+  state._stockTombstones = tombstones;
+  state.stock = mergeStock(state.stock, sh.stock, tombstones);
   state.prep = sh.prep || {};
   // Merge device registry: keep the most recent lastSeen per device id
   const incoming = sh.devices || {};
@@ -1621,7 +1646,7 @@ async function cloudPull(silent){
       // Re-merger : le cloud vient d'écraser state.stock
       // On remerge pour ne pas perdre le local
       if(localStockBefore.length > 0){
-        state.stock = mergeStock(localStockBefore, state.stock);
+        state.stock = mergeStock(localStockBefore, state.stock, state._stockTombstones || {});
       }
     }
 
@@ -7376,9 +7401,11 @@ function attachHandlers(){
     const id = b.getAttribute('data-del-stock');
     if(!confirm('Supprimer ce produit de la liste de stock ?')) return;
     state.stock = (state.stock||[]).filter(s=>s.id!==id);
-    await persist();
+    if(!state._stockTombstones) state._stockTombstones = {};
+    state._stockTombstones[id] = Date.now();
     if(window.location.hash.startsWith('#stock/')) navigate('#stock');
     else render();
+    persistNow().catch(err=>console.error('sync push', err));
   }));
   // Stock add form (custom non-ingredient products)
   const stockForm = $('#stockForm');
