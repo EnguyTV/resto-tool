@@ -1139,12 +1139,16 @@ function mergeStock(localStock, remoteStock, tombstones){
     const remote = remoteMap.get(id);
 
     if(!remote){
-      // Item local seulement → garder (pas encore pushé ou supprimé en remote)
-      // On le garde s'il a été modifié (urgent, toBuy, qty non null)
-      if(local && (local.urgent || local.toBuy || local.qty != null || local.neverRestock || local.targetQty != null || local.restockTrigger || local._keepLocal)){
-        merged.push(local);
-      }
-      // Sinon on ne le garde pas (supprimé en remote)
+      // Item local seulement (pas encore pushé, ou supprimé ailleurs).
+      // On ne le perd QUE s'il existe un tombstone (suppression connue, sur
+      // cet appareil ou un autre, synchronisée) plus récent que sa dernière
+      // modif locale. Sinon on le garde toujours — un produit fraîchement
+      // ajouté ou sans quantité renseignée n'est pas "vide", juste pas
+      // encore poussé, et ne doit jamais disparaître tout seul.
+      const deletedAt = tombstones[id];
+      const localTs = local.updatedAt || local._ts || 0;
+      if(deletedAt && deletedAt >= localTs) return;
+      merged.push(local);
       return;
     }
     if(!local){
