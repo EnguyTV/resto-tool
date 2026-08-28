@@ -1019,6 +1019,13 @@ function pruneStockTombstones(tombstones){
   });
   return kept;
 }
+function pruneLibTombstones(tomb){
+  const out = {};
+  ['recipes','fiches','ingredients'].forEach(kind=>{
+    out[kind] = pruneStockTombstones((tomb&&tomb[kind]) || {});
+  });
+  return out;
+}
 function splitState(){
   // Returns { library, shared }
   const library = {
@@ -1040,6 +1047,7 @@ function splitState(){
     notes: state.notes || [],
     notifications: state.notifications || [],
     settings: state.settings || {},
+    libTombstones: pruneLibTombstones(state._libTombstones || {recipes:{},fiches:{},ingredients:{}}),
     updatedAt: Date.now()
   };
   const shared = {
@@ -1100,9 +1108,24 @@ function setDeviceName(n){
 function applyLibraryFromCloud(lib){
   if(!lib) return;
   if(lib.restaurants && lib.restaurants.length) state.restaurants = lib.restaurants;
-  state.recipes = lib.recipes || [];
-  state.fiches = lib.fiches || [];
-  state.ingredients = lib.ingredients || [];
+  // Fusionner les tombstones (suppressions) des deux côtés avant de merger le contenu
+  const incoming = lib.libTombstones || {};
+  const tomb = state._libTombstones || {recipes:{},fiches:{},ingredients:{}};
+  ['recipes','fiches','ingredients'].forEach(kind=>{
+    if(!tomb[kind]) tomb[kind] = {};
+    const inc = incoming[kind] || {};
+    Object.keys(inc).forEach(id=>{
+      if(!tomb[kind][id] || inc[id] > tomb[kind][id]) tomb[kind][id] = inc[id];
+    });
+  });
+  state._libTombstones = tomb;
+  // Recettes / fiches / ingrédients : merge par ID, jamais de remplacement en
+  // bloc — sinon un appareil qui pousse après un autre efface silencieusement
+  // ce que l'autre venait d'ajouter ou de modifier (ex : une recette entière,
+  // ou des ingrédients dedans).
+  state.recipes = mergeById(state.recipes, lib.recipes, tomb.recipes);
+  state.fiches = mergeById(state.fiches, lib.fiches, tomb.fiches);
+  state.ingredients = mergeById(state.ingredients, lib.ingredients, tomb.ingredients);
   // Fully replace these (don't merge — required for tenant switching)
   state.contacts = lib.contacts || [];
   state.notes = lib.notes || [];
@@ -1124,6 +1147,38 @@ function applyLibraryFromCloud(lib){
   }));
 }
 
+// Merge générique par ID pour toute collection avec updatedAt (recettes, fiches,
+// ingrédients...). Même principe que mergeStock : jamais de remplacement en
+// bloc, jamais de résurrection d'un supprimé grâce aux tombstones.
+function mergeById(localArr, remoteArr, tombstones){
+  tombstones = tombstones || {};
+  const localMap = new Map((localArr||[]).map(x=>[x.id, x]));
+  const remoteMap = new Map((remoteArr||[]).map(x=>[x.id, x]));
+  const merged = [];
+  const allIds = new Set([...localMap.keys(), ...remoteMap.keys()]);
+  allIds.forEach(id=>{
+    const local = localMap.get(id);
+    const remote = remoteMap.get(id);
+    if(!remote){
+      const deletedAt = tombstones[id];
+      const localTs = (local && local.updatedAt) || 0;
+      if(deletedAt && deletedAt >= localTs) return;
+      if(local) merged.push(local);
+      return;
+    }
+    if(!local){
+      const deletedAt = tombstones[id];
+      const remoteTs = remote.updatedAt || 0;
+      if(deletedAt && deletedAt >= remoteTs) return;
+      merged.push(remote);
+      return;
+    }
+    const localTs = local.updatedAt || 0;
+    const remoteTs = remote.updatedAt || 0;
+    merged.push(localTs >= remoteTs ? { ...remote, ...local } : { ...local, ...remote });
+  });
+  return merged;
+}
 function mergeStock(localStock, remoteStock, tombstones){
   // Merge par ID : on ne perd jamais une modification locale plus récente
   // que ce qu'il y a sur GitHub
@@ -7754,6 +7809,9 @@ function attachHandlers(){
     if(!confirm('Supprimer cette recette ?')) return;
     state.recipes = state.recipes.filter(r=>r.id!==id);
     state.fiches.forEach(f=>{ f.linkedRecipes = (f.linkedRecipes||[]).filter(x=>x!==id); });
+    if(!state._libTombstones) state._libTombstones = {recipes:{},fiches:{},ingredients:{}};
+    if(!state._libTombstones.recipes) state._libTombstones.recipes = {};
+    state._libTombstones.recipes[id] = Date.now();
     await persist();
     toast('Préparation supprimée');
     navigate('#recipes');
@@ -7769,6 +7827,9 @@ function attachHandlers(){
     const id = b.getAttribute('data-del-fiche');
     if(!confirm('Supprimer cette fiche ?')) return;
     state.fiches = state.fiches.filter(f=>f.id!==id);
+    if(!state._libTombstones) state._libTombstones = {recipes:{},fiches:{},ingredients:{}};
+    if(!state._libTombstones.fiches) state._libTombstones.fiches = {};
+    state._libTombstones.fiches[id] = Date.now();
     await persist();
     toast('Fiche technique supprimée');
     navigate('#fiches');
@@ -7853,6 +7914,9 @@ function attachHandlers(){
     const id = b.getAttribute('data-del-ing');
     if(!confirm('Supprimer cet ingrédient ?')) return;
     state.ingredients = state.ingredients.filter(x=>x.id!==id);
+    if(!state._libTombstones) state._libTombstones = {recipes:{},fiches:{},ingredients:{}};
+    if(!state._libTombstones.ingredients) state._libTombstones.ingredients = {};
+    state._libTombstones.ingredients[id] = Date.now();
     await persist();
     toast('Ingrédient supprimé');
     navigate('#ingredients');
@@ -8333,12 +8397,13 @@ async function handleRecipeSubmit(e){
     if(editId){
       const r = state.recipes.find(x=>x.id===editId);
       Object.assign(r, data);
+      r.updatedAt = Date.now();
       await persist();
       toast('Préparation enregistrée');
       navigate('#recipe/'+editId);
     } else {
       const id = uid('rec');
-      state.recipes.push({id, ...data});
+      state.recipes.push({id, ...data, updatedAt: Date.now()});
       await persist();
       toast('Préparation créée');
       navigate('#recipe/'+id);
@@ -8404,12 +8469,13 @@ async function handleFicheSubmit(e){
     if(editId){
       const fi = state.fiches.find(x=>x.id===editId);
       Object.assign(fi, data);
+      fi.updatedAt = Date.now();
       await persist();
       toast('Fiche technique enregistrée');
       navigate('#fiche/'+editId);
     } else {
       const id = uid('fic');
-      state.fiches.push({id, ...data});
+      state.fiches.push({id, ...data, updatedAt: Date.now()});
       await persist();
       toast('Fiche technique créée');
       navigate('#fiche/'+id);
@@ -8590,10 +8656,11 @@ async function handleIngSubmit(e){
   if(editId){
     const ing = state.ingredients.find(x=>x.id===editId);
     Object.assign(ing,data);
+    ing.updatedAt = Date.now();
     await persist();
     toast('Ingrédient enregistré');
   } else {
-    state.ingredients.push({id:uid('ing'),...data});
+    state.ingredients.push({id:uid('ing'),...data, updatedAt: Date.now()});
     await persist();
     toast('Ingrédient créé');
   }
