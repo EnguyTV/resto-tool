@@ -816,15 +816,20 @@ const GitHubSync = {
       // Fichier de taille normale : contenu renvoyé directement, encodé en base64
       const bytes = atob(j.content.replace(/\n/g,''));
       text = decodeURIComponent(escape(bytes));
-    } else if(j.download_url){
+    } else if(j.sha){
       // Fichier trop volumineux (~1 Mo+) : l'API Contents ne renvoie pas le
-      // contenu inline dans ce cas (pas une vraie corruption) — on le récupère
-      // via l'URL brute à la place.
-      const rawResp = await fetch(j.download_url, { cache: 'no-store' });
-      if(!rawResp.ok) throw new Error('GitHub raw fetch HTTP '+rawResp.status);
-      text = await rawResp.text();
+      // contenu inline dans ce cas (pas une vraie corruption). On passe par
+      // l'API Git Blobs avec notre propre jeton — contrairement à
+      // "download_url", qui contient un jeton signé à très courte durée de
+      // vie et peut donc échouer en 404 s'il a le temps d'expirer.
+      const blobUrl = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/git/blobs/${j.sha}`;
+      const blobResp = await fetch(blobUrl, { headers });
+      if(!blobResp.ok) throw new Error('GitHub blob fetch HTTP '+blobResp.status);
+      const blobJson = await blobResp.json();
+      const bytes = atob((blobJson.content||'').replace(/\n/g,''));
+      text = decodeURIComponent(escape(bytes));
     } else {
-      throw new Error('Fichier illisible sur GitHub (ni contenu ni download_url)');
+      throw new Error('Fichier illisible sur GitHub (ni contenu ni sha)');
     }
     let data = null;
     try{ data = JSON.parse(text); }catch(e){ throw new Error('Fichier corrompu sur GitHub'); }
