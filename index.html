@@ -811,8 +811,21 @@ const GitHubSync = {
     if(r.status===404) return { exists:false };
     if(!r.ok) throw new Error('GitHub fetch HTTP '+r.status);
     const j = await r.json();
-    const bytes = atob(j.content.replace(/\n/g,''));
-    const text = decodeURIComponent(escape(bytes));
+    let text;
+    if(j.content && j.content.length){
+      // Fichier de taille normale : contenu renvoyé directement, encodé en base64
+      const bytes = atob(j.content.replace(/\n/g,''));
+      text = decodeURIComponent(escape(bytes));
+    } else if(j.download_url){
+      // Fichier trop volumineux (~1 Mo+) : l'API Contents ne renvoie pas le
+      // contenu inline dans ce cas (pas une vraie corruption) — on le récupère
+      // via l'URL brute à la place.
+      const rawResp = await fetch(j.download_url, { cache: 'no-store' });
+      if(!rawResp.ok) throw new Error('GitHub raw fetch HTTP '+rawResp.status);
+      text = await rawResp.text();
+    } else {
+      throw new Error('Fichier illisible sur GitHub (ni contenu ni download_url)');
+    }
     let data = null;
     try{ data = JSON.parse(text); }catch(e){ throw new Error('Fichier corrompu sur GitHub'); }
     return { exists:true, data, sha: j.sha, etag: r.headers.get('ETag') };
@@ -5365,6 +5378,12 @@ function renderSettings(){
         </p>
         <button class="btn btn-primary btn-block" id="syncStartBtn" style="font-size:16px;padding:16px;letter-spacing:.05em">▶ DÉMARRER LA SYNCHRO</button>
         <div class="muted" id="syncStartHint" style="text-align:center;margin-top:8px;font-size:12px"></div>
+        <button class="btn btn-secondary btn-block" id="syncNowBtn" style="margin-top:10px">🔄 Synchroniser maintenant</button>
+        <p class="muted" style="margin-top:6px;font-size:11px;line-height:1.5">Récupère immédiatement les dernières données au lieu d'attendre la synchro automatique (jusqu'à 20 secondes). Utile si tu vois un chiffre différent d'un autre appareil.</p>
+        ${isChef() ? `
+        <button class="btn btn-secondary btn-block" id="syncForcePushBtn" style="margin-top:10px">📤 Forcer l'envoi de mes données</button>
+        <p class="muted" style="margin-top:6px;font-size:11px;line-height:1.5">Envoie immédiatement les données de <b>cet appareil</b> vers GitHub, sans attendre. Les autres appareils les récupéreront à leur prochaine synchro (automatique, ou via "Synchroniser maintenant" chez eux) — il n'existe pas de moyen de forcer instantanément un autre téléphone à se mettre à jour, seulement de s'assurer que la donnée est bien disponible pour eux dès que possible.</p>
+        ` : ''}
         </div> <!-- /acc-sync -->
       </div>
 
@@ -6292,6 +6311,39 @@ function bindSyncHandlers(){
       if(startHint) startHint.textContent = 'Mise à jour automatique toutes les 30 s.';
     }
   }
+
+  const syncNowBtn = $('#syncNowBtn');
+  if(syncNowBtn) syncNowBtn.addEventListener('click', async ()=>{
+    syncNowBtn.disabled = true;
+    const prevText = syncNowBtn.textContent;
+    syncNowBtn.textContent = '⏳ Synchronisation…';
+    try{
+      const ok = await cloudPull(true);
+      if(ok){ toast('Synchronisé ✓'); render(); }
+      else toast('Synchro non configurée');
+    }catch(e){
+      toast('Erreur de synchro : '+(e && e.message || e));
+    } finally {
+      syncNowBtn.disabled = false;
+      syncNowBtn.textContent = prevText;
+    }
+  });
+
+  const syncForcePushBtn = $('#syncForcePushBtn');
+  if(syncForcePushBtn) syncForcePushBtn.addEventListener('click', async ()=>{
+    syncForcePushBtn.disabled = true;
+    const prevText = syncForcePushBtn.textContent;
+    syncForcePushBtn.textContent = '⏳ Envoi en cours…';
+    try{
+      await persistNow();
+      toast('Données envoyées ✓ — les autres appareils les récupéreront à leur prochaine synchro');
+    }catch(e){
+      toast('Erreur d\'envoi : '+(e && e.message || e));
+    } finally {
+      syncForcePushBtn.disabled = false;
+      syncForcePushBtn.textContent = prevText;
+    }
+  });
 
   // ── Admin zones unlock (persistent across re-renders) ──
   // App zone: code = APP_ADMIN_CODE (5254)
