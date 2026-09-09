@@ -669,6 +669,27 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .stock-row.tobuy{border-color:rgba(228,90,64,.4);background:rgba(228,90,64,.06)}
 .stock-row.bulk-row{cursor:pointer}
 .stock-row.bulk-picked{border-color:var(--cyan);background:rgba(102,197,219,.08)}
+/* Mode Inventaire */
+.inv-progress-bar{height:10px;border-radius:5px;background:var(--navy-2);overflow:hidden;margin-bottom:6px;border:1px solid var(--line)}
+.inv-progress-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--gold));transition:width .25s}
+.inv-progress-label{text-align:center;font-size:12px;color:var(--cream-dim);margin-bottom:16px;font-weight:600}
+.inv-group{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden;background:var(--navy-2)}
+.inv-group.done{border-color:rgba(90,200,120,.4)}
+.inv-group-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;font-weight:700;font-size:14px;color:var(--cream)}
+.inv-group.done .inv-group-head{color:var(--success,#5ac878)}
+.inv-group-progress{font-size:12px;color:var(--cream-faint);font-weight:600}
+.inv-group-body{border-top:1px solid var(--line)}
+.inv-group-body.collapsed{display:none}
+.inv-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.inv-row:last-child{border-bottom:none}
+.inv-row.done{opacity:.55;background:rgba(90,200,120,.05)}
+.inv-row-name{font-size:13px;color:var(--cream);flex:1;min-width:0}
+.inv-row-ctrl{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.inv-row-ctrl input{width:64px;height:34px;border-radius:7px;border:1px solid var(--line-strong);background:var(--navy);color:var(--cream);text-align:center;font-size:14px}
+.inv-row-ctrl .unit{font-size:11px;color:var(--cream-faint);min-width:20px}
+.inv-zero-btn,.inv-confirm-btn{width:34px;height:34px;border-radius:7px;font-weight:700;font-size:14px;cursor:pointer}
+.inv-zero-btn{background:rgba(228,90,64,.12);color:var(--danger)}
+.inv-confirm-btn{background:rgba(90,200,120,.15);color:var(--success,#5ac878)}
 /* Left column: "à racheter" checkbox on top, "urgent" checkbox below — always same spot per line */
 .stock-row .stock-left{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
 .stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:12px;cursor:pointer;transition:all .15s}
@@ -3144,6 +3165,7 @@ function render(){
       if(route.id && route.action==='edit') html = renderStockEdit(route.id);
       else html = renderStock();
       break;
+    case 'inventory': html = renderInventory(); break;
     case 'contacts': html = renderContacts(); break;
     case 'notes': html = renderNotes(); break;
     case 'settings': html = renderSettings(); break;
@@ -4659,6 +4681,7 @@ function renderStock(){
       <h1>Stock & courses</h1>
       <div class="actions">
         ${isChef() ? `<button class="iconbtn ${bulkActive('stock')?'active':''}" data-bulk-toggle="stock" title="Sélection groupée" aria-label="Sélection groupée">☑</button>` : ''}
+        <button class="iconbtn" data-go="inventory" title="Mode inventaire" aria-label="Mode inventaire">📋</button>
         <button class="iconbtn" id="stockSyncBtn" title="Synchroniser maintenant" aria-label="Sync">↻</button>
         <button class="iconbtn" id="stockCompactBtn" title="${_stockCompact?'Vue détaillée':'Vue compacte'}" aria-label="Compacte/Détaillée">${_stockCompact?'⊞':'⊟'}</button>
         <button class="iconbtn" id="stockAddFab" aria-label="Ajouter un produit" title="Ajouter un produit">+</button>
@@ -4769,6 +4792,96 @@ function renderStock(){
   `;
 }
 
+function renderInventory(){
+  const session = state._inventorySession;
+  if(!session){
+    return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Inventaire</h1>
+      <div class="actions"></div>
+    </div>
+    <div class="view">
+      <div class="empty" style="margin-top:40px">
+        <div class="empty-ico">📋</div>
+        <p style="max-width:320px;margin:0 auto 18px">Compte ton stock étagère par étagère, sans rien oublier — même les produits à 0. Chaque produit doit être coché explicitement, y compris ceux qui ont un emplacement mais dont le bac est vide.</p>
+        <button class="btn btn-primary btn-block" data-inv-start style="max-width:320px;margin:0 auto">▶ Démarrer un inventaire</button>
+      </div>
+    </div>`;
+  }
+
+  const all = buildStockEntries();
+  const locs = getStockLocations();
+  const counted = session.counted || {};
+  const totalCount = all.length;
+  const countedCount = Object.keys(counted).length;
+  const pct = totalCount ? Math.round(countedCount/totalCount*100) : 0;
+
+  // Grouper par emplacement — tout ce qui n'a pas de "location" va dans un
+  // groupe "Sans emplacement" à part, bien visible, pour ne jamais l'oublier
+  // silencieusement.
+  const groups = locs.map(l => ({ key:l.key, label:l.label, items: [] }));
+  const unassigned = { key:'__none', label:'📦 Sans emplacement', items: [] };
+  all.forEach(s=>{
+    const g = groups.find(g=>g.key===s.location);
+    (g || unassigned).items.push(s);
+  });
+  groups.push(unassigned);
+  const nonEmptyGroups = groups.filter(g=>g.items.length);
+  // Groupes pas terminés en premier, pour guider la suite du comptage
+  nonEmptyGroups.sort((a,b)=>{
+    const ad = a.items.every(s=>counted[s.id]!==undefined);
+    const bd = b.items.every(s=>counted[s.id]!==undefined);
+    if(ad && !bd) return 1;
+    if(!ad && bd) return -1;
+    return 0;
+  });
+
+  const groupsHtml = nonEmptyGroups.map(g=>{
+    const done = g.items.filter(s=>counted[s.id]!==undefined).length;
+    const isDone = done === g.items.length;
+    const rows = g.items.slice().sort((a,b)=>getStockName(a).localeCompare(getStockName(b),'fr')).map(s=>{
+      const name = getStockName(s);
+      const c = counted[s.id];
+      const isCounted = c !== undefined;
+      const inputVal = isCounted ? c.qty : (s.qty!=null ? s.qty : '');
+      return `<div class="inv-row ${isCounted?'done':''}" data-inv-row="${s.id}">
+        <div class="inv-row-name">${isCounted?'✅ ':'⬜ '}${escHtml(name)}</div>
+        <div class="inv-row-ctrl">
+          <input type="number" inputmode="decimal" step="any" placeholder="—" value="${inputVal}" data-inv-input="${s.id}">
+          <span class="unit">${escHtml(s.unit||'')}</span>
+          <button type="button" class="inv-zero-btn" data-inv-zero="${s.id}" title="Marquer à 0">0</button>
+          <button type="button" class="inv-confirm-btn" data-inv-confirm="${s.id}" title="Valider ce comptage">✓</button>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="inv-group ${isDone?'done':''}" data-inv-group="${g.key}">
+      <div class="inv-group-head" data-accordion-inv="${g.key}">
+        <span>${isDone?'✅':'📍'} ${escHtml(g.label)}</span>
+        <span class="inv-group-progress">${done}/${g.items.length}</span>
+      </div>
+      <div class="inv-group-body ${isDone?'collapsed':''}">${rows}</div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="topbar">
+      <button class="back" data-back>‹</button>
+      <h1>Inventaire</h1>
+      <div class="actions">
+        <button class="iconbtn" data-inv-cancel title="Annuler l'inventaire" aria-label="Annuler">✕</button>
+      </div>
+    </div>
+    <div class="view">
+      <div class="inv-progress-bar">
+        <div class="inv-progress-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="inv-progress-label">${countedCount} / ${totalCount} produits comptés (${pct}%)</div>
+      ${groupsHtml}
+      <button class="btn btn-primary btn-block" data-inv-finish style="margin-top:20px">✅ Terminer l'inventaire</button>
+      <button class="btn btn-ghost btn-block" data-inv-cancel style="margin-top:8px">Annuler sans enregistrer</button>
+    </div>`;
+}
 function renderStockEdit(id){
   let s = (state.stock||[]).find(x=>x.id===id);
   let isVirtual = false;
@@ -7523,6 +7636,70 @@ function attachHandlers(){
     else render();
     persistNow().catch(err=>console.error('sync push', err));
   }));
+  // ── Mode Inventaire ──
+  const invStartBtn = $('[data-inv-start]');
+  if(invStartBtn) invStartBtn.addEventListener('click', async ()=>{
+    state._inventorySession = { startedAt: Date.now(), counted: {} };
+    await persist();
+    render();
+  });
+  $$('[data-inv-cancel]').forEach(b=>b.addEventListener('click', async ()=>{
+    if(!confirm('Annuler cet inventaire ? Les comptages effectués ne seront pas appliqués.')) return;
+    state._inventorySession = null;
+    await persist();
+    navigate('#stock');
+  }));
+  $$('[data-accordion-inv]').forEach(head=>head.addEventListener('click', ()=>{
+    const body = head.nextElementSibling;
+    if(body) body.classList.toggle('collapsed');
+  }));
+  function invConfirmRow(id){
+    if(!state._inventorySession) return;
+    const input = document.querySelector(`[data-inv-input="${id}"]`);
+    const raw = input ? input.value : '';
+    const qty = raw === '' ? null : parseFloat(raw);
+    state._inventorySession.counted[id] = { qty, countedAt: Date.now() };
+    persist();
+    render();
+  }
+  $$('[data-inv-confirm]').forEach(b=>b.addEventListener('click', ()=>{
+    invConfirmRow(b.getAttribute('data-inv-confirm'));
+  }));
+  $$('[data-inv-zero]').forEach(b=>b.addEventListener('click', ()=>{
+    const id = b.getAttribute('data-inv-zero');
+    const input = document.querySelector(`[data-inv-input="${id}"]`);
+    if(input) input.value = '0';
+    invConfirmRow(id);
+  }));
+  $$('[data-inv-input]').forEach(inp=>inp.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); invConfirmRow(inp.getAttribute('data-inv-input')); }
+  }));
+  const invFinishBtn = $('[data-inv-finish]');
+  if(invFinishBtn) invFinishBtn.addEventListener('click', async ()=>{
+    const session = state._inventorySession;
+    if(!session) return;
+    const all = buildStockEntries();
+    const counted = session.counted || {};
+    const countedIds = Object.keys(counted);
+    const uncounted = all.filter(s=>counted[s.id]===undefined);
+    if(uncounted.length > 0){
+      const names = uncounted.slice(0,8).map(s=>getStockName(s)).join(', ');
+      const more = uncounted.length > 8 ? ` (+${uncounted.length-8} autres)` : '';
+      if(!confirm(`${uncounted.length} produit(s) pas encore compté(s) : ${names}${more}.\n\nTerminer quand même ? Les produits non comptés garderont leur quantité actuelle.`)) return;
+    }
+    countedIds.forEach(id=>{
+      const rec = getOrCreateStockRecord(id);
+      if(!rec) return;
+      rec.qty = counted[id].qty;
+      rec.updatedAt = Date.now();
+      syncUrgentWithRestock(rec);
+    });
+    state._inventorySession = null;
+    await persistNow();
+    toast(countedIds.length+' produit(s) mis à jour par l\'inventaire');
+    navigate('#stock');
+  });
+
   // Stock add form (custom non-ingredient products)
   const stockForm = $('#stockForm');
   if(stockForm){
