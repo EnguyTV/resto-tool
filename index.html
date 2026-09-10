@@ -690,6 +690,24 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .inv-zero-btn,.inv-confirm-btn{width:34px;height:34px;border-radius:7px;font-weight:700;font-size:14px;cursor:pointer}
 .inv-zero-btn{background:rgba(228,90,64,.12);color:var(--danger)}
 .inv-confirm-btn{background:rgba(90,200,120,.15);color:var(--success,#5ac878)}
+.inv-zone-tabs{display:flex;gap:8px;margin-bottom:16px}
+.inv-zone-tab{flex:1;padding:12px;border-radius:10px;border:1px solid var(--line-strong);background:var(--navy-2);color:var(--cream-dim);font-weight:700;font-size:13px;cursor:pointer;transition:all .15s}
+.inv-zone-tab.active{background:rgba(228,162,9,.15);border-color:var(--gold);color:var(--gold)}
+.inv-shelf-grid{display:grid;gap:10px}
+.inv-shelf-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:16px 8px;border-radius:12px;border:2px solid var(--line-strong);background:var(--navy-2);cursor:pointer;min-height:88px;transition:all .15s}
+.inv-shelf-card.done{border-color:rgba(90,200,120,.5);background:rgba(90,200,120,.06)}
+.inv-shelf-ico{font-size:22px}
+.inv-shelf-name{font-size:12px;font-weight:700;color:var(--cream);text-align:center;line-height:1.25}
+.inv-shelf-count{font-size:11px;color:var(--cream-faint);font-weight:600}
+.inv-shelf-card.done .inv-shelf-count{color:var(--success,#5ac878)}
+.inv-shelf-progress{text-align:center;font-size:12px;color:var(--cream-dim);margin-bottom:12px;font-weight:600}
+.dynamic-item-loc{border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px;background:var(--navy-2)}
+.dynamic-item-loc .ing-name-i{width:100%;margin-bottom:8px}
+.loc-edit-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.loc-zone-toggle{display:flex;gap:4px}
+.zone-chip{padding:6px 9px;border-radius:6px;border:1px solid var(--line-strong);background:var(--navy);color:var(--cream-faint);font-size:11px;font-weight:600;cursor:pointer}
+.zone-chip.active{background:rgba(228,162,9,.15);border-color:var(--gold);color:var(--gold)}
+.loc-pos-i{width:52px;height:32px;border-radius:6px;border:1px solid var(--line-strong);background:var(--navy);color:var(--cream);text-align:center;font-size:12px}
 /* Left column: "à racheter" checkbox on top, "urgent" checkbox below — always same spot per line */
 .stock-row .stock-left{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
 .stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:12px;cursor:pointer;transition:all .15s}
@@ -4459,34 +4477,40 @@ function getShopZones(){
   return out;
 }
 
-function getStockCategories(){
-  const custom = (state && state.settings && state.settings.customStockCategories) || [];
-  const seen = new Set();
-  const out = [];
-  DEFAULT_STOCK_CATEGORIES.forEach(c=>{
-    if(c.key==='autre') return;
-    if(!seen.has(c.key)){ seen.add(c.key); out.push(c); }
-  });
-  custom.forEach(c=>{
-    if(!c.key || seen.has(c.key)) return;
-    seen.add(c.key); out.push({key:c.key, label:c.label});
-  });
-  out.push(DEFAULT_STOCK_CATEGORIES.find(c=>c.key==='autre'));
-  return out;
-}
+// Migration unique : les catégories/emplacements "par défaut" (autrefois en
+// dur, non modifiables) deviennent des entrées normales et éditables. Les
+// clés restent identiques donc rien ne casse pour les produits déjà classés.
+function ensureStockTaxonomyMigrated(){
+  if(!state.settings) state.settings = {};
+  if(state.settings._taxonomyMigratedV2) return;
+  const existingCats = state.settings.customStockCategories || [];
+  const existingCatKeys = new Set(existingCats.map(c=>c.key));
+  const seededCats = DEFAULT_STOCK_CATEGORIES.filter(c=>!existingCatKeys.has(c.key));
+  state.settings.customStockCategories = [...seededCats, ...existingCats];
 
-function getStockLocations(){
-  const custom = (state && state.settings && state.settings.customStockLocations) || [];
-  const seen = new Set();
-  const out = [];
-  DEFAULT_STOCK_LOCATIONS.forEach(c=>{
-    if(!seen.has(c.key)){ seen.add(c.key); out.push(c); }
-  });
-  custom.forEach(c=>{
-    if(!c.key || seen.has(c.key)) return;
-    seen.add(c.key); out.push({key:c.key, label:c.label});
-  });
-  return out;
+  const existingLocs = state.settings.customStockLocations || [];
+  const existingLocKeys = new Set(existingLocs.map(l=>l.key));
+  const seededLocs = DEFAULT_STOCK_LOCATIONS
+    .filter(l=>!existingLocKeys.has(l.key))
+    .map((l,i)=>({ ...l, zone:'restaurant', row:i, col:0 }));
+  state.settings.customStockLocations = [
+    ...seededLocs,
+    ...existingLocs.map((l,i)=>({ zone:'restaurant', row: seededLocs.length+i, col:0, ...l }))
+  ];
+  state.settings._taxonomyMigratedV2 = true;
+}
+function getStockCategories(){
+  ensureStockTaxonomyMigrated();
+  const list = state.settings.customStockCategories || [];
+  // "Autre" (fourre-tout) toujours en dernier, pratique et attendu
+  const autre = list.find(c=>c.key==='autre');
+  const rest = list.filter(c=>c.key!=='autre');
+  return autre ? [...rest, autre] : rest;
+}
+function getStockLocations(zone){
+  ensureStockTaxonomyMigrated();
+  const list = state.settings.customStockLocations || [];
+  return zone ? list.filter(l=>(l.zone||'restaurant')===zone) : list;
 }
 
 function buildStockEntries(){
@@ -4792,6 +4816,8 @@ function renderStock(){
   `;
 }
 
+let _inventoryZone = 'restaurant';
+let _inventoryOpenShelf = null;
 function renderInventory(){
   const session = state._inventorySession;
   if(!session){
@@ -4811,73 +4837,91 @@ function renderInventory(){
   }
 
   const all = buildStockEntries();
-  const locs = getStockLocations();
   const counted = session.counted || {};
   const totalCount = all.length;
   const countedCount = Object.keys(counted).length;
   const pct = totalCount ? Math.round(countedCount/totalCount*100) : 0;
+  const topBarActions = `<div class="actions"><button class="iconbtn" data-inv-cancel title="Annuler l'inventaire" aria-label="Annuler">✕</button></div>`;
+  const progressHtml = `
+      <div class="inv-progress-bar"><div class="inv-progress-fill" style="width:${pct}%"></div></div>
+      <div class="inv-progress-label">${countedCount} / ${totalCount} produits comptés (${pct}%)</div>`;
 
-  // Grouper par emplacement — tout ce qui n'a pas de "location" va dans un
-  // groupe "Sans emplacement" à part, bien visible, pour ne jamais l'oublier
-  // silencieusement.
-  const groups = locs.map(l => ({ key:l.key, label:l.label, items: [] }));
-  const unassigned = { key:'__none', label:'📦 Sans emplacement', items: [] };
+  // Répartir tous les produits sur les emplacements des DEUX zones + "sans emplacement"
+  const allLocs = getStockLocations();
+  const byKey = {};
+  allLocs.forEach(l=>{ byKey[l.key] = { ...l, items: [] }; });
+  const unassigned = { key:'__none', label:'📦 Sans emplacement', zone:'restaurant', row:999, col:0, items: [] };
   all.forEach(s=>{
-    const g = groups.find(g=>g.key===s.location);
+    const g = byKey[s.location];
     (g || unassigned).items.push(s);
   });
-  groups.push(unassigned);
-  const nonEmptyGroups = groups.filter(g=>g.items.length);
-  // Groupes pas terminés en premier, pour guider la suite du comptage
-  nonEmptyGroups.sort((a,b)=>{
-    const ad = a.items.every(s=>counted[s.id]!==undefined);
-    const bd = b.items.every(s=>counted[s.id]!==undefined);
-    if(ad && !bd) return 1;
-    if(!ad && bd) return -1;
-    return 0;
-  });
 
-  const groupsHtml = nonEmptyGroups.map(g=>{
-    const done = g.items.filter(s=>counted[s.id]!==undefined).length;
-    const isDone = done === g.items.length;
-    const rows = g.items.slice().sort((a,b)=>getStockName(a).localeCompare(getStockName(b),'fr')).map(s=>{
-      const name = getStockName(s);
-      const c = counted[s.id];
-      const isCounted = c !== undefined;
-      const inputVal = isCounted ? c.qty : (s.qty!=null ? s.qty : '');
-      return `<div class="inv-row ${isCounted?'done':''}" data-inv-row="${s.id}">
-        <div class="inv-row-name">${isCounted?'✅ ':'⬜ '}${escHtml(name)}</div>
-        <div class="inv-row-ctrl">
-          <input type="number" inputmode="decimal" step="any" placeholder="—" value="${inputVal}" data-inv-input="${s.id}">
-          <span class="unit">${escHtml(s.unit||'')}</span>
-          <button type="button" class="inv-zero-btn" data-inv-zero="${s.id}" title="Marquer à 0">0</button>
-          <button type="button" class="inv-confirm-btn" data-inv-confirm="${s.id}" title="Valider ce comptage">✓</button>
+  // ── Vue "étagère ouverte" : la checklist d'un seul emplacement ──
+  if(_inventoryOpenShelf){
+    const g = _inventoryOpenShelf==='__none' ? unassigned : byKey[_inventoryOpenShelf];
+    if(!g) _inventoryOpenShelf = null;
+    else{
+      const done = g.items.filter(s=>counted[s.id]!==undefined).length;
+      const rows = g.items.slice().sort((a,b)=>getStockName(a).localeCompare(getStockName(b),'fr')).map(s=>{
+        const name = getStockName(s);
+        const c = counted[s.id];
+        const isCounted = c !== undefined;
+        const inputVal = isCounted ? c.qty : (s.qty!=null ? s.qty : '');
+        return `<div class="inv-row ${isCounted?'done':''}" data-inv-row="${s.id}">
+          <div class="inv-row-name">${isCounted?'✅ ':'⬜ '}${escHtml(name)}</div>
+          <div class="inv-row-ctrl">
+            <input type="number" inputmode="decimal" step="any" placeholder="—" value="${inputVal}" data-inv-input="${s.id}">
+            <span class="unit">${escHtml(s.unit||'')}</span>
+            <button type="button" class="inv-zero-btn" data-inv-zero="${s.id}" title="Marquer à 0">0</button>
+            <button type="button" class="inv-confirm-btn" data-inv-confirm="${s.id}" title="Valider ce comptage">✓</button>
+          </div>
+        </div>`;
+      }).join('');
+      return `
+        <div class="topbar">
+          <button class="back" data-inv-back-shelf>‹</button>
+          <h1>${escHtml(g.label)}</h1>
+          ${topBarActions}
         </div>
-      </div>`;
-    }).join('');
-    return `<div class="inv-group ${isDone?'done':''}" data-inv-group="${g.key}">
-      <div class="inv-group-head" data-accordion-inv="${g.key}">
-        <span>${isDone?'✅':'📍'} ${escHtml(g.label)}</span>
-        <span class="inv-group-progress">${done}/${g.items.length}</span>
-      </div>
-      <div class="inv-group-body ${isDone?'collapsed':''}">${rows}</div>
-    </div>`;
+        <div class="view">
+          ${progressHtml}
+          <div class="inv-shelf-progress">${done}/${g.items.length} comptés sur cette étagère</div>
+          <div class="inv-group done-${done===g.items.length}">${rows || '<div class="empty" style="padding:20px 0">Aucun produit ici.</div>'}</div>
+          <button class="btn btn-primary btn-block" data-inv-finish style="margin-top:20px">✅ Terminer l'inventaire</button>
+        </div>`;
+    }
+  }
+
+  // ── Vue grille : la carte des étagères de la zone active ──
+  const zoneLocs = allLocs.filter(l=>(l.zone||'restaurant')===_inventoryZone);
+  const cards = zoneLocs.map(l=>byKey[l.key]).filter(g=>g.items.length);
+  if(_inventoryZone==='restaurant') cards.push(unassigned); // toujours visible côté restaurant
+  const maxRow = Math.max(1, ...cards.map(c=>(c.row||0)+1));
+  const maxCol = Math.max(1, ...cards.map(c=>(c.col||0)+1));
+  const cardsHtml = cards.map(g=>{
+    const done = g.items.filter(s=>counted[s.id]!==undefined).length;
+    const isDone = g.items.length>0 && done===g.items.length;
+    return `<button type="button" class="inv-shelf-card ${isDone?'done':''}" data-inv-open-shelf="${g.key}"
+      style="grid-row:${(g.row||0)+1};grid-column:${(g.col||0)+1}">
+      <div class="inv-shelf-ico">${isDone?'✅':'📍'}</div>
+      <div class="inv-shelf-name">${escHtml(g.label)}</div>
+      <div class="inv-shelf-count">${done}/${g.items.length}</div>
+    </button>`;
   }).join('');
 
   return `
     <div class="topbar">
       <button class="back" data-back>‹</button>
       <h1>Inventaire</h1>
-      <div class="actions">
-        <button class="iconbtn" data-inv-cancel title="Annuler l'inventaire" aria-label="Annuler">✕</button>
-      </div>
+      ${topBarActions}
     </div>
     <div class="view">
-      <div class="inv-progress-bar">
-        <div class="inv-progress-fill" style="width:${pct}%"></div>
+      ${progressHtml}
+      <div class="inv-zone-tabs">
+        <button type="button" class="inv-zone-tab ${_inventoryZone==='restaurant'?'active':''}" data-inv-zone="restaurant">🍽️ Restaurant</button>
+        <button type="button" class="inv-zone-tab ${_inventoryZone==='magasin'?'active':''}" data-inv-zone="magasin">🏬 Magasin</button>
       </div>
-      <div class="inv-progress-label">${countedCount} / ${totalCount} produits comptés (${pct}%)</div>
-      ${groupsHtml}
+      ${cards.length ? `<div class="inv-shelf-grid" style="grid-template-rows:repeat(${maxRow},auto);grid-template-columns:repeat(${maxCol},1fr)">${cardsHtml}</div>` : `<div class="empty" style="margin-top:20px">Aucun emplacement dans cette zone pour l'instant.</div>`}
       <button class="btn btn-primary btn-block" data-inv-finish style="margin-top:20px">✅ Terminer l'inventaire</button>
       <button class="btn btn-ghost btn-block" data-inv-cancel style="margin-top:8px">Annuler sans enregistrer</button>
     </div>`;
@@ -5628,9 +5672,9 @@ function renderSettings(){
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
             <div class="sg-head" style="margin-bottom:10px">🏷 Catégories — Stock (produits)</div>
-            <div class="muted" style="margin-bottom:8px;font-size:11px">Catégories pour classer les produits du stock (épice, viande, emballage…).</div>
+            <div class="muted" style="margin-bottom:8px;font-size:11px">Catégories pour classer les produits du stock (épice, viande, emballage…). Renommer une catégorie ne touche pas les produits déjà classés dedans.</div>
             <div class="dynamic-list" id="stockCatsList">
-              ${(state.settings.customStockCategories||[]).map((c,i)=>`<div class="dynamic-item" data-stockcat-row="${i}">
+              ${getStockCategories().map((c,i)=>`<div class="dynamic-item" data-stockcat-row="${i}" data-stockcat-key="${escHtml(c.key)}">
                 <input class="ing-name-i" name="stockcat_name" value="${escHtml(c.label)}" placeholder="Ex: 🥫 Conserve">
                 <button type="button" class="rm" data-rm-stockcat>×</button>
               </div>`).join('')}
@@ -5641,11 +5685,20 @@ function renderSettings(){
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
             <div class="sg-head" style="margin-bottom:10px">📍 Emplacements — Stock</div>
-            <div class="muted" style="margin-bottom:8px;font-size:11px">Lieux de stockage (frigo, congélateur, cave…).</div>
+            <div class="muted" style="margin-bottom:8px;font-size:11px">Lieux de stockage (frigo, congélateur, cave…). Zone = où compter ce lieu dans le mode Inventaire. Ligne/Colonne = sa position sur la carte visuelle, pour reproduire l'agencement réel. Renommer un emplacement ne touche pas les produits déjà classés dedans.</div>
             <div class="dynamic-list" id="stockLocsList">
-              ${(state.settings.customStockLocations||[]).map((l,i)=>`<div class="dynamic-item" data-stockloc-row="${i}">
+              ${getStockLocations().map((l,i)=>`<div class="dynamic-item-loc" data-stockloc-row="${i}" data-stockloc-key="${escHtml(l.key)}">
                 <input class="ing-name-i" name="stockloc_name" value="${escHtml(l.label)}" placeholder="Ex: 🧊 Bac réfrigéré">
-                <button type="button" class="rm" data-rm-stockloc>×</button>
+                <div class="loc-edit-row">
+                  <div class="loc-zone-toggle">
+                    <button type="button" class="zone-chip ${(l.zone||'restaurant')==='restaurant'?'active':''}" data-zone-choice="restaurant">🍽️ Resto</button>
+                    <button type="button" class="zone-chip ${l.zone==='magasin'?'active':''}" data-zone-choice="magasin">🏬 Magasin</button>
+                  </div>
+                  <input type="hidden" name="stockloc_zone" value="${l.zone==='magasin'?'magasin':'restaurant'}">
+                  <input type="number" class="loc-pos-i" name="stockloc_row" value="${l.row||0}" title="Ligne (position verticale)" placeholder="Ligne">
+                  <input type="number" class="loc-pos-i" name="stockloc_col" value="${l.col||0}" title="Colonne (position horizontale)" placeholder="Col.">
+                  <button type="button" class="rm" data-rm-stockloc>×</button>
+                </div>
               </div>`).join('')}
             </div>
             <button type="button" class="add-btn" id="addStockLocBtn">+ Ajouter un emplacement</button>
@@ -6729,7 +6782,7 @@ function bindCategoriesHandlers(){
   if(addStockCatBtn && stockCatsList){
     addStockCatBtn.addEventListener('click',()=>{
       const div = document.createElement('div');
-      div.innerHTML = `<div class="dynamic-item"><input class="ing-name-i" name="stockcat_name" placeholder="Ex: 🥫 Conserve"><button type="button" class="rm" data-rm-stockcat>×</button></div>`;
+      div.innerHTML = `<div class="dynamic-item" data-stockcat-key=""><input class="ing-name-i" name="stockcat_name" placeholder="Ex: 🥫 Conserve"><button type="button" class="rm" data-rm-stockcat>×</button></div>`;
       const el = div.firstElementChild;
       stockCatsList.appendChild(el);
       el.querySelector('[data-rm-stockcat]').addEventListener('click',()=>el.remove());
@@ -6738,11 +6791,14 @@ function bindCategoriesHandlers(){
   }
   if(saveStockCatsBtn){
     saveStockCatsBtn.addEventListener('click',async()=>{
-      const cats = $$('#stockCatsList input[name="stockcat_name"]').map(i=>i.value.trim()).filter(Boolean);
-      state.settings.customStockCategories = cats.map(label=>{
-        const slug = label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,30) || ('sc_'+Date.now().toString(36).slice(-4));
-        return {key:slug, label};
-      });
+      const rows = $$('#stockCatsList .dynamic-item');
+      state.settings.customStockCategories = rows.map(row=>{
+        const label = row.querySelector('input[name="stockcat_name"]').value.trim();
+        if(!label) return null;
+        const existingKey = row.getAttribute('data-stockcat-key');
+        const key = existingKey || (label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,30) || ('sc_'+Date.now().toString(36).slice(-4)));
+        return {key, label};
+      }).filter(Boolean);
       await persist(); toast('Catégories stock enregistrées'); render();
     });
   }
@@ -6752,25 +6808,55 @@ function bindCategoriesHandlers(){
   const addStockLocBtn = $('#addStockLocBtn');
   const saveStockLocsBtn = $('#saveStockLocsBtn');
   if(stockLocsList){
-    stockLocsList.querySelectorAll('[data-rm-stockloc]').forEach(b=>b.addEventListener('click',()=>b.closest('.dynamic-item').remove()));
+    stockLocsList.querySelectorAll('[data-rm-stockloc]').forEach(b=>b.addEventListener('click',()=>b.closest('.dynamic-item-loc').remove()));
+    stockLocsList.querySelectorAll('[data-zone-choice]').forEach(b=>b.addEventListener('click',()=>{
+      const row = b.closest('.dynamic-item-loc');
+      row.querySelectorAll('[data-zone-choice]').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      row.querySelector('input[name="stockloc_zone"]').value = b.getAttribute('data-zone-choice');
+    }));
   }
   if(addStockLocBtn && stockLocsList){
     addStockLocBtn.addEventListener('click',()=>{
       const div = document.createElement('div');
-      div.innerHTML = `<div class="dynamic-item"><input class="ing-name-i" name="stockloc_name" placeholder="Ex: 🧊 Bac réfrigéré"><button type="button" class="rm" data-rm-stockloc>×</button></div>`;
+      const nextRow = stockLocsList.children.length;
+      div.innerHTML = `<div class="dynamic-item-loc" data-stockloc-key="">
+        <input class="ing-name-i" name="stockloc_name" placeholder="Ex: 🧊 Bac réfrigéré">
+        <div class="loc-edit-row">
+          <div class="loc-zone-toggle">
+            <button type="button" class="zone-chip active" data-zone-choice="restaurant">🍽️ Resto</button>
+            <button type="button" class="zone-chip" data-zone-choice="magasin">🏬 Magasin</button>
+          </div>
+          <input type="hidden" name="stockloc_zone" value="restaurant">
+          <input type="number" class="loc-pos-i" name="stockloc_row" value="${nextRow}" title="Ligne" placeholder="Ligne">
+          <input type="number" class="loc-pos-i" name="stockloc_col" value="0" title="Colonne" placeholder="Col.">
+          <button type="button" class="rm" data-rm-stockloc>×</button>
+        </div>
+      </div>`;
       const el = div.firstElementChild;
       stockLocsList.appendChild(el);
       el.querySelector('[data-rm-stockloc]').addEventListener('click',()=>el.remove());
-      el.querySelector('input').focus();
+      el.querySelectorAll('[data-zone-choice]').forEach(b=>b.addEventListener('click',()=>{
+        el.querySelectorAll('[data-zone-choice]').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');
+        el.querySelector('input[name="stockloc_zone"]').value = b.getAttribute('data-zone-choice');
+      }));
+      el.querySelector('input[name="stockloc_name"]').focus();
     });
   }
   if(saveStockLocsBtn){
     saveStockLocsBtn.addEventListener('click',async()=>{
-      const locs = $$('#stockLocsList input[name="stockloc_name"]').map(i=>i.value.trim()).filter(Boolean);
-      state.settings.customStockLocations = locs.map(label=>{
-        const slug = label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,30) || ('sl_'+Date.now().toString(36).slice(-4));
-        return {key:slug, label};
-      });
+      const rows = $$('#stockLocsList .dynamic-item-loc');
+      state.settings.customStockLocations = rows.map(row=>{
+        const label = row.querySelector('input[name="stockloc_name"]').value.trim();
+        if(!label) return null;
+        const existingKey = row.getAttribute('data-stockloc-key');
+        const key = existingKey || (label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,30) || ('sl_'+Date.now().toString(36).slice(-4)));
+        const zone = row.querySelector('input[name="stockloc_zone"]').value === 'magasin' ? 'magasin' : 'restaurant';
+        const rowPos = parseInt(row.querySelector('input[name="stockloc_row"]').value, 10) || 0;
+        const colPos = parseInt(row.querySelector('input[name="stockloc_col"]').value, 10) || 0;
+        return {key, label, zone, row: rowPos, col: colPos};
+      }).filter(Boolean);
       await persist(); toast('Emplacements enregistrés'); render();
     });
   }
@@ -7640,18 +7726,29 @@ function attachHandlers(){
   const invStartBtn = $('[data-inv-start]');
   if(invStartBtn) invStartBtn.addEventListener('click', async ()=>{
     state._inventorySession = { startedAt: Date.now(), counted: {} };
+    _inventoryZone = 'restaurant';
+    _inventoryOpenShelf = null;
     await persist();
     render();
   });
   $$('[data-inv-cancel]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('Annuler cet inventaire ? Les comptages effectués ne seront pas appliqués.')) return;
     state._inventorySession = null;
+    _inventoryOpenShelf = null;
     await persist();
     navigate('#stock');
   }));
-  $$('[data-accordion-inv]').forEach(head=>head.addEventListener('click', ()=>{
-    const body = head.nextElementSibling;
-    if(body) body.classList.toggle('collapsed');
+  $$('[data-inv-zone]').forEach(b=>b.addEventListener('click', ()=>{
+    _inventoryZone = b.getAttribute('data-inv-zone');
+    render();
+  }));
+  $$('[data-inv-open-shelf]').forEach(b=>b.addEventListener('click', ()=>{
+    _inventoryOpenShelf = b.getAttribute('data-inv-open-shelf');
+    render();
+  }));
+  $$('[data-inv-back-shelf]').forEach(b=>b.addEventListener('click', ()=>{
+    _inventoryOpenShelf = null;
+    render();
   }));
   function invConfirmRow(id){
     if(!state._inventorySession) return;
@@ -7695,6 +7792,7 @@ function attachHandlers(){
       syncUrgentWithRestock(rec);
     });
     state._inventorySession = null;
+    _inventoryOpenShelf = null;
     await persistNow();
     toast(countedIds.length+' produit(s) mis à jour par l\'inventaire');
     navigate('#stock');
@@ -8973,6 +9071,8 @@ async function init(){
   if(!loaded.restaurants || !loaded.restaurants.length) loaded.restaurants = [{id:'r_main', name:'Mexy Fresh by TheLab'}];
 
   state = loaded;
+  ensureStockTaxonomyMigrated();
+  persist();
   if('scrollRestoration' in history) history.scrollRestoration = 'manual';
   window.addEventListener('hashchange',render);
   render();
