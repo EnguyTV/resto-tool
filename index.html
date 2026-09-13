@@ -701,6 +701,8 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .inv-shelf-count{font-size:11px;color:var(--cream-faint);font-weight:600}
 .inv-shelf-card.done .inv-shelf-count{color:var(--success,#5ac878)}
 .inv-shelf-progress{text-align:center;font-size:12px;color:var(--cream-dim);margin-bottom:12px;font-weight:600}
+.inv-room-picker{display:flex;flex-direction:column;gap:8px}
+.inv-room-pick{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-radius:10px;border:1px solid var(--line-strong);background:var(--navy-2);color:var(--cream);font-weight:700;font-size:14px;cursor:pointer}
 .dynamic-item-loc{border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px;background:var(--navy-2)}
 .dynamic-item-loc .ing-name-i{width:100%;margin-bottom:8px}
 .loc-edit-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
@@ -708,6 +710,23 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .zone-chip{padding:6px 9px;border-radius:6px;border:1px solid var(--line-strong);background:var(--navy);color:var(--cream-faint);font-size:11px;font-weight:600;cursor:pointer}
 .zone-chip.active{background:rgba(228,162,9,.15);border-color:var(--gold);color:var(--gold)}
 .loc-pos-i{width:52px;height:32px;border-radius:6px;border:1px solid var(--line-strong);background:var(--navy);color:var(--cream);text-align:center;font-size:12px}
+.plan-room-tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px}
+.plan-room-tab{flex-shrink:0;padding:9px 14px;border-radius:9px;border:1px solid var(--line-strong);background:var(--navy-2);color:var(--cream-dim);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap}
+.plan-room-tab.active{background:rgba(228,162,9,.15);border-color:var(--gold);color:var(--gold)}
+.plan-room-controls{background:var(--navy-2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px}
+.plan-room-controls input[type="text"]{width:100%;height:38px;border-radius:8px;border:1px solid var(--line-strong);background:var(--navy);color:var(--cream);padding:0 10px;font-size:13px}
+.plan-size-controls{display:flex;gap:14px;margin-top:10px}
+.plan-size-controls label{font-size:11px;color:var(--cream-faint);display:flex;flex-direction:column;gap:4px}
+.plan-size-controls input{width:60px;height:32px;border-radius:6px;border:1px solid var(--line-strong);background:var(--navy);color:var(--cream);text-align:center}
+.plan-palette{margin-bottom:14px;border:1px dashed var(--line-strong);border-radius:10px;padding:10px}
+.plan-palette-label{font-size:11px;color:var(--cream-faint);margin-bottom:8px;font-weight:600}
+.plan-palette-chips{display:flex;flex-wrap:wrap;gap:8px}
+.plan-grid{display:grid;gap:4px;background:var(--navy);border:1px solid var(--line);border-radius:10px;padding:6px;touch-action:none}
+.plan-cell{border:1px dashed var(--line-strong);border-radius:6px;display:flex;align-items:center;justify-content:center;min-width:0;transition:background .1s}
+.plan-cell.drag-over{background:rgba(228,162,9,.18);border-color:var(--gold)}
+.plan-chip{background:var(--navy-2);border:1px solid var(--line-strong);border-radius:7px;padding:6px 8px;font-size:10px;font-weight:700;color:var(--cream);cursor:grab;touch-action:none;text-align:center;line-height:1.2;user-select:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plan-chip.unplaced{background:rgba(228,162,9,.1);border-color:var(--gold)}
+.plan-chip.dragging{opacity:.85;box-shadow:0 6px 18px rgba(0,0,0,.4);cursor:grabbing}
 /* Left column: "à racheter" checkbox on top, "urgent" checkbox below — always same spot per line */
 .stock-row .stock-left{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
 .stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:12px;cursor:pointer;transition:all .15s}
@@ -1206,9 +1225,11 @@ function applyLibraryFromCloud(lib){
   state.notifications = lib.notifications || [];
   const mergedCats = mergeTaxonomy(state.settings && state.settings.customStockCategories, lib.settings && lib.settings.customStockCategories);
   const mergedLocs = mergeTaxonomy(state.settings && state.settings.customStockLocations, lib.settings && lib.settings.customStockLocations);
+  const mergedRooms = mergeTaxonomy(state.settings && state.settings.stockRooms, lib.settings && lib.settings.stockRooms);
   state.settings = Object.assign(state.settings||{}, lib.settings||{});
   state.settings.customStockCategories = mergedCats;
   state.settings.customStockLocations = mergedLocs;
+  state.settings.stockRooms = mergedRooms;
   // Tasks: replace definitions, preserve local done state by id
   const preservedDone = {};
   (state.tasks||[]).forEach(t => { if(t.done) preservedDone[t.id] = true; });
@@ -3205,6 +3226,7 @@ function render(){
       else html = renderStock();
       break;
     case 'inventory': html = renderInventory(); break;
+    case 'stockplan': html = renderStockPlan(); break;
     case 'contacts': html = renderContacts(); break;
     case 'notes': html = renderNotes(); break;
     case 'settings': html = renderSettings(); break;
@@ -4521,6 +4543,37 @@ function ensureStockTaxonomyMigrated(){
   if(missingLocs.length) state.settings.customStockLocations = [...missingLocs, ...existingLocs];
   state.settings._taxonomyMigratedV2 = true;
 }
+// "Pièces" = plans/grilles nommés (une pièce du resto, un magasin précis…).
+// Chaque emplacement appartient à une pièce et a une position (row,col) dans
+// la grille de CETTE pièce. Additif et idempotent, comme la fonction ci-dessus.
+function ensureStockRoomsMigrated(){
+  ensureStockTaxonomyMigrated();
+  if(!state.settings.stockRooms) state.settings.stockRooms = [];
+  const rooms = state.settings.stockRooms;
+  const zonesInUse = new Set((state.settings.customStockLocations||[]).map(l=>l.zone||'restaurant'));
+  zonesInUse.add('restaurant');
+  zonesInUse.forEach(zone=>{
+    if(!rooms.some(r=>r.zone===zone)){
+      rooms.push({ key: uid('room'), name: zone==='magasin' ? 'Magasin principal' : 'Restaurant', zone, rows:6, cols:6, updatedAt: Date.now() });
+    }
+  });
+  (state.settings.customStockLocations||[]).forEach(l=>{
+    if(!l.roomId || !rooms.some(r=>r.key===l.roomId)){
+      const zone = l.zone||'restaurant';
+      const room = rooms.find(r=>r.zone===zone) || rooms[0];
+      l.roomId = room.key;
+      if(l.row==null) l.row = 0;
+      if(l.col==null) l.col = 0;
+      l.row = Math.min(l.row, room.rows-1);
+      l.col = Math.min(l.col, room.cols-1);
+    }
+  });
+}
+function getStockRooms(zone){
+  ensureStockRoomsMigrated();
+  const list = state.settings.stockRooms || [];
+  return zone ? list.filter(r=>r.zone===zone) : list;
+}
 function getStockCategories(){
   ensureStockTaxonomyMigrated();
   const list = state.settings.customStockCategories || [];
@@ -4530,7 +4583,7 @@ function getStockCategories(){
   return autre ? [...rest, autre] : rest;
 }
 function getStockLocations(zone){
-  ensureStockTaxonomyMigrated();
+  ensureStockRoomsMigrated();
   const list = state.settings.customStockLocations || [];
   return zone ? list.filter(l=>(l.zone||'restaurant')===zone) : list;
 }
@@ -4839,6 +4892,7 @@ function renderStock(){
 }
 
 let _inventoryZone = 'restaurant';
+let _inventoryRoomKey = null;
 let _inventoryOpenShelf = null;
 function renderInventory(){
   const session = state._inventorySession;
@@ -4868,11 +4922,10 @@ function renderInventory(){
       <div class="inv-progress-bar"><div class="inv-progress-fill" style="width:${pct}%"></div></div>
       <div class="inv-progress-label">${countedCount} / ${totalCount} produits comptés (${pct}%)</div>`;
 
-  // Répartir tous les produits sur les emplacements des DEUX zones + "sans emplacement"
   const allLocs = getStockLocations();
   const byKey = {};
   allLocs.forEach(l=>{ byKey[l.key] = { ...l, items: [] }; });
-  const unassigned = { key:'__none', label:'📦 Sans emplacement', zone:'restaurant', row:999, col:0, items: [] };
+  const unassigned = { key:'__none', label:'📦 Sans emplacement', items: [] };
   all.forEach(s=>{
     const g = byKey[s.location];
     (g || unassigned).items.push(s);
@@ -4914,22 +4967,59 @@ function renderInventory(){
     }
   }
 
-  // ── Vue grille : la carte des étagères de la zone active ──
-  const zoneLocs = allLocs.filter(l=>(l.zone||'restaurant')===_inventoryZone);
-  const cards = zoneLocs.map(l=>byKey[l.key]).filter(g=>g.items.length);
-  if(_inventoryZone==='restaurant') cards.push(unassigned); // toujours visible côté restaurant
-  const maxRow = Math.max(1, ...cards.map(c=>(c.row||0)+1));
-  const maxCol = Math.max(1, ...cards.map(c=>(c.col||0)+1));
+  const zoneRooms = getStockRooms(_inventoryZone);
+  if(zoneRooms.length <= 1 && !_inventoryRoomKey) _inventoryRoomKey = zoneRooms[0] ? zoneRooms[0].key : null;
+  const currentRoom = zoneRooms.find(r=>r.key===_inventoryRoomKey) || null;
+
+  // ── Sélecteur de pièce/magasin : nécessaire dès qu'une zone a plusieurs pièces ──
+  if(!currentRoom && zoneRooms.length > 1){
+    const roomListHtml = zoneRooms.map(r=>{
+      const locsHere = allLocs.filter(l=>l.roomId===r.key);
+      const itemsHere = locsHere.flatMap(l=>byKey[l.key].items);
+      const done = itemsHere.filter(s=>counted[s.id]!==undefined).length;
+      return `<button type="button" class="inv-room-pick" data-inv-pick-room="${escHtml(r.key)}">
+        <span>${r.zone==='magasin'?'🏬':'🍽️'} ${escHtml(r.name)}</span>
+        <span class="inv-group-progress">${done}/${itemsHere.length}</span>
+      </button>`;
+    }).join('');
+    return `
+      <div class="topbar">
+        <button class="back" data-back>‹</button>
+        <h1>Inventaire</h1>
+        ${topBarActions}
+      </div>
+      <div class="view">
+        ${progressHtml}
+        <div class="inv-zone-tabs">
+          <button type="button" class="inv-zone-tab ${_inventoryZone==='restaurant'?'active':''}" data-inv-zone="restaurant">🍽️ Restaurant</button>
+          <button type="button" class="inv-zone-tab ${_inventoryZone==='magasin'?'active':''}" data-inv-zone="magasin">🏬 Magasin</button>
+        </div>
+        <p class="muted" style="margin-bottom:10px;font-size:12px">Plusieurs pièces ici — laquelle veux-tu compter ?</p>
+        <div class="inv-room-picker">${roomListHtml}</div>
+        <button class="btn btn-ghost btn-block" data-inv-cancel style="margin-top:16px">Annuler sans enregistrer</button>
+      </div>`;
+  }
+
+  // ── Vue grille : les étagères positionnées de la pièce active ──
+  const roomLocs = currentRoom ? allLocs.filter(l=>l.roomId===currentRoom.key) : [];
+  const cards = roomLocs.map(l=>byKey[l.key]).filter(g=>g.items.length);
   const cardsHtml = cards.map(g=>{
     const done = g.items.filter(s=>counted[s.id]!==undefined).length;
     const isDone = g.items.length>0 && done===g.items.length;
-    return `<button type="button" class="inv-shelf-card ${isDone?'done':''}" data-inv-open-shelf="${g.key}"
+    return `<button type="button" class="inv-shelf-card ${isDone?'done':''}" data-inv-open-shelf="${escHtml(g.key)}"
       style="grid-row:${(g.row||0)+1};grid-column:${(g.col||0)+1}">
       <div class="inv-shelf-ico">${isDone?'✅':'📍'}</div>
       <div class="inv-shelf-name">${escHtml(g.label)}</div>
       <div class="inv-shelf-count">${done}/${g.items.length}</div>
     </button>`;
   }).join('');
+  const unassignedDone = unassigned.items.filter(s=>counted[s.id]!==undefined).length;
+  const showUnassigned = _inventoryZone==='restaurant' && unassigned.items.length>0;
+  const unassignedCardHtml = showUnassigned ? `<button type="button" class="inv-shelf-card ${unassignedDone===unassigned.items.length?'done':''}" data-inv-open-shelf="__none" style="margin-top:10px;width:100%">
+      <div class="inv-shelf-ico">${unassignedDone===unassigned.items.length?'✅':'📦'}</div>
+      <div class="inv-shelf-name">${escHtml(unassigned.label)}</div>
+      <div class="inv-shelf-count">${unassignedDone}/${unassigned.items.length}</div>
+    </button>` : '';
 
   return `
     <div class="topbar">
@@ -4943,10 +5033,71 @@ function renderInventory(){
         <button type="button" class="inv-zone-tab ${_inventoryZone==='restaurant'?'active':''}" data-inv-zone="restaurant">🍽️ Restaurant</button>
         <button type="button" class="inv-zone-tab ${_inventoryZone==='magasin'?'active':''}" data-inv-zone="magasin">🏬 Magasin</button>
       </div>
-      ${cards.length ? `<div class="inv-shelf-grid" style="grid-template-rows:repeat(${maxRow},auto);grid-template-columns:repeat(${maxCol},1fr)">${cardsHtml}</div>` : `<div class="empty" style="margin-top:20px">Aucun emplacement dans cette zone pour l'instant.</div>`}
+      ${zoneRooms.length>1 ? `<button type="button" class="btn btn-ghost" data-inv-change-room style="margin-bottom:10px;width:100%">↔ Changer de pièce (${escHtml(currentRoom?currentRoom.name:'')})</button>` : ''}
+      ${cards.length || currentRoom ? `<div class="inv-shelf-grid" style="grid-template-rows:repeat(${currentRoom?currentRoom.rows:1},auto);grid-template-columns:repeat(${currentRoom?currentRoom.cols:1},1fr)">${cardsHtml}</div>` : `<div class="empty" style="margin-top:20px">Aucun emplacement dans cette zone pour l'instant.</div>`}
+      ${unassignedCardHtml}
       <button class="btn btn-primary btn-block" data-inv-finish style="margin-top:20px">✅ Terminer l'inventaire</button>
       <button class="btn btn-ghost btn-block" data-inv-cancel style="margin-top:8px">Annuler sans enregistrer</button>
     </div>`;
+}
+let _planRoomKey = null;
+function renderStockPlan(){
+  const rooms = getStockRooms();
+  if(!_planRoomKey || !rooms.some(r=>r.key===_planRoomKey)) _planRoomKey = rooms[0] ? rooms[0].key : null;
+  const room = rooms.find(r=>r.key===_planRoomKey);
+  const allLocs = getStockLocations();
+  const unassigned = allLocs.filter(l=>!l.roomId || !rooms.some(r=>r.key===l.roomId));
+  const roomLocs = room ? allLocs.filter(l=>l.roomId===room.key) : [];
+
+  const roomTabsHtml = rooms.map(r=>`<button type="button" class="plan-room-tab ${r.key===_planRoomKey?'active':''}" data-plan-room="${r.key}">${r.zone==='magasin'?'🏬':'🍽️'} ${escHtml(r.name)}</button>`).join('');
+
+  let gridHtml = '';
+  if(room){
+    const cells = [];
+    for(let r=0;r<room.rows;r++){
+      for(let c=0;c<room.cols;c++){
+        const loc = roomLocs.find(l=>l.row===r && l.col===c);
+        cells.push(`<div class="plan-cell" data-r="${r}" data-c="${c}">${loc?`<div class="plan-chip" data-plan-chip="${escHtml(loc.key)}">${escHtml(loc.label)}</div>`:''}</div>`);
+      }
+    }
+    gridHtml = `<div class="plan-grid" style="grid-template-rows:repeat(${room.rows},56px);grid-template-columns:repeat(${room.cols},1fr)">${cells.join('')}</div>`;
+  }
+
+  const paletteHtml = unassigned.length ? `<div class="plan-palette">
+    <div class="plan-palette-label">À placer (glisse dans une case) :</div>
+    <div class="plan-palette-chips">${unassigned.map(l=>`<div class="plan-chip unplaced" data-plan-chip="${escHtml(l.key)}">${escHtml(l.label)}</div>`).join('')}</div>
+  </div>` : '';
+
+  return `
+  <div class="topbar">
+    <button class="back" data-back>‹</button>
+    <h1>Plan des emplacements</h1>
+    <div class="actions"><button class="iconbtn" data-plan-add-room title="Nouvelle pièce" aria-label="Nouvelle pièce">+</button></div>
+  </div>
+  <div class="view">
+    <div class="plan-room-tabs">${roomTabsHtml}</div>
+    ${room ? `
+    <div class="plan-room-controls">
+      <input type="text" id="planRoomName" value="${escHtml(room.name)}" placeholder="Nom de la pièce (ex: Cuisine, Carrefour Market…)">
+      <div class="loc-zone-toggle" style="margin-top:8px">
+        <button type="button" class="zone-chip ${room.zone==='restaurant'?'active':''}" data-plan-room-zone="restaurant">🍽️ Resto</button>
+        <button type="button" class="zone-chip ${room.zone==='magasin'?'active':''}" data-plan-room-zone="magasin">🏬 Magasin</button>
+      </div>
+      <input type="hidden" id="planRoomZone" value="${room.zone}">
+      <div class="plan-size-controls">
+        <label>Lignes <input type="number" id="planRoomRows" value="${room.rows}" min="1" max="12"></label>
+        <label>Colonnes <input type="number" id="planRoomCols" value="${room.cols}" min="1" max="12"></label>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button type="button" class="btn btn-secondary" id="planRoomSaveBtn" style="flex:1">Enregistrer la pièce</button>
+        ${rooms.length>1 ? `<button type="button" class="btn btn-ghost" id="planRoomDeleteBtn">Supprimer</button>` : ''}
+      </div>
+    </div>
+    ${paletteHtml}
+    ${gridHtml}
+    <p class="muted" style="margin-top:12px;font-size:11px;text-align:center">Glisse un emplacement (souris ou doigt) vers une case pour le positionner. Poser sur une case déjà occupée échange les deux.</p>
+    ` : `<div class="empty" style="margin-top:30px"><p>Aucune pièce pour l'instant.</p></div>`}
+  </div>`;
 }
 function renderStockEdit(id){
   let s = (state.stock||[]).find(x=>x.id===id);
@@ -5707,7 +5858,7 @@ function renderSettings(){
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
             <div class="sg-head" style="margin-bottom:10px">📍 Emplacements — Stock</div>
-            <div class="muted" style="margin-bottom:8px;font-size:11px">Lieux de stockage (frigo, congélateur, cave…). Zone = où compter ce lieu dans le mode Inventaire. Ligne/Colonne = sa position sur la carte visuelle, pour reproduire l'agencement réel. Renommer un emplacement ne touche pas les produits déjà classés dedans.</div>
+            <div class="muted" style="margin-bottom:8px;font-size:11px">Lieux de stockage (frigo, congélateur, cave…). Renommer un emplacement ne touche pas les produits déjà classés dedans. Pour les positionner sur une carte visuelle (glisser-déposer), utilise "🗺️ Organiser le plan" ci-dessous.</div>
             <div class="dynamic-list" id="stockLocsList">
               ${getStockLocations().map((l,i)=>`<div class="dynamic-item-loc" data-stockloc-row="${i}" data-stockloc-key="${escHtml(l.key)}">
                 <input class="ing-name-i" name="stockloc_name" value="${escHtml(l.label)}" placeholder="Ex: 🧊 Bac réfrigéré">
@@ -5717,14 +5868,13 @@ function renderSettings(){
                     <button type="button" class="zone-chip ${l.zone==='magasin'?'active':''}" data-zone-choice="magasin">🏬 Magasin</button>
                   </div>
                   <input type="hidden" name="stockloc_zone" value="${l.zone==='magasin'?'magasin':'restaurant'}">
-                  <input type="number" class="loc-pos-i" name="stockloc_row" value="${l.row||0}" title="Ligne (position verticale)" placeholder="Ligne">
-                  <input type="number" class="loc-pos-i" name="stockloc_col" value="${l.col||0}" title="Colonne (position horizontale)" placeholder="Col.">
                   <button type="button" class="rm" data-rm-stockloc>×</button>
                 </div>
               </div>`).join('')}
             </div>
             <button type="button" class="add-btn" id="addStockLocBtn">+ Ajouter un emplacement</button>
             <button type="button" class="btn btn-secondary btn-block" id="saveStockLocsBtn" style="margin-top:10px">Enregistrer les emplacements</button>
+            <button type="button" class="btn btn-primary btn-block" data-go="stockplan" style="margin-top:8px">🗺️ Organiser le plan (glisser-déposer)</button>
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
@@ -6869,15 +7019,18 @@ function bindCategoriesHandlers(){
   if(saveStockLocsBtn){
     saveStockLocsBtn.addEventListener('click',async()=>{
       const rows = $$('#stockLocsList .dynamic-item-loc');
+      const priorLocs = state.settings.customStockLocations || [];
       state.settings.customStockLocations = rows.map(row=>{
         const label = row.querySelector('input[name="stockloc_name"]').value.trim();
         if(!label) return null;
         const existingKey = row.getAttribute('data-stockloc-key');
         const key = existingKey || (label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,30) || ('sl_'+Date.now().toString(36).slice(-4)));
         const zone = row.querySelector('input[name="stockloc_zone"]').value === 'magasin' ? 'magasin' : 'restaurant';
-        const rowPos = parseInt(row.querySelector('input[name="stockloc_row"]').value, 10) || 0;
-        const colPos = parseInt(row.querySelector('input[name="stockloc_col"]').value, 10) || 0;
-        return {key, label, zone, row: rowPos, col: colPos, updatedAt: Date.now()};
+        const prior = priorLocs.find(l=>l.key===key) || {};
+        const rooms = state.settings.stockRooms || [];
+        const priorRoom = rooms.find(r=>r.key===prior.roomId);
+        const roomStillMatchesZone = priorRoom && priorRoom.zone===zone;
+        return {key, label, zone, row: roomStillMatchesZone?prior.row:undefined, col: roomStillMatchesZone?prior.col:undefined, roomId: roomStillMatchesZone?prior.roomId:undefined, updatedAt: Date.now()};
       }).filter(Boolean);
       await persist(); toast('Emplacements enregistrés'); render();
     });
@@ -7749,6 +7902,7 @@ function attachHandlers(){
   if(invStartBtn) invStartBtn.addEventListener('click', async ()=>{
     state._inventorySession = { startedAt: Date.now(), counted: {} };
     _inventoryZone = 'restaurant';
+    _inventoryRoomKey = null;
     _inventoryOpenShelf = null;
     await persist();
     render();
@@ -7756,12 +7910,22 @@ function attachHandlers(){
   $$('[data-inv-cancel]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('Annuler cet inventaire ? Les comptages effectués ne seront pas appliqués.')) return;
     state._inventorySession = null;
+    _inventoryRoomKey = null;
     _inventoryOpenShelf = null;
     await persist();
     navigate('#stock');
   }));
   $$('[data-inv-zone]').forEach(b=>b.addEventListener('click', ()=>{
     _inventoryZone = b.getAttribute('data-inv-zone');
+    _inventoryRoomKey = null;
+    render();
+  }));
+  $$('[data-inv-pick-room]').forEach(b=>b.addEventListener('click', ()=>{
+    _inventoryRoomKey = b.getAttribute('data-inv-pick-room');
+    render();
+  }));
+  $$('[data-inv-change-room]').forEach(b=>b.addEventListener('click', ()=>{
+    _inventoryRoomKey = null;
     render();
   }));
   $$('[data-inv-open-shelf]').forEach(b=>b.addEventListener('click', ()=>{
@@ -7814,10 +7978,129 @@ function attachHandlers(){
       syncUrgentWithRestock(rec);
     });
     state._inventorySession = null;
+    _inventoryRoomKey = null;
     _inventoryOpenShelf = null;
     await persistNow();
     toast(countedIds.length+' produit(s) mis à jour par l\'inventaire');
     navigate('#stock');
+  });
+
+  // ── Plan des emplacements (pièces + glisser-déposer) ──
+  $$('[data-plan-room]').forEach(b=>b.addEventListener('click', ()=>{
+    _planRoomKey = b.getAttribute('data-plan-room');
+    render();
+  }));
+  const planAddRoomBtn = $('[data-plan-add-room]');
+  if(planAddRoomBtn) planAddRoomBtn.addEventListener('click', async ()=>{
+    const name = prompt('Nom de la nouvelle pièce (ex: Cave, Carrefour Market…)');
+    if(!name || !name.trim()) return;
+    if(!state.settings.stockRooms) state.settings.stockRooms = [];
+    const newRoom = { key: uid('room'), name: name.trim(), zone:'restaurant', rows:6, cols:6, updatedAt: Date.now() };
+    state.settings.stockRooms.push(newRoom);
+    _planRoomKey = newRoom.key;
+    await persist();
+    render();
+  });
+  const planRoomZoneEl = $('#planRoomZone');
+  $$('[data-plan-room-zone]').forEach(b=>b.addEventListener('click', ()=>{
+    $$('[data-plan-room-zone]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    if(planRoomZoneEl) planRoomZoneEl.value = b.getAttribute('data-plan-room-zone');
+  }));
+  const planRoomSaveBtn = $('#planRoomSaveBtn');
+  if(planRoomSaveBtn) planRoomSaveBtn.addEventListener('click', async ()=>{
+    const room = (state.settings.stockRooms||[]).find(r=>r.key===_planRoomKey);
+    if(!room) return;
+    const name = ($('#planRoomName').value||'').trim();
+    if(name) room.name = name;
+    room.zone = $('#planRoomZone').value === 'magasin' ? 'magasin' : 'restaurant';
+    const newRows = Math.max(1, Math.min(12, parseInt($('#planRoomRows').value,10)||6));
+    const newCols = Math.max(1, Math.min(12, parseInt($('#planRoomCols').value,10)||6));
+    room.rows = newRows; room.cols = newCols;
+    room.updatedAt = Date.now();
+    // Recaler les emplacements de cette pièce s'ils débordent après un rétrécissement de la grille
+    (state.settings.customStockLocations||[]).forEach(l=>{
+      if(l.roomId===room.key){
+        if(l.row>=newRows) l.row = newRows-1;
+        if(l.col>=newCols) l.col = newCols-1;
+        l.zone = room.zone;
+      }
+    });
+    await persist();
+    toast('Pièce enregistrée');
+    render();
+  });
+  const planRoomDeleteBtn = $('#planRoomDeleteBtn');
+  if(planRoomDeleteBtn) planRoomDeleteBtn.addEventListener('click', async ()=>{
+    const room = (state.settings.stockRooms||[]).find(r=>r.key===_planRoomKey);
+    if(!room) return;
+    if(!confirm(`Supprimer la pièce "${room.name}" ? Les emplacements qu'elle contient repasseront en "à placer".`)) return;
+    (state.settings.customStockLocations||[]).forEach(l=>{
+      if(l.roomId===room.key){ l.roomId=null; l.row=null; l.col=null; }
+    });
+    state.settings.stockRooms = (state.settings.stockRooms||[]).filter(r=>r.key!==room.key);
+    _planRoomKey = null;
+    await persist();
+    render();
+  });
+
+  // Glisser-déposer (souris ET tactile via Pointer Events)
+  let _planDragEl = null, _planDragKey = null, _planOffX = 0, _planOffY = 0;
+  function placeLocationInPlan(key, r, c){
+    const loc = (state.settings.customStockLocations||[]).find(l=>l.key===key);
+    const room = (state.settings.stockRooms||[]).find(rm=>rm.key===_planRoomKey);
+    if(!loc || !room) return;
+    const wasInThisRoom = loc.roomId===room.key;
+    const oldRow = loc.row, oldCol = loc.col;
+    const occupant = (state.settings.customStockLocations||[]).find(l=>l.roomId===room.key && l.row===r && l.col===c && l.key!==key);
+    if(occupant){
+      if(wasInThisRoom){ occupant.row = oldRow; occupant.col = oldCol; }
+      else { occupant.roomId = null; occupant.row = null; occupant.col = null; }
+      occupant.updatedAt = Date.now();
+    }
+    loc.roomId = room.key; loc.zone = room.zone; loc.row = r; loc.col = c; loc.updatedAt = Date.now();
+    persist();
+    render();
+  }
+  $$('.plan-chip').forEach(chip=>{
+    chip.addEventListener('pointerdown', e=>{
+      e.preventDefault();
+      _planDragKey = chip.getAttribute('data-plan-chip');
+      _planDragEl = chip;
+      const rect = chip.getBoundingClientRect();
+      _planOffX = e.clientX - rect.left; _planOffY = e.clientY - rect.top;
+      chip.style.width = rect.width+'px';
+      chip.style.pointerEvents = 'none';
+      try{ chip.setPointerCapture(e.pointerId); }catch(err){}
+      chip.classList.add('dragging');
+    });
+    chip.addEventListener('pointermove', e=>{
+      if(_planDragEl !== chip) return;
+      chip.style.position='fixed';
+      chip.style.left=(e.clientX-_planOffX)+'px';
+      chip.style.top=(e.clientY-_planOffY)+'px';
+      chip.style.zIndex=999;
+      $$('.plan-cell').forEach(c=>c.classList.remove('drag-over'));
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      const cell = under && under.closest('.plan-cell');
+      if(cell) cell.classList.add('drag-over');
+    });
+    const endDrag = e=>{
+      if(_planDragEl !== chip) return;
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      const cell = under && under.closest('.plan-cell');
+      chip.style.position=''; chip.style.left=''; chip.style.top=''; chip.style.zIndex=''; chip.style.width=''; chip.style.pointerEvents='';
+      chip.classList.remove('dragging');
+      $$('.plan-cell').forEach(c=>c.classList.remove('drag-over'));
+      if(cell){
+        const r = parseInt(cell.getAttribute('data-r'),10);
+        const c = parseInt(cell.getAttribute('data-c'),10);
+        placeLocationInPlan(_planDragKey, r, c);
+      }
+      _planDragEl = null; _planDragKey = null;
+    };
+    chip.addEventListener('pointerup', endDrag);
+    chip.addEventListener('pointercancel', endDrag);
   });
 
   // Stock add form (custom non-ingredient products)
@@ -9093,7 +9376,7 @@ async function init(){
   if(!loaded.restaurants || !loaded.restaurants.length) loaded.restaurants = [{id:'r_main', name:'Mexy Fresh by TheLab'}];
 
   state = loaded;
-  ensureStockTaxonomyMigrated();
+  ensureStockRoomsMigrated();
   persist();
   if('scrollRestoration' in history) history.scrollRestoration = 'manual';
   window.addEventListener('hashchange',render);
