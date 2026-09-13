@@ -1162,6 +1162,23 @@ function setDeviceName(n){
   try{ localStorage.setItem('restoTool_deviceName', n); }catch(e){}
 }
 
+// Fusionne une liste de taxonomie (catégories/emplacements stock) par clé :
+// union des deux côtés, jamais de suppression silencieuse. Si une clé existe
+// des deux côtés, on garde celle avec le updatedAt le plus récent (une entrée
+// sans updatedAt est considérée comme la plus ancienne).
+function mergeTaxonomy(localArr, remoteArr){
+  const local = localArr || [];
+  const remote = remoteArr || [];
+  const byKey = {};
+  local.forEach(item => { if(item && item.key) byKey[item.key] = item; });
+  remote.forEach(item => {
+    if(!item || !item.key) return;
+    const existing = byKey[item.key];
+    if(!existing){ byKey[item.key] = item; return; }
+    if((item.updatedAt||0) > (existing.updatedAt||0)) byKey[item.key] = item;
+  });
+  return Object.values(byKey);
+}
 function applyLibraryFromCloud(lib){
   if(!lib) return;
   if(lib.restaurants && lib.restaurants.length) state.restaurants = lib.restaurants;
@@ -1187,7 +1204,11 @@ function applyLibraryFromCloud(lib){
   state.contacts = lib.contacts || [];
   state.notes = lib.notes || [];
   state.notifications = lib.notifications || [];
+  const mergedCats = mergeTaxonomy(state.settings && state.settings.customStockCategories, lib.settings && lib.settings.customStockCategories);
+  const mergedLocs = mergeTaxonomy(state.settings && state.settings.customStockLocations, lib.settings && lib.settings.customStockLocations);
   state.settings = Object.assign(state.settings||{}, lib.settings||{});
+  state.settings.customStockCategories = mergedCats;
+  state.settings.customStockLocations = mergedLocs;
   // Tasks: replace definitions, preserve local done state by id
   const preservedDone = {};
   (state.tasks||[]).forEach(t => { if(t.done) preservedDone[t.id] = true; });
@@ -4482,21 +4503,22 @@ function getShopZones(){
 // clés restent identiques donc rien ne casse pour les produits déjà classés.
 function ensureStockTaxonomyMigrated(){
   if(!state.settings) state.settings = {};
-  if(state.settings._taxonomyMigratedV2) return;
+  // Additif uniquement : ne fait que RAJOUTER un défaut manquant par sa clé,
+  // ne supprime et n'écrase jamais rien d'existant. Tourne à chaque démarrage
+  // (pas juste une fois) pour se réparer tout seul si jamais une synchro
+  // malheureuse effaçait à nouveau un défaut (voir mergeTaxonomy plus bas,
+  // qui empêche normalement ça de se reproduire).
   const existingCats = state.settings.customStockCategories || [];
   const existingCatKeys = new Set(existingCats.map(c=>c.key));
-  const seededCats = DEFAULT_STOCK_CATEGORIES.filter(c=>!existingCatKeys.has(c.key));
-  state.settings.customStockCategories = [...seededCats, ...existingCats];
+  const missingCats = DEFAULT_STOCK_CATEGORIES.filter(c=>!existingCatKeys.has(c.key));
+  if(missingCats.length) state.settings.customStockCategories = [...missingCats, ...existingCats];
 
   const existingLocs = state.settings.customStockLocations || [];
   const existingLocKeys = new Set(existingLocs.map(l=>l.key));
-  const seededLocs = DEFAULT_STOCK_LOCATIONS
+  const missingLocs = DEFAULT_STOCK_LOCATIONS
     .filter(l=>!existingLocKeys.has(l.key))
     .map((l,i)=>({ ...l, zone:'restaurant', row:i, col:0 }));
-  state.settings.customStockLocations = [
-    ...seededLocs,
-    ...existingLocs.map((l,i)=>({ zone:'restaurant', row: seededLocs.length+i, col:0, ...l }))
-  ];
+  if(missingLocs.length) state.settings.customStockLocations = [...missingLocs, ...existingLocs];
   state.settings._taxonomyMigratedV2 = true;
 }
 function getStockCategories(){
@@ -6797,7 +6819,7 @@ function bindCategoriesHandlers(){
         if(!label) return null;
         const existingKey = row.getAttribute('data-stockcat-key');
         const key = existingKey || (label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,30) || ('sc_'+Date.now().toString(36).slice(-4)));
-        return {key, label};
+        return {key, label, updatedAt: Date.now()};
       }).filter(Boolean);
       await persist(); toast('Catégories stock enregistrées'); render();
     });
@@ -6855,7 +6877,7 @@ function bindCategoriesHandlers(){
         const zone = row.querySelector('input[name="stockloc_zone"]').value === 'magasin' ? 'magasin' : 'restaurant';
         const rowPos = parseInt(row.querySelector('input[name="stockloc_row"]').value, 10) || 0;
         const colPos = parseInt(row.querySelector('input[name="stockloc_col"]').value, 10) || 0;
-        return {key, label, zone, row: rowPos, col: colPos};
+        return {key, label, zone, row: rowPos, col: colPos, updatedAt: Date.now()};
       }).filter(Boolean);
       await persist(); toast('Emplacements enregistrés'); render();
     });
