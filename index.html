@@ -580,6 +580,15 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 }
 .search-input:focus{outline:none;border-color:var(--cyan);background:var(--navy-2)}
 .search-input::placeholder{color:var(--cream-faint);opacity:.6}
+.combo-wrap{position:relative;flex:1;min-width:140px}
+.combo-input{width:100%;height:38px;border-radius:8px;border:1px solid var(--line-strong);background:var(--navy);color:var(--cream);padding:0 10px;font-size:13px;box-sizing:border-box}
+.combo-input:focus{outline:none;border-color:var(--cyan)}
+.combo-suggestions{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;background:var(--navy-2);border:1px solid var(--line-strong);border-radius:8px;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.combo-suggestions.open{display:block}
+.combo-option{padding:10px 12px;font-size:13px;color:var(--cream);cursor:pointer;border-bottom:1px solid var(--line)}
+.combo-option:last-child{border-bottom:none}
+.combo-option:hover,.combo-option:active{background:rgba(102,197,219,.12)}
+.combo-empty{padding:10px 12px;font-size:12px;color:var(--cream-faint);text-align:center}
 .search-wrap::before{
   content:"🔍";
   position:absolute;
@@ -680,16 +689,19 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .inv-group-progress{font-size:12px;color:var(--cream-faint);font-weight:600}
 .inv-group-body{border-top:1px solid var(--line)}
 .inv-group-body.collapsed{display:none}
-.inv-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.inv-row{display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .inv-row:last-child{border-bottom:none}
 .inv-row.done{opacity:.55;background:rgba(90,200,120,.05)}
-.inv-row-name{font-size:13px;color:var(--cream);flex:1;min-width:0}
-.inv-row-ctrl{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.inv-row-ctrl input{width:64px;height:34px;border-radius:7px;border:1px solid var(--line-strong);background:var(--navy);color:var(--cream);text-align:center;font-size:14px}
+.inv-row-name{font-size:13px;color:var(--cream);font-weight:600}
+.inv-row-ctrl{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.inv-row-ctrl input{width:58px;height:36px;border-radius:7px;border:1px solid var(--line-strong);background:var(--navy);color:var(--cream);text-align:center;font-size:15px}
 .inv-row-ctrl .unit{font-size:11px;color:var(--cream-faint);min-width:20px}
-.inv-zero-btn,.inv-confirm-btn{width:34px;height:34px;border-radius:7px;font-weight:700;font-size:14px;cursor:pointer}
-.inv-zero-btn{background:rgba(228,90,64,.12);color:var(--danger)}
-.inv-confirm-btn{background:rgba(90,200,120,.15);color:var(--success,#5ac878)}
+.inv-qty-btn{width:36px;height:36px;border-radius:7px;font-weight:700;font-size:18px;cursor:pointer;flex-shrink:0}
+.inv-qty-btn.dec{background:rgba(228,90,64,.12);color:var(--danger)}
+.inv-qty-btn.inc{background:rgba(228,162,9,.18);color:var(--gold)}
+.inv-empty-btn,.inv-confirm-btn{height:36px;padding:0 12px;border-radius:7px;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap}
+.inv-empty-btn{background:rgba(228,90,64,.1);color:var(--danger);border:1px solid rgba(228,90,64,.3)}
+.inv-confirm-btn{background:rgba(90,200,120,.15);color:var(--success,#5ac878);border:1px solid rgba(90,200,120,.35);margin-left:auto}
 .inv-zone-tabs{display:flex;gap:8px;margin-bottom:16px}
 .inv-zone-tab{flex:1;padding:12px;border-radius:10px;border:1px solid var(--line-strong);background:var(--navy-2);color:var(--cream-dim);font-weight:700;font-size:13px;cursor:pointer;transition:all .15s}
 .inv-zone-tab.active{background:rgba(228,162,9,.15);border-color:var(--gold);color:var(--gold)}
@@ -1330,7 +1342,7 @@ function mergeStock(localStock, remoteStock, tombstones){
       // seulement si local les a modifiés APRÈS le dernier push connu
       const entry = { ...local, ...remote };
       // Champs "critiques" — on les garde locaux s'ils ont été touchés récemment
-      const criticalFields = ['urgent','toBuy','qty','minQty','targetQty','neverRestock','restockTrigger','note','store','shopZone','category','location'];
+      const criticalFields = ['urgent','toBuy','qty','minQty','targetQty','neverRestock','excludeFromInventory','restockTrigger','note','store','shopZone','category','location'];
       criticalFields.forEach(field=>{
         if(local[field] !== undefined && local._localFields && local._localFields.includes(field)){
           entry[field] = local[field];
@@ -3948,9 +3960,10 @@ function renderFicheEdit(id){
 }
 
 function componentFieldRow(c,i,total){
-  const recOpts = state.recipes.map(r=>`<option value="${r.id}" ${c.type==='recipe'&&c.refId===r.id?'selected':''}>${escHtml(r.name)}</option>`).join('');
-  const ingOpts = state.ingredients.map(g=>`<option value="${g.id}" ${c.type==='ingredient'&&c.refId===g.id?'selected':''}>${escHtml(g.name)}</option>`).join('');
   const isRecipe = c.type==='recipe' || !c.type;
+  const currentLabel = isRecipe
+    ? ((state.recipes.find(r=>r.id===c.refId)||{}).name || '')
+    : ((state.ingredients.find(g=>g.id===c.refId)||{}).name || '');
   const isFirst = i===0;
   const isLast = total!=null && i===total-1;
   return `<div class="dynamic-item" data-component="${i}" style="flex-wrap:wrap;gap:6px">
@@ -3962,9 +3975,11 @@ function componentFieldRow(c,i,total){
       <option value="recipe" ${isRecipe?'selected':''}>Recette</option>
       <option value="ingredient" ${c.type==='ingredient'?'selected':''}>Ingrédient</option>
     </select>
-    <select class="comp-ref" name="comp_ref" style="flex:1;min-width:140px">
-      ${isRecipe ? recOpts : ingOpts}
-    </select>
+    <div class="combo-wrap" style="flex:1;min-width:140px">
+      <input type="text" class="combo-input" data-comp-search value="${escHtml(currentLabel)}" placeholder="Rechercher…" autocomplete="off">
+      <input type="hidden" name="comp_ref" value="${c.refId||''}">
+      <div class="combo-suggestions" data-comp-suggestions></div>
+    </div>
     <input name="comp_label" value="${escHtml(c.label||'')}" placeholder="Libellé (opt.)" style="flex:1;min-width:120px">
     <input name="comp_amount" type="number" inputmode="decimal" step="any" value="${c.amount==null?'':c.amount}" placeholder="Qté" style="width:70px">
     <input name="comp_unit" value="${escHtml(c.unit||'g')}" placeholder="g" style="width:60px">
@@ -4557,17 +4572,35 @@ function ensureStockRoomsMigrated(){
       rooms.push({ key: uid('room'), name: zone==='magasin' ? 'Magasin principal' : 'Restaurant', zone, rows:6, cols:6, updatedAt: Date.now() });
     }
   });
-  (state.settings.customStockLocations||[]).forEach(l=>{
-    if(!l.roomId || !rooms.some(r=>r.key===l.roomId)){
-      const zone = l.zone||'restaurant';
-      const room = rooms.find(r=>r.zone===zone) || rooms[0];
-      l.roomId = room.key;
-      if(l.row==null) l.row = 0;
-      if(l.col==null) l.col = 0;
-      l.row = Math.min(l.row, room.rows-1);
-      l.col = Math.min(l.col, room.cols-1);
-    }
-  });
+  // Affectation par défaut UNE SEULE FOIS (vraie migration historique, pour les
+  // emplacements qui existaient déjà avant l'arrivée des pièces). Après ce
+  // premier passage, un emplacement sans pièce reste délibérément "sans
+  // pièce" pour apparaître dans la palette "à placer" du plan — sinon il se
+  // recollait tout seul sur la 1ère pièce à chaque lecture, en écrasant/
+  // empilant silencieusement d'autres emplacements à la même case (0,0).
+  if(!state.settings._stockRoomsDefaultAssignDone){
+    (state.settings.customStockLocations||[]).forEach(l=>{
+      if(!l.roomId || !rooms.some(r=>r.key===l.roomId)){
+        const zone = l.zone||'restaurant';
+        const room = rooms.find(r=>r.zone===zone) || rooms[0];
+        l.roomId = room.key;
+        if(l.row==null) l.row = 0;
+        if(l.col==null) l.col = 0;
+        l.row = Math.min(l.row, room.rows-1);
+        l.col = Math.min(l.col, room.cols-1);
+      }
+    });
+    state.settings._stockRoomsDefaultAssignDone = true;
+  } else {
+    // Toujours garder row/col dans les bornes si une pièce a été rétrécie
+    (state.settings.customStockLocations||[]).forEach(l=>{
+      const room = rooms.find(r=>r.key===l.roomId);
+      if(room && l.row!=null && l.col!=null){
+        l.row = Math.min(l.row, room.rows-1);
+        l.col = Math.min(l.col, room.cols-1);
+      }
+    });
+  }
 }
 function getStockRooms(zone){
   ensureStockRoomsMigrated();
@@ -4912,7 +4945,7 @@ function renderInventory(){
     </div>`;
   }
 
-  const all = buildStockEntries();
+  const all = buildStockEntries().filter(s=>!s.excludeFromInventory);
   const counted = session.counted || {};
   const totalCount = all.length;
   const countedCount = Object.keys(counted).length;
@@ -4945,10 +4978,12 @@ function renderInventory(){
         return `<div class="inv-row ${isCounted?'done':''}" data-inv-row="${s.id}">
           <div class="inv-row-name">${isCounted?'✅ ':'⬜ '}${escHtml(name)}</div>
           <div class="inv-row-ctrl">
+            <button type="button" class="inv-qty-btn dec" data-inv-dec="${s.id}" aria-label="Moins 1">−</button>
             <input type="number" inputmode="decimal" step="any" placeholder="—" value="${inputVal}" data-inv-input="${s.id}">
+            <button type="button" class="inv-qty-btn inc" data-inv-inc="${s.id}" aria-label="Plus 1">+</button>
             <span class="unit">${escHtml(s.unit||'')}</span>
-            <button type="button" class="inv-zero-btn" data-inv-zero="${s.id}" title="Marquer à 0">0</button>
-            <button type="button" class="inv-confirm-btn" data-inv-confirm="${s.id}" title="Valider ce comptage">✓</button>
+            <button type="button" class="inv-empty-btn" data-inv-zero="${s.id}" title="Marquer cette étagère comme vide">📭 Vide</button>
+            <button type="button" class="inv-confirm-btn" data-inv-confirm="${s.id}" title="Valider ce comptage">✓ Valider</button>
           </div>
         </div>`;
       }).join('');
@@ -5014,7 +5049,7 @@ function renderInventory(){
     </button>`;
   }).join('');
   const unassignedDone = unassigned.items.filter(s=>counted[s.id]!==undefined).length;
-  const showUnassigned = _inventoryZone==='restaurant' && unassigned.items.length>0;
+  const showUnassigned = unassigned.items.length>0;
   const unassignedCardHtml = showUnassigned ? `<button type="button" class="inv-shelf-card ${unassignedDone===unassigned.items.length?'done':''}" data-inv-open-shelf="__none" style="margin-top:10px;width:100%">
       <div class="inv-shelf-ico">${unassignedDone===unassigned.items.length?'✅':'📦'}</div>
       <div class="inv-shelf-name">${escHtml(unassigned.label)}</div>
@@ -5149,6 +5184,12 @@ function renderStockEdit(id){
         </button>
         <input type="hidden" name="neverRestock" value="${s.neverRestock?'1':''}">
         <p class="muted" style="margin-top:-8px;margin-bottom:14px;font-size:11px">Ce produit ignore son seuil et son stock voulu : il ne passera jamais automatiquement dans « à racheter » ni « urgent ».</p>
+        <button type="button" class="toggle" data-toggle-form="excludeFromInventory" id="excludeFromInventoryToggle">
+          <span class="toggle-label">📋 Ne pas compter à l'inventaire</span>
+          <span class="toggle-switch ${s.excludeFromInventory?'on':''}"></span>
+        </button>
+        <input type="hidden" name="excludeFromInventory" value="${s.excludeFromInventory?'1':''}">
+        <p class="muted" style="margin-top:-8px;margin-bottom:14px;font-size:11px">On sait où il est, mais ce produit n'a pas besoin d'être recompté à chaque inventaire — il n'apparaîtra plus du tout dans le mode Inventaire.</p>
         <div class="form-group">
           <label>🔗 Lier à une préparation</label>
           <select name="restockTrigger">
@@ -7066,6 +7107,14 @@ function bindCategoriesHandlers(){
 }
 
 /* ---------- Search (in-list filter) ---------- */
+// Normalise une chaîne pour une recherche insensible aux accents/ligatures :
+// "ï"→"i", "é"→"e", "œ"→"oe", "æ"→"ae"… pour que taper "i" trouve aussi "île",
+// "cafe" trouve "café", etc. Utilisé par toutes les recherches de l'app.
+function normalizeSearchStr(str){
+  return (str||'').toString().toLowerCase()
+    .replace(/œ/g,'oe').replace(/æ/g,'ae')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
 function bindSearch(inputId, itemSel){
   const input = document.getElementById(inputId);
   if(!input) return;
@@ -7079,10 +7128,10 @@ function bindSearch(inputId, itemSel){
     return document.querySelector('#'+inputId+'-empty');
   }
   function filter(){
-    const q = input.value.trim().toLowerCase();
+    const q = normalizeSearchStr(input.value.trim());
     let visible = 0;
     getList().forEach(item=>{
-      const text = item.getAttribute('data-search') || '';
+      const text = normalizeSearchStr(item.getAttribute('data-search') || '');
       const match = !q || text.includes(q);
       item.style.display = match ? '' : 'none';
       if(match) visible++;
@@ -7954,6 +8003,18 @@ function attachHandlers(){
     if(input) input.value = '0';
     invConfirmRow(id);
   }));
+  $$('[data-inv-inc]').forEach(b=>b.addEventListener('click', ()=>{
+    const id = b.getAttribute('data-inv-inc');
+    const input = document.querySelector(`[data-inv-input="${id}"]`);
+    if(!input) return;
+    input.value = (parseFloat(input.value)||0) + 1;
+  }));
+  $$('[data-inv-dec]').forEach(b=>b.addEventListener('click', ()=>{
+    const id = b.getAttribute('data-inv-dec');
+    const input = document.querySelector(`[data-inv-input="${id}"]`);
+    if(!input) return;
+    input.value = Math.max(0, (parseFloat(input.value)||0) - 1);
+  }));
   $$('[data-inv-input]').forEach(inp=>inp.addEventListener('keydown', e=>{
     if(e.key==='Enter'){ e.preventDefault(); invConfirmRow(inp.getAttribute('data-inv-input')); }
   }));
@@ -7961,7 +8022,7 @@ function attachHandlers(){
   if(invFinishBtn) invFinishBtn.addEventListener('click', async ()=>{
     const session = state._inventorySession;
     if(!session) return;
-    const all = buildStockEntries();
+    const all = buildStockEntries().filter(s=>!s.excludeFromInventory);
     const counted = session.counted || {};
     const countedIds = Object.keys(counted);
     const uncounted = all.filter(s=>counted[s.id]===undefined);
@@ -8175,6 +8236,7 @@ function attachHandlers(){
       s.shopZone = (fd.get('shopZone')||'').toString().trim() || null;
       s.urgent = !!fd.get('urgent');
       s.neverRestock = !!fd.get('neverRestock');
+      s.excludeFromInventory = !!fd.get('excludeFromInventory');
       s.restockTrigger = (fd.get('restockTrigger')||'').toString().trim() || null;
       if(s.neverRestock){ s.toBuy = false; s.urgent = false; }
       syncUrgentWithRestock(s);
@@ -8908,16 +8970,45 @@ function bindFicheFormHandlers(){
 
 function bindComponentRow(el){
   const typeSel = el.querySelector('select.comp-type');
-  const refSel = el.querySelector('select.comp-ref');
-  if(typeSel && refSel){
-    typeSel.addEventListener('change',()=>{
-      const type = typeSel.value;
-      const opts = type==='recipe'
-        ? state.recipes.map(r=>`<option value="${r.id}">${escHtml(r.name)}</option>`).join('')
-        : state.ingredients.map(g=>`<option value="${g.id}">${escHtml(g.name)}</option>`).join('');
-      refSel.innerHTML = opts;
-    });
+  const searchInput = el.querySelector('[data-comp-search]');
+  const hiddenRef = el.querySelector('input[name="comp_ref"]');
+  const suggestionsEl = el.querySelector('[data-comp-suggestions]');
+  if(!typeSel || !searchInput || !hiddenRef || !suggestionsEl) return;
+  function sourceList(){
+    return (typeSel.value==='ingredient' ? state.ingredients : state.recipes) || [];
   }
+  function renderSuggestions(query){
+    const nq = normalizeSearchStr(query);
+    const sorted = sourceList().slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','fr'));
+    const filtered = nq ? sorted.filter(x=>normalizeSearchStr(x.name||'').includes(nq)) : sorted;
+    const top = filtered.slice(0,8);
+    if(!top.length){
+      suggestionsEl.innerHTML = '<div class="combo-empty">Aucun résultat</div>';
+    } else {
+      suggestionsEl.innerHTML = top.map(x=>`<div class="combo-option" data-combo-pick="${escHtml(x.id)}">${escHtml(x.name)}</div>`).join('');
+      suggestionsEl.querySelectorAll('[data-combo-pick]').forEach(opt=>{
+        // mousedown (pas click) : se déclenche AVANT le blur du champ texte,
+        // sinon le blur masque la liste avant que le clic soit pris en compte
+        opt.addEventListener('mousedown', e=>{
+          e.preventDefault();
+          const id = opt.getAttribute('data-combo-pick');
+          const item = sourceList().find(x=>x.id===id);
+          hiddenRef.value = id;
+          searchInput.value = item ? item.name : '';
+          suggestionsEl.classList.remove('open');
+        });
+      });
+    }
+    suggestionsEl.classList.add('open');
+  }
+  searchInput.addEventListener('focus', ()=> renderSuggestions(searchInput.value));
+  searchInput.addEventListener('input', ()=>{ hiddenRef.value=''; renderSuggestions(searchInput.value); });
+  searchInput.addEventListener('blur', ()=>{ setTimeout(()=>suggestionsEl.classList.remove('open'), 150); });
+  typeSel.addEventListener('change', ()=>{
+    hiddenRef.value = '';
+    searchInput.value = '';
+    suggestionsEl.classList.remove('open');
+  });
   const rm = el.querySelector('[data-rm-component]');
   if(rm) rm.addEventListener('click',()=>el.remove());
 }
