@@ -1822,11 +1822,15 @@ async function cloudPull(silent){
 
     cfg.lastSync = Date.now();
     SyncConfig.save(cfg);
-    // Sauvegarder sans déclencher un push automatique
-    const oldAuto = cfg.auto;
+    // Sauvegarder sans déclencher un push automatique — le try/finally est
+    // essentiel : si Storage.save() échoue (quota dépassé, etc.), sans lui
+    // cfg.auto resterait bloqué à false pour toujours, désactivant tout envoi
+    // futur SANS AUCUNE ERREUR VISIBLE. C'est ce qui causait des appareils
+    // "synchronisés en apparence" qui ne poussaient plus jamais rien.
+    const oldAuto1827 = cfg.auto;
     cfg.auto = false; SyncConfig.save(cfg);
-    await Storage.save(state);
-    cfg.auto = oldAuto; SyncConfig.save(cfg);
+    try{ await Storage.save(state); }
+    finally{ cfg.auto = oldAuto1827; SyncConfig.save(cfg); }
 
     // Mettre à jour les hashes AVANT le push pour éviter les doublons
     const split = splitState();
@@ -2005,10 +2009,10 @@ async function pollSync(){
         applySharedFromCloud(r.data);
         // Hash stable après merge pour ne pas re-pousser ce qu'on vient de recevoir
         _lastPushedSharedHash = stableSharedHash(splitState().shared);
-        const oldAuto = cfg.auto;
+        const oldAuto2013 = cfg.auto;
         cfg.auto = false; SyncConfig.save(cfg);
-        await Storage.save(state);
-        cfg.auto = oldAuto; SyncConfig.save(cfg);
+        try{ await Storage.save(state); }
+        finally{ cfg.auto = oldAuto2013; SyncConfig.save(cfg); }
         // Si l'utilisateur est en train de remplir un formulaire (ex : une recette),
         // on NE reconstruit PAS le DOM — ça effacerait sa saisie en cours. Les
         // données sont déjà fusionnées et sauvegardées ; l'affichage se mettra à
@@ -2039,10 +2043,10 @@ async function pollSync(){
         if(remoteHash !== _lastPushedLibHash){
           applyLibraryFromCloud(rl.data);
           _lastPushedLibHash = JSON.stringify(splitState().library);
-          const oldAuto = cfg.auto;
+          const oldAuto2046 = cfg.auto;
           cfg.auto = false; SyncConfig.save(cfg);
-          await Storage.save(state);
-          cfg.auto = oldAuto; SyncConfig.save(cfg);
+          try{ await Storage.save(state); }
+          finally{ cfg.auto = oldAuto2046; SyncConfig.save(cfg); }
           if(isFormActive()){
             if(document.visibilityState==='visible'){
               toast('🔄 Mise à jour reçue — visible en quittant cette page');
@@ -3201,6 +3205,7 @@ function render(){
   // Quitter la page Stock → vider le snapshot tobuy
   if(_lastRouteKey && _lastRouteKey.startsWith('stock|') && !routeKey.startsWith('stock|')){
     _tobuySnapshot = null;
+    _urgentSnapshot = null;
     _stockOrderSnapshot = null;
   }
   const prevScroll = window.scrollY || window.pageYOffset || 0;
@@ -4486,6 +4491,7 @@ let stockLocFilter = 'all'; // 'all' | location key
 let _stockSearchQuery = ''; // persiste la recherche entre les renders
 // Snapshot des IDs "à racheter" fixés à l'entrée dans ce filtre
 let _tobuySnapshot = null; // null = pas actif, Set = snapshot actif
+let _urgentSnapshot = null; // même principe pour l'onglet 🚨 Urgent
 // Ordre figé des IDs pour éviter que les lignes bougent pendant les modifs
 let _stockOrderSnapshot = null; // Array<id> dans l'ordre figé
 let _stockCompact = false; // true = vue compacte (moins de détails)
@@ -4727,7 +4733,11 @@ function renderStock(){
     items.forEach(s=>{ if(needsRestock(s)) _tobuySnapshot.add(s.id); });
   }
   if(stockFilter==='urgent'){
-    items = items.filter(s=> isUrgentNow(s));
+    if(_urgentSnapshot === null){
+      _urgentSnapshot = new Set(all.filter(s=>isUrgentNow(s)).map(s=>s.id));
+    }
+    items = items.filter(s=> _urgentSnapshot.has(s.id) || isUrgentNow(s));
+    items.forEach(s=>{ if(isUrgentNow(s)) _urgentSnapshot.add(s.id); });
   }
   if(stockStoreFilter!=='all'){
     if(stockStoreFilter==='none') items = items.filter(s=>!s.store);
@@ -4775,10 +4785,11 @@ function renderStock(){
     const catLabel = stockCats.find(c=>c.key===(s.category||'autre'));
     const locLabel = stockLocs.find(l=>l.key===s.location);
     const isGhost = stockFilter==='tobuy' && _tobuySnapshot && _tobuySnapshot.has(s.id) && !restock;
+    const isUrg = isUrgentNow(s);
+    const isUrgentGhost = stockFilter==='urgent' && _urgentSnapshot && _urgentSnapshot.has(s.id) && !isUrg;
     const bulkOn = bulkActive('stock');
     const picked = bulkOn && bulkSelected.has(s.id);
-    const isUrg = isUrgentNow(s);
-    return `<div class="stock-row ${restock?'tobuy':''} ${isGhost?'tobuy-ghost':''} ${isUrg?'urgent':''} ${s._virtual?'virtual':''} ${_stockCompact?'compact':''} ${bulkOn?'bulk-row':''} ${picked?'bulk-picked':''}" data-stock="${s.id}" ${bulkOn?`data-bulk-pick="${s.id}"`:''} data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}">
+    return `<div class="stock-row ${restock?'tobuy':''} ${isGhost?'tobuy-ghost':''} ${isUrgentGhost?'tobuy-ghost':''} ${isUrg?'urgent':''} ${s._virtual?'virtual':''} ${_stockCompact?'compact':''} ${bulkOn?'bulk-row':''} ${picked?'bulk-picked':''}" data-stock="${s.id}" ${bulkOn?`data-bulk-pick="${s.id}"`:''} data-search="${escHtml((name+' '+(s.store||'')+' '+(s.note||'')+' '+(s.category||'')+' '+(s.location||'')).toLowerCase())}">
       ${bulkOn ? `<span class="bulk-check" style="position:static;flex-shrink:0;border-radius:7px;${picked?'':'background:transparent'}"><span class="${picked?'on':''}" style="display:flex;width:100%;height:100%;align-items:center;justify-content:center">${picked?'✓':''}</span></span>` : `<div class="stock-left ${s.neverRestock?'muted-locked':''}">
         <button class="stock-check" data-toggle-stock="${s.id}" aria-label="Marquer à acheter" ${s.neverRestock?'disabled':''}>${restock?'🛒':''}</button>
         <button class="stock-urgent-check ${isUrg?'on':''}" data-toggle-urgent="${s.id}" aria-label="Marquer urgent" ${s.neverRestock?'disabled':''}>🚨</button>
@@ -4822,7 +4833,7 @@ function renderStock(){
     <div class="view">
       <div class="seg-tabs">
         <button data-stock-filter="all" class="${stockFilter==='all'?'active':''}">Tous (${all.length})</button>
-        ${urgentCount>0 ? `<button data-stock-filter="urgent" class="${stockFilter==='urgent'?'active':''}" style="${stockFilter==='urgent'?'':'color:var(--danger);border-color:var(--danger)'}">🚨 Urgent (${urgentCount})</button>` : ''}
+        ${(urgentCount>0 || (stockFilter==='urgent' && _urgentSnapshot && _urgentSnapshot.size>0)) ? `<button data-stock-filter="urgent" class="${stockFilter==='urgent'?'active':''}" style="${stockFilter==='urgent'?'':'color:var(--danger);border-color:var(--danger)'}">🚨 Urgent (${urgentCount})</button>` : ''}
         <button data-stock-filter="tobuy" class="${stockFilter==='tobuy'?'active':''}">🛒 À racheter (${toBuyCount})</button>
       </div>
       ${(()=>{
@@ -6719,8 +6730,18 @@ function bindSyncHandlers(){
     const prevText = syncForcePushBtn.textContent;
     syncForcePushBtn.textContent = '⏳ Envoi en cours…';
     try{
-      await persistNow();
-      toast('Données envoyées ✓ — les autres appareils les récupéreront à leur prochaine synchro');
+      const cfgCheck = SyncConfig.loadOrDefaults();
+      if(!cfgCheck || !cfgCheck.token || !cfgCheck.owner || !cfgCheck.repo){
+        toast('❌ Synchro non configurée sur cet appareil — remplis Propriétaire / Dépôt / Jeton ci-dessus');
+      } else {
+        // Une action explicite de l'utilisateur pour "forcer l'envoi" doit
+        // TOUJOURS tenter l'envoi, même si le drapeau interne "auto" est
+        // resté bloqué à false suite à un ancien bug (voir persistNow) — ça
+        // permet à un appareil coincé de se réparer en un tap.
+        if(!cfgCheck.auto){ cfgCheck.auto = true; SyncConfig.save(cfgCheck); }
+        await persistNow();
+        toast('Données envoyées ✓ — les autres appareils les récupéreront à leur prochaine synchro');
+      }
     }catch(e){
       toast('Erreur d\'envoi : '+(e && e.message || e));
     } finally {
@@ -7713,6 +7734,7 @@ function attachHandlers(){
     if(newFilter !== stockFilter){
       // On change de filtre : vider les snapshots pour qu'ils se reconstruisent
       _tobuySnapshot = null;
+      _urgentSnapshot = null;
       _stockOrderSnapshot = null;
     }
     stockFilter = newFilter;
