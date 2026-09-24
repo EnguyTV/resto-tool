@@ -739,6 +739,14 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .plan-chip{background:var(--navy-2);border:1px solid var(--line-strong);border-radius:7px;padding:6px 8px;font-size:10px;font-weight:700;color:var(--cream);cursor:grab;touch-action:none;text-align:center;line-height:1.2;user-select:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .plan-chip.unplaced{background:rgba(228,162,9,.1);border-color:var(--gold)}
 .plan-chip.dragging{opacity:.85;box-shadow:0 6px 18px rgba(0,0,0,.4);cursor:grabbing}
+.plan-chip-wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.plan-chip-wrap .plan-chip{width:100%}
+.plan-chip-move{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--navy);border:1px solid var(--line-strong);color:var(--cyan);font-size:11px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:5}
+.plan-move-menu{display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--navy-2);border:1px solid var(--line-strong);border-radius:8px;z-index:60;min-width:140px;box-shadow:0 8px 20px rgba(0,0,0,.4);overflow:hidden}
+.plan-move-menu.open{display:block}
+.plan-move-menu button{display:block;width:100%;text-align:left;padding:9px 12px;font-size:12px;color:var(--cream);background:none;border:none;border-bottom:1px solid var(--line);cursor:pointer}
+.plan-move-menu button:last-child{border-bottom:none}
+.plan-move-menu button:hover,.plan-move-menu button:active{background:rgba(102,197,219,.12)}
 /* Left column: "à racheter" checkbox on top, "urgent" checkbox below — always same spot per line */
 .stock-row .stock-left{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
 .stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:12px;cursor:pointer;transition:all .15s}
@@ -4948,10 +4956,13 @@ function renderInventory(){
       <div class="actions"></div>
     </div>
     <div class="view">
-      <div class="empty" style="margin-top:40px">
+      <div class="empty" style="margin-top:30px">
         <div class="empty-ico">📋</div>
-        <p style="max-width:320px;margin:0 auto 18px">Compte ton stock étagère par étagère, sans rien oublier — même les produits à 0. Chaque produit doit être coché explicitement, y compris ceux qui ont un emplacement mais dont le bac est vide.</p>
-        <button class="btn btn-primary btn-block" data-inv-start style="max-width:320px;margin:0 auto">▶ Démarrer un inventaire</button>
+        <p style="max-width:320px;margin:0 auto 20px">Compte tes produits étagère par étagère, sans rien oublier — même les produits à 0. Choisis d'abord ce que tu fais :</p>
+        <button class="btn btn-primary btn-block" data-inv-start="restaurant" style="max-width:320px;margin:0 auto 10px">📋 Inventaire (Restaurant)</button>
+        <p class="muted" style="max-width:320px;margin:0 auto 18px;font-size:11px">Compter ce qu'il y a dans le resto et mettre le stock à jour.</p>
+        <button class="btn btn-secondary btn-block" data-inv-start="magasin" style="max-width:320px;margin:0 auto 10px">🛒 Courses (Magasin)</button>
+        <p class="muted" style="max-width:320px;margin:0 auto;font-size:11px">Suivre le plan d'un magasin pendant les courses et mettre le stock à jour au fur et à mesure.</p>
       </div>
     </div>`;
   }
@@ -5031,15 +5042,11 @@ function renderInventory(){
     return `
       <div class="topbar">
         <button class="back" data-back>‹</button>
-        <h1>Inventaire</h1>
+        <h1>${_inventoryZone==='magasin'?'🛒 Courses':'📋 Inventaire'}</h1>
         ${topBarActions}
       </div>
       <div class="view">
         ${progressHtml}
-        <div class="inv-zone-tabs">
-          <button type="button" class="inv-zone-tab ${_inventoryZone==='restaurant'?'active':''}" data-inv-zone="restaurant">🍽️ Restaurant</button>
-          <button type="button" class="inv-zone-tab ${_inventoryZone==='magasin'?'active':''}" data-inv-zone="magasin">🏬 Magasin</button>
-        </div>
         <p class="muted" style="margin-bottom:10px;font-size:12px">Plusieurs pièces ici — laquelle veux-tu compter ?</p>
         <div class="inv-room-picker">${roomListHtml}</div>
         <button class="btn btn-ghost btn-block" data-inv-cancel style="margin-top:16px">Annuler sans enregistrer</button>
@@ -5070,23 +5077,20 @@ function renderInventory(){
   return `
     <div class="topbar">
       <button class="back" data-back>‹</button>
-      <h1>Inventaire</h1>
+      <h1>${_inventoryZone==='magasin'?'🛒 Courses':'📋 Inventaire'}</h1>
       ${topBarActions}
     </div>
     <div class="view">
       ${progressHtml}
-      <div class="inv-zone-tabs">
-        <button type="button" class="inv-zone-tab ${_inventoryZone==='restaurant'?'active':''}" data-inv-zone="restaurant">🍽️ Restaurant</button>
-        <button type="button" class="inv-zone-tab ${_inventoryZone==='magasin'?'active':''}" data-inv-zone="magasin">🏬 Magasin</button>
-      </div>
       ${zoneRooms.length>1 ? `<button type="button" class="btn btn-ghost" data-inv-change-room style="margin-bottom:10px;width:100%">↔ Changer de pièce (${escHtml(currentRoom?currentRoom.name:'')})</button>` : ''}
       ${cards.length || currentRoom ? `<div class="inv-shelf-grid" style="grid-template-rows:repeat(${currentRoom?currentRoom.rows:1},auto);grid-template-columns:repeat(${currentRoom?currentRoom.cols:1},1fr)">${cardsHtml}</div>` : `<div class="empty" style="margin-top:20px">Aucun emplacement dans cette zone pour l'instant.</div>`}
       ${unassignedCardHtml}
-      <button class="btn btn-primary btn-block" data-inv-finish style="margin-top:20px">✅ Terminer l'inventaire</button>
+      <button class="btn btn-primary btn-block" data-inv-finish style="margin-top:20px">${_inventoryZone==='magasin'?'✅ Terminer les courses':"✅ Terminer l'inventaire"}</button>
       <button class="btn btn-ghost btn-block" data-inv-cancel style="margin-top:8px">Annuler sans enregistrer</button>
     </div>`;
 }
 let _planRoomKey = null;
+let _planMoveMenuOutsideClickBound = false;
 function renderStockPlan(){
   const rooms = getStockRooms();
   if(!_planRoomKey || !rooms.some(r=>r.key===_planRoomKey)) _planRoomKey = rooms[0] ? rooms[0].key : null;
@@ -5099,11 +5103,19 @@ function renderStockPlan(){
 
   let gridHtml = '';
   if(room){
+    const otherRooms = rooms.filter(r=>r.key!==room.key);
     const cells = [];
     for(let r=0;r<room.rows;r++){
       for(let c=0;c<room.cols;c++){
         const loc = roomLocs.find(l=>l.row===r && l.col===c);
-        cells.push(`<div class="plan-cell" data-r="${r}" data-c="${c}">${loc?`<div class="plan-chip" data-plan-chip="${escHtml(loc.key)}">${escHtml(loc.label)}</div>`:''}</div>`);
+        const cellContent = loc ? `<div class="plan-chip-wrap">
+          <div class="plan-chip" data-plan-chip="${escHtml(loc.key)}">${escHtml(loc.label)}</div>
+          ${otherRooms.length ? `<button type="button" class="plan-chip-move" data-plan-move-btn="${escHtml(loc.key)}" title="Déplacer vers une autre pièce">↔</button>
+          <div class="plan-move-menu" data-plan-move-menu="${escHtml(loc.key)}">
+            ${otherRooms.map(r=>`<button type="button" data-plan-move-to="${escHtml(r.key)}" data-plan-move-loc="${escHtml(loc.key)}">${r.zone==='magasin'?'🏬':'🍽️'} ${escHtml(r.name)}</button>`).join('')}
+          </div>` : ''}
+        </div>` : '';
+        cells.push(`<div class="plan-cell" data-r="${r}" data-c="${c}">${cellContent}</div>`);
       }
     }
     gridHtml = `<div class="plan-grid" style="grid-template-rows:repeat(${room.rows},56px);grid-template-columns:repeat(${room.cols},1fr)">${cells.join('')}</div>`;
@@ -5141,7 +5153,7 @@ function renderStockPlan(){
     </div>
     ${paletteHtml}
     ${gridHtml}
-    <p class="muted" style="margin-top:12px;font-size:11px;text-align:center">Glisse un emplacement (souris ou doigt) vers une case pour le positionner. Poser sur une case déjà occupée échange les deux.</p>
+    <p class="muted" style="margin-top:12px;font-size:11px;text-align:center">Glisse un emplacement (souris ou doigt) vers une case pour le positionner. Poser sur une case déjà occupée échange les deux. Le bouton ↔ sur un emplacement déjà placé permet de le déplacer vers une autre pièce.</p>
     ` : `<div class="empty" style="margin-top:30px"><p>Aucune pièce pour l'instant.</p></div>`}
   </div>`;
 }
@@ -5439,7 +5451,7 @@ function renderContactEdit(id){
   ov.querySelector('[data-del-contact]').addEventListener('click', async ()=>{
     if(!confirm('Supprimer ce contact ?')) return;
     state.contacts = (state.contacts||[]).filter(x=>x.id!==c.id);
-    await persist();
+    await persistNow();
     ov.remove();
     toast('Contact supprimé');
     render();
@@ -5557,7 +5569,7 @@ function openNotifEditor(id){
   ov.querySelector('[data-del-notif]').addEventListener('click', async ()=>{
     if(!confirm('Supprimer cette annonce ?')) return;
     state.notifications = (state.notifications||[]).filter(x=>x.id!==n.id);
-    await persist();
+    await persistNow();
     ov.remove();
     toast('Annonce supprimée');
     render();
@@ -5629,7 +5641,7 @@ function openNoteEditor(id){
   ov.querySelector('[data-del-note]').addEventListener('click', async ()=>{
     if(!confirm('Supprimer cette note ?')) return;
     state.notes = (state.notes||[]).filter(x=>x.id!==n.id);
-    await persist();
+    await persistNow();
     ov.remove();
     toast('Note supprimée');
     render();
@@ -7969,15 +7981,14 @@ function attachHandlers(){
     persistNow().catch(err=>console.error('sync push', err));
   }));
   // ── Mode Inventaire ──
-  const invStartBtn = $('[data-inv-start]');
-  if(invStartBtn) invStartBtn.addEventListener('click', async ()=>{
+  $$('[data-inv-start]').forEach(b=>b.addEventListener('click', async ()=>{
     state._inventorySession = { startedAt: Date.now(), counted: {} };
-    _inventoryZone = 'restaurant';
+    _inventoryZone = b.getAttribute('data-inv-start') === 'magasin' ? 'magasin' : 'restaurant';
     _inventoryRoomKey = null;
     _inventoryOpenShelf = null;
     await persist();
     render();
-  });
+  }));
   $$('[data-inv-cancel]').forEach(b=>b.addEventListener('click', async ()=>{
     if(!confirm('Annuler cet inventaire ? Les comptages effectués ne seront pas appliqués.')) return;
     state._inventorySession = null;
@@ -8144,6 +8155,44 @@ function attachHandlers(){
     loc.roomId = room.key; loc.zone = room.zone; loc.row = r; loc.col = c; loc.updatedAt = Date.now();
     persist();
     render();
+  }
+  function moveLocationToRoom(key, targetRoomKey){
+    const loc = (state.settings.customStockLocations||[]).find(l=>l.key===key);
+    const targetRoom = (state.settings.stockRooms||[]).find(rm=>rm.key===targetRoomKey);
+    if(!loc || !targetRoom) return;
+    const occupied = new Set((state.settings.customStockLocations||[])
+      .filter(l=>l.roomId===targetRoom.key)
+      .map(l=>`${l.row},${l.col}`));
+    let placedR = 0, placedC = 0, found = false;
+    for(let r=0; r<targetRoom.rows && !found; r++){
+      for(let c=0; c<targetRoom.cols && !found; c++){
+        if(!occupied.has(`${r},${c}`)){ placedR = r; placedC = c; found = true; }
+      }
+    }
+    loc.roomId = targetRoom.key;
+    loc.zone = targetRoom.zone;
+    loc.row = placedR;
+    loc.col = placedC;
+    loc.updatedAt = Date.now();
+    persist();
+    toast(found ? `Déplacé vers « ${targetRoom.name} »` : `Déplacé vers « ${targetRoom.name} » (pièce pleine, superposé — repositionne-le)`);
+    render();
+  }
+  $$('[data-plan-move-btn]').forEach(btn=>btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    const key = btn.getAttribute('data-plan-move-btn');
+    const menu = document.querySelector(`[data-plan-move-menu="${key}"]`);
+    const wasOpen = menu && menu.classList.contains('open');
+    $$('.plan-move-menu').forEach(m=>m.classList.remove('open'));
+    if(menu && !wasOpen) menu.classList.add('open');
+  }));
+  $$('[data-plan-move-to]').forEach(btn=>btn.addEventListener('click', e=>{
+    e.stopPropagation();
+    moveLocationToRoom(btn.getAttribute('data-plan-move-loc'), btn.getAttribute('data-plan-move-to'));
+  }));
+  if(!_planMoveMenuOutsideClickBound){
+    document.addEventListener('click', ()=>{ $$('.plan-move-menu').forEach(m=>m.classList.remove('open')); });
+    _planMoveMenuOutsideClickBound = true;
   }
   $$('.plan-chip').forEach(chip=>{
     chip.addEventListener('pointerdown', e=>{
@@ -8409,7 +8458,7 @@ function attachHandlers(){
     const id = b.getAttribute('data-del-routine');
     if(!confirm('Supprimer cette routine ?')) return;
     state.routines = (state.routines||[]).filter(r=>r.id!==id);
-    await persist();
+    await persistNow();
     toast('Routine supprimée');
     navigate('#tasks');
   }));
@@ -8533,7 +8582,7 @@ function attachHandlers(){
     if(!state._libTombstones) state._libTombstones = {recipes:{},fiches:{},ingredients:{}};
     if(!state._libTombstones.recipes) state._libTombstones.recipes = {};
     state._libTombstones.recipes[id] = Date.now();
-    await persist();
+    await persistNow();
     toast('Préparation supprimée');
     navigate('#recipes');
   }));
@@ -8551,7 +8600,7 @@ function attachHandlers(){
     if(!state._libTombstones) state._libTombstones = {recipes:{},fiches:{},ingredients:{}};
     if(!state._libTombstones.fiches) state._libTombstones.fiches = {};
     state._libTombstones.fiches[id] = Date.now();
-    await persist();
+    await persistNow();
     toast('Fiche technique supprimée');
     navigate('#fiches');
   }));
@@ -8575,7 +8624,7 @@ function attachHandlers(){
     e.stopPropagation();
     const id = b.getAttribute('data-del-task');
     state.tasks = state.tasks.filter(t=>t.id!==id);
-    await persist();
+    await persistNow();
     render();
   }));
   // Open/close inline task editor
@@ -8638,7 +8687,7 @@ function attachHandlers(){
     if(!state._libTombstones) state._libTombstones = {recipes:{},fiches:{},ingredients:{}};
     if(!state._libTombstones.ingredients) state._libTombstones.ingredients = {};
     state._libTombstones.ingredients[id] = Date.now();
-    await persist();
+    await persistNow();
     toast('Ingrédient supprimé');
     navigate('#ingredients');
   }));
