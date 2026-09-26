@@ -747,6 +747,9 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .plan-move-menu button{display:block;width:100%;text-align:left;padding:9px 12px;font-size:12px;color:var(--cream);background:none;border:none;border-bottom:1px solid var(--line);cursor:pointer}
 .plan-move-menu button:last-child{border-bottom:none}
 .plan-move-menu button:hover,.plan-move-menu button:active{background:rgba(102,197,219,.12)}
+.plan-flat-list{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--navy-2)}
+.plan-flat-row{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--cream)}
+.plan-flat-row:last-child{border-bottom:none}
 /* Left column: "à racheter" checkbox on top, "urgent" checkbox below — always same spot per line */
 .stock-row .stock-left{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
 .stock-row .stock-check{width:24px;height:24px;border-radius:6px;border:2px solid var(--cyan);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--gold);font-weight:bold;font-size:12px;cursor:pointer;transition:all .15s}
@@ -4583,9 +4586,13 @@ function ensureStockRoomsMigrated(){
   zonesInUse.add('restaurant');
   zonesInUse.forEach(zone=>{
     if(!rooms.some(r=>r.zone===zone)){
-      rooms.push({ key: uid('room'), name: zone==='magasin' ? 'Magasin principal' : 'Restaurant', zone, rows:6, cols:6, updatedAt: Date.now() });
+      rooms.push({ key: uid('room'), name: zone==='magasin' ? 'Magasin principal' : 'Restaurant', zone, rows:6, cols:6, hasMap:true, updatedAt: Date.now() });
     }
   });
+  // Une pièce sans plan visuel (petit magasin) : pas de grille, juste une
+  // liste à cocher. Par défaut true pour ne rien changer aux pièces
+  // existantes (elles avaient déjà un plan avant que cette option existe).
+  rooms.forEach(r=>{ if(r.hasMap===undefined) r.hasMap = true; });
   // Affectation par défaut UNE SEULE FOIS (vraie migration historique, pour les
   // emplacements qui existaient déjà avant l'arrivée des pièces). Après ce
   // premier passage, un emplacement sans pièce reste délibérément "sans
@@ -5053,6 +5060,42 @@ function renderInventory(){
       </div>`;
   }
 
+  // ── Pièce sans plan (petit magasin) : liste plate directe, pas de grille ──
+  if(currentRoom && currentRoom.hasMap === false){
+    const flatItems = allLocs.filter(l=>l.roomId===currentRoom.key).flatMap(l=>byKey[l.key].items);
+    const done = flatItems.filter(s=>counted[s.id]!==undefined).length;
+    const rows = flatItems.slice().sort((a,b)=>getStockName(a).localeCompare(getStockName(b),'fr')).map(s=>{
+      const name = getStockName(s);
+      const c = counted[s.id];
+      const isCounted = c !== undefined;
+      const inputVal = isCounted ? c.qty : (s.qty!=null ? s.qty : '');
+      return `<div class="inv-row ${isCounted?'done':''}" data-inv-row="${s.id}">
+        <div class="inv-row-name">${isCounted?'✅ ':'⬜ '}${escHtml(name)}</div>
+        <div class="inv-row-ctrl">
+          <button type="button" class="inv-qty-btn dec" data-inv-dec="${s.id}" aria-label="Moins 1">−</button>
+          <input type="number" inputmode="decimal" step="any" placeholder="—" value="${inputVal}" data-inv-input="${s.id}">
+          <button type="button" class="inv-qty-btn inc" data-inv-inc="${s.id}" aria-label="Plus 1">+</button>
+          <span class="unit">${escHtml(s.unit||'')}</span>
+          <button type="button" class="inv-empty-btn" data-inv-zero="${s.id}" title="Marquer comme vide">📭 Vide</button>
+          <button type="button" class="inv-confirm-btn" data-inv-confirm="${s.id}" title="Valider ce comptage">✓ Valider</button>
+        </div>
+      </div>`;
+    }).join('');
+    return `
+      <div class="topbar">
+        <button class="back" data-back>‹</button>
+        <h1>${escHtml(currentRoom.name)}</h1>
+        ${topBarActions}
+      </div>
+      <div class="view">
+        ${progressHtml}
+        ${zoneRooms.length>1 ? `<button type="button" class="btn btn-ghost" data-inv-change-room style="margin-bottom:10px;width:100%">↔ Changer de pièce</button>` : ''}
+        <div class="inv-shelf-progress">${done}/${flatItems.length} comptés dans « ${escHtml(currentRoom.name)} »</div>
+        <div class="inv-group">${rows || '<div class="empty" style="padding:20px 0">Aucun produit assigné à cette pièce.</div>'}</div>
+        <button class="btn btn-primary btn-block" data-inv-finish style="margin-top:20px">${_inventoryZone==='magasin'?'✅ Terminer les courses':"✅ Terminer l'inventaire"}</button>
+      </div>`;
+  }
+
   // ── Vue grille : les étagères positionnées de la pièce active ──
   const roomLocs = currentRoom ? allLocs.filter(l=>l.roomId===currentRoom.key) : [];
   const cards = roomLocs.map(l=>byKey[l.key]).filter(g=>g.items.length);
@@ -5100,10 +5143,10 @@ function renderStockPlan(){
   const roomLocs = room ? allLocs.filter(l=>l.roomId===room.key) : [];
 
   const roomTabsHtml = rooms.map(r=>`<button type="button" class="plan-room-tab ${r.key===_planRoomKey?'active':''}" data-plan-room="${r.key}">${r.zone==='magasin'?'🏬':'🍽️'} ${escHtml(r.name)}</button>`).join('');
+  const otherRooms = room ? rooms.filter(r=>r.key!==room.key) : [];
 
   let gridHtml = '';
   if(room){
-    const otherRooms = rooms.filter(r=>r.key!==room.key);
     const cells = [];
     for(let r=0;r<room.rows;r++){
       for(let c=0;c<room.cols;c++){
@@ -5136,13 +5179,18 @@ function renderStockPlan(){
     <div class="plan-room-tabs">${roomTabsHtml}</div>
     ${room ? `
     <div class="plan-room-controls">
-      <input type="text" id="planRoomName" value="${escHtml(room.name)}" placeholder="Nom de la pièce (ex: Cuisine, Carrefour Market…)">
+      <input type="text" id="planRoomName" value="${escHtml(room.name)}" placeholder="Nom de la pièce (ex: Cuisine, Sligro, Ethnic Market…)">
       <div class="loc-zone-toggle" style="margin-top:8px">
         <button type="button" class="zone-chip ${room.zone==='restaurant'?'active':''}" data-plan-room-zone="restaurant">🍽️ Resto</button>
         <button type="button" class="zone-chip ${room.zone==='magasin'?'active':''}" data-plan-room-zone="magasin">🏬 Magasin</button>
       </div>
       <input type="hidden" id="planRoomZone" value="${room.zone}">
-      <div class="plan-size-controls">
+      <div class="loc-zone-toggle" style="margin-top:8px">
+        <button type="button" class="zone-chip ${room.hasMap?'active':''}" data-plan-room-hasmap="1">🗺️ Avec plan</button>
+        <button type="button" class="zone-chip ${!room.hasMap?'active':''}" data-plan-room-hasmap="0">📝 Liste simple</button>
+      </div>
+      <input type="hidden" id="planRoomHasMap" value="${room.hasMap?'1':'0'}">
+      <div class="plan-size-controls" id="planRoomSizeControls" style="${room.hasMap?'':'display:none'}">
         <label>Lignes <input type="number" id="planRoomRows" value="${room.rows}" min="1" max="12"></label>
         <label>Colonnes <input type="number" id="planRoomCols" value="${room.cols}" min="1" max="12"></label>
       </div>
@@ -5151,9 +5199,29 @@ function renderStockPlan(){
         ${rooms.length>1 ? `<button type="button" class="btn btn-ghost" id="planRoomDeleteBtn">Supprimer</button>` : ''}
       </div>
     </div>
+    ${room.hasMap ? `
     ${paletteHtml}
     ${gridHtml}
     <p class="muted" style="margin-top:12px;font-size:11px;text-align:center">Glisse un emplacement (souris ou doigt) vers une case pour le positionner. Poser sur une case déjà occupée échange les deux. Le bouton ↔ sur un emplacement déjà placé permet de le déplacer vers une autre pièce.</p>
+    ` : `
+    <div class="plan-flat-list">
+      ${roomLocs.length ? roomLocs.map(l=>`<div class="plan-flat-row">
+        <span>${escHtml(l.label)}</span>
+        <div style="display:flex;gap:6px;position:relative">
+          ${otherRooms.length ? `<button type="button" class="plan-chip-move" style="position:static" data-plan-move-btn="${escHtml(l.key)}" title="Déplacer vers une autre pièce">↔</button>
+          <div class="plan-move-menu" data-plan-move-menu="${escHtml(l.key)}">
+            ${otherRooms.map(r=>`<button type="button" data-plan-move-to="${escHtml(r.key)}" data-plan-move-loc="${escHtml(l.key)}">${r.zone==='magasin'?'🏬':'🍽️'} ${escHtml(r.name)}</button>`).join('')}
+          </div>` : ''}
+          <button type="button" class="rm" data-plan-unassign="${escHtml(l.key)}" title="Retirer de cette pièce">×</button>
+        </div>
+      </div>`).join('') : `<p class="muted" style="padding:10px 0">Aucun emplacement dans cette pièce pour l'instant.</p>`}
+    </div>
+    ${unassigned.length ? `<div class="plan-palette" style="margin-top:14px">
+      <div class="plan-palette-label">Ajouter à cette pièce :</div>
+      <div class="plan-palette-chips">${unassigned.map(l=>`<button type="button" class="plan-chip unplaced" style="cursor:pointer" data-plan-quick-assign="${escHtml(l.key)}">${escHtml(l.label)}</button>`).join('')}</div>
+    </div>` : ''}
+    <button type="button" class="add-btn" data-plan-new-loc-flat style="margin-top:10px">+ Nouvel emplacement pour cette pièce</button>
+    `}
     ` : `<div class="empty" style="margin-top:30px"><p>Aucune pièce pour l'instant.</p></div>`}
   </div>`;
 }
@@ -8086,10 +8154,11 @@ function attachHandlers(){
   }));
   const planAddRoomBtn = $('[data-plan-add-room]');
   if(planAddRoomBtn) planAddRoomBtn.addEventListener('click', async ()=>{
-    const name = prompt('Nom de la nouvelle pièce (ex: Cave, Carrefour Market…)');
+    const name = prompt('Nom de la nouvelle pièce (ex: Cave, Sligro, Ethnic Market…)');
     if(!name || !name.trim()) return;
+    const hasMap = confirm('Cette pièce a-t-elle besoin d\'un plan visuel (grand magasin, plusieurs rayons) ?\n\nOK = oui, plan visuel avec positionnement\nAnnuler = non, juste une liste à cocher (petit magasin)');
     if(!state.settings.stockRooms) state.settings.stockRooms = [];
-    const newRoom = { key: uid('room'), name: name.trim(), zone:'restaurant', rows:6, cols:6, updatedAt: Date.now() };
+    const newRoom = { key: uid('room'), name: name.trim(), zone:'restaurant', rows:6, cols:6, hasMap, updatedAt: Date.now() };
     state.settings.stockRooms.push(newRoom);
     _planRoomKey = newRoom.key;
     await persist();
@@ -8101,6 +8170,15 @@ function attachHandlers(){
     b.classList.add('active');
     if(planRoomZoneEl) planRoomZoneEl.value = b.getAttribute('data-plan-room-zone');
   }));
+  const planRoomHasMapEl = $('#planRoomHasMap');
+  $$('[data-plan-room-hasmap]').forEach(b=>b.addEventListener('click', ()=>{
+    $$('[data-plan-room-hasmap]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    const val = b.getAttribute('data-plan-room-hasmap');
+    if(planRoomHasMapEl) planRoomHasMapEl.value = val;
+    const sizeControls = $('#planRoomSizeControls');
+    if(sizeControls) sizeControls.style.display = val==='1' ? '' : 'none';
+  }));
   const planRoomSaveBtn = $('#planRoomSaveBtn');
   if(planRoomSaveBtn) planRoomSaveBtn.addEventListener('click', async ()=>{
     const room = (state.settings.stockRooms||[]).find(r=>r.key===_planRoomKey);
@@ -8108,6 +8186,7 @@ function attachHandlers(){
     const name = ($('#planRoomName').value||'').trim();
     if(name) room.name = name;
     room.zone = $('#planRoomZone').value === 'magasin' ? 'magasin' : 'restaurant';
+    room.hasMap = $('#planRoomHasMap').value === '1';
     const newRows = Math.max(1, Math.min(12, parseInt($('#planRoomRows').value,10)||6));
     const newCols = Math.max(1, Math.min(12, parseInt($('#planRoomCols').value,10)||6));
     room.rows = newRows; room.cols = newCols;
@@ -8194,6 +8273,32 @@ function attachHandlers(){
     document.addEventListener('click', ()=>{ $$('.plan-move-menu').forEach(m=>m.classList.remove('open')); });
     _planMoveMenuOutsideClickBound = true;
   }
+  $$('[data-plan-unassign]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const key = btn.getAttribute('data-plan-unassign');
+    const loc = (state.settings.customStockLocations||[]).find(l=>l.key===key);
+    if(!loc) return;
+    loc.roomId = null; loc.row = null; loc.col = null; loc.updatedAt = Date.now();
+    await persist();
+    render();
+  }));
+  $$('[data-plan-quick-assign]').forEach(btn=>btn.addEventListener('click', ()=>{
+    moveLocationToRoom(btn.getAttribute('data-plan-quick-assign'), _planRoomKey);
+  }));
+  const planNewLocFlatBtn = $('[data-plan-new-loc-flat]');
+  if(planNewLocFlatBtn) planNewLocFlatBtn.addEventListener('click', async ()=>{
+    const room = (state.settings.stockRooms||[]).find(r=>r.key===_planRoomKey);
+    if(!room) return;
+    const name = prompt('Nom du nouvel emplacement (ex: Épicerie, Frigo…)');
+    if(!name || !name.trim()) return;
+    const label = name.trim();
+    const existingKeys = new Set((state.settings.customStockLocations||[]).map(l=>l.key));
+    let key = label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,30) || ('sl_'+Date.now().toString(36).slice(-4));
+    while(existingKeys.has(key)) key += '_2';
+    if(!state.settings.customStockLocations) state.settings.customStockLocations = [];
+    state.settings.customStockLocations.push({ key, label, zone: room.zone, roomId: room.key, row:0, col:0, updatedAt: Date.now() });
+    await persist();
+    render();
+  });
   $$('.plan-chip').forEach(chip=>{
     chip.addEventListener('pointerdown', e=>{
       e.preventDefault();
