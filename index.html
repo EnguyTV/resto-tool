@@ -4812,7 +4812,7 @@ function renderStock(){
       <div class="stock-body">
         <div class="stock-name">${escHtml(name)}${isUrg?` <span class="urgent-badge">🚨 Urgent</span>`:''}${s.neverRestock?` <span class="never-badge" title="Jamais à racheter">🚫</span>`:''}</div>
         <div class="stock-qty ${isZero?'zero':''}">${s.qty==null?'—':s.qty}<span class="unit">${escHtml(s.unit||'')}</span>${s.minQty!=null&&Number(s.minQty)>0?` <span style="color:var(--cream-faint);font-size:10px">(seuil ${s.minQty})</span>`:''}${targetDeficit>0?` <span class="stock-target-diff">${targetDeficit}${escHtml(s.unit||'')} à racheter</span>`:''}</div>
-        ${!_stockCompact && (s.store||s.shopZone) ? `<div class="stock-note" style="color:var(--cyan);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:2px">${s.store?'🏪 '+escHtml(s.store):''}${s.store&&s.shopZone?' · ':''}${s.shopZone?(getShopZones().find(z=>z.key===s.shopZone)||{label:s.shopZone}).label:''}</div>` : ''}
+        ${!_stockCompact && (s.store||s.locationMagasin) ? `<div class="stock-note" style="color:var(--cyan);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-top:2px">${s.store?'🏪 '+escHtml(s.store):''}${s.store&&s.locationMagasin?' · ':''}${s.locationMagasin?'🛒 '+escHtml((getStockLocations().find(l=>l.key===s.locationMagasin)||{label:s.locationMagasin}).label):''}</div>` : ''}
         ${!bulkOn ? `<div class="stock-cat-chips" style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;align-items:center">
           ${catLabel?`<button class="tag stock-cat-chip" data-set-cat="${s.id}">${escHtml(catLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed" data-set-cat="${s.id}">+ catégorie</button>`}
           ${locLabel?`<button class="tag stock-cat-chip" style="background:rgba(102,197,219,.2);color:var(--cyan)" data-set-loc="${s.id}">${escHtml(locLabel.label)}</button>`:`<button class="tag stock-cat-chip muted" style="opacity:.45;border-style:dashed;background:rgba(102,197,219,.08);color:var(--cyan)" data-set-loc="${s.id}">+ lieu</button>`}
@@ -4910,10 +4910,17 @@ function renderStock(){
             </select>
           </div>
           <div class="form-group">
-            <label>Emplacement stock</label>
+            <label>📍 Emplacement — Restaurant</label>
             <select name="location">
               <option value="">— Aucun —</option>
-              ${getStockLocations().map(l=>`<option value="${l.key}">${escHtml(l.label)}</option>`).join('')}
+              ${getStockLocations('restaurant').map(l=>`<option value="${l.key}">${escHtml(l.label)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>🛒 Emplacement — Magasin</label>
+            <select name="locationMagasin">
+              <option value="">— Aucun —</option>
+              ${getStockLocations('magasin').map(l=>`<option value="${l.key}">${escHtml(l.label)}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -4925,20 +4932,7 @@ function renderStock(){
               ${stores.map(st=>`<option value="${escHtml(st)}">${escHtml(st)}</option>`).join('')}
             </select>
           </div>
-          <div class="form-group">
-            <label>Zone dans le magasin</label>
-            <select name="shopZone">
-              <option value="">— Aucune —</option>
-              ${getShopZones().map(z=>`<option value="${z.key}">${escHtml(z.label)}</option>`).join('')}
-            </select>
-          </div>
-        </div>` : `<div class="form-group">
-          <label>Zone dans le magasin</label>
-          <select name="shopZone">
-            <option value="">— Aucune —</option>
-            ${getShopZones().map(z=>`<option value="${z.key}">${escHtml(z.label)}</option>`).join('')}
-          </select>
-        </div>`}
+        </div>` : ''}
         <div class="form-group">
           <label>Note (optionnel)</label>
           <input name="note" placeholder="Ex : Pack de 100">
@@ -6008,19 +6002,6 @@ function renderSettings(){
             <button type="button" class="add-btn" id="addStockLocBtn">+ Ajouter un emplacement</button>
             <button type="button" class="btn btn-secondary btn-block" id="saveStockLocsBtn" style="margin-top:10px">Enregistrer les emplacements</button>
             <button type="button" class="btn btn-primary btn-block" data-go="stockplan" style="margin-top:8px">🗺️ Organiser le plan (glisser-déposer)</button>
-          </div>
-
-          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-            <div class="sg-head" style="margin-bottom:10px">🛒 Zones dans le magasin</div>
-            <div class="muted" style="margin-bottom:8px;font-size:11px">Rayons ou zones où acheter (rayon frais, boucherie, caisse…).</div>
-            <div class="dynamic-list" id="shopZonesList">
-              ${(state.settings.customShopZones||[]).map((z,i)=>`<div class="dynamic-item" data-shopzone-row="${i}">
-                <input class="ing-name-i" name="shopzone_name" value="${escHtml(z.label)}" placeholder="Ex: 🥩 Rayon boucherie">
-                <button type="button" class="rm" data-rm-shopzone>×</button>
-              </div>`).join('')}
-            </div>
-            <button type="button" class="add-btn" id="addShopZoneBtn">+ Ajouter une zone</button>
-            <button type="button" class="btn btn-secondary btn-block" id="saveShopZonesBtn" style="margin-top:10px">Enregistrer les zones magasin</button>
           </div>
         `}
       </div>
@@ -7176,34 +7157,6 @@ function bindCategoriesHandlers(){
         return {key, label, zone, row: roomStillMatchesZone?prior.row:undefined, col: roomStillMatchesZone?prior.col:undefined, roomId: roomStillMatchesZone?prior.roomId:undefined, updatedAt: Date.now()};
       }).filter(Boolean);
       await persist(); toast('Emplacements enregistrés'); render();
-    });
-  }
-
-  // ── Shop zones (zones magasin) ──
-  const shopZonesList = $('#shopZonesList');
-  const addShopZoneBtn = $('#addShopZoneBtn');
-  const saveShopZonesBtn = $('#saveShopZonesBtn');
-  if(shopZonesList){
-    shopZonesList.querySelectorAll('[data-rm-shopzone]').forEach(b=>b.addEventListener('click',()=>b.closest('.dynamic-item').remove()));
-  }
-  if(addShopZoneBtn && shopZonesList){
-    addShopZoneBtn.addEventListener('click',()=>{
-      const div = document.createElement('div');
-      div.innerHTML = `<div class="dynamic-item"><input class="ing-name-i" name="shopzone_name" placeholder="Ex: 🥩 Rayon boucherie"><button type="button" class="rm" data-rm-shopzone>×</button></div>`;
-      const el = div.firstElementChild;
-      shopZonesList.appendChild(el);
-      el.querySelector('[data-rm-shopzone]').addEventListener('click',()=>el.remove());
-      el.querySelector('input').focus();
-    });
-  }
-  if(saveShopZonesBtn){
-    saveShopZonesBtn.addEventListener('click',async()=>{
-      const zones = $$('#shopZonesList input[name="shopzone_name"]').map(i=>i.value.trim()).filter(Boolean);
-      state.settings.customShopZones = zones.map(label=>{
-        const slug = label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,30) || ('sz_'+Date.now().toString(36).slice(-4));
-        return {key:slug, label};
-      });
-      await persist(); toast('Zones magasin enregistrées'); render();
     });
   }
 }
@@ -8364,9 +8317,9 @@ function attachHandlers(){
         toBuy: false,
         note: fd.get('note').toString().trim(),
         store: (fd.get('store')||'').toString().trim() || null,
-        shopZone: (fd.get('shopZone')||'').toString().trim() || null,
         category: (fd.get('category')||'').toString().trim() || null,
-        location: (fd.get('location')||'').toString().trim() || null
+        location: (fd.get('location')||'').toString().trim() || null,
+        locationMagasin: (fd.get('locationMagasin')||'').toString().trim() || null
       });
       await persist();
       toast('Produit ajouté');
