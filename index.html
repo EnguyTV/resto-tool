@@ -4989,7 +4989,8 @@ function renderInventory(){
   allLocs.forEach(l=>{ byKey[l.key] = { ...l, items: [] }; });
   const unassigned = { key:'__none', label:'📦 Sans emplacement', items: [] };
   all.forEach(s=>{
-    const g = byKey[s.location];
+    const locKey = _inventoryZone==='magasin' ? s.locationMagasin : s.location;
+    const g = byKey[locKey];
     (g || unassigned).items.push(s);
   });
 
@@ -5305,19 +5306,19 @@ function renderStockEdit(id){
             </select>
           </div>
           <div class="form-group">
-            <label>Emplacement stock</label>
+            <label>📍 Emplacement — Restaurant</label>
             <select name="location">
               <option value="">— Aucun —</option>
-              ${getStockLocations().map(l=>`<option value="${l.key}" ${(s.location||'')=== l.key?'selected':''}>${escHtml(l.label)}</option>`).join('')}
+              ${getStockLocations('restaurant').map(l=>`<option value="${l.key}" ${(s.location||'')=== l.key?'selected':''}>${escHtml(l.label)}</option>`).join('')}
             </select>
           </div>
-        </div>
-        <div class="form-group">
-          <label>Zone dans le magasin</label>
-          <select name="shopZone">
-            <option value="">— Aucune —</option>
-            ${getShopZones().map(z=>`<option value="${z.key}" ${(s.shopZone||'')=== z.key?'selected':''}>${escHtml(z.label)}</option>`).join('')}
-          </select>
+          <div class="form-group">
+            <label>🛒 Emplacement — Magasin</label>
+            <select name="locationMagasin">
+              <option value="">— Aucun —</option>
+              ${getStockLocations('magasin').map(l=>`<option value="${l.key}" ${(s.locationMagasin||'')=== l.key?'selected':''}>${escHtml(l.label)}</option>`).join('')}
+            </select>
+          </div>
         </div>
         <div class="form-group">
           <label>Note</label>
@@ -8409,7 +8410,7 @@ function attachHandlers(){
       s.store = (fd.get('store')||'').toString().trim() || null;
       s.category = (fd.get('category')||'').toString().trim() || null;
       s.location = (fd.get('location')||'').toString().trim() || null;
-      s.shopZone = (fd.get('shopZone')||'').toString().trim() || null;
+      s.locationMagasin = (fd.get('locationMagasin')||'').toString().trim() || null;
       s.urgent = !!fd.get('urgent');
       s.neverRestock = !!fd.get('neverRestock');
       s.excludeFromInventory = !!fd.get('excludeFromInventory');
@@ -8417,13 +8418,12 @@ function attachHandlers(){
       if(s.neverRestock){ s.toBuy = false; s.urgent = false; }
       syncUrgentWithRestock(s);
       s.updatedAt = Date.now();
-      s.updatedAt = Date.now();
       const photoVal = (fd.get('photo')||'').toString().trim();
       if(photoVal) s.photo = photoVal; else s.photo = null;
       // Mirror category/location to linked ingredient
       if(s.ingredientId){
         const ing = state.ingredients.find(i=>i.id===s.ingredientId);
-        if(ing){ ing.stockCategory = s.category; ing.stockLocation = s.location; }
+        if(ing){ ing.stockCategory = s.category; ing.stockLocation = s.location; ing.stockLocationMagasin = s.locationMagasin; }
       }
       await persist();
       toast('Enregistré');
