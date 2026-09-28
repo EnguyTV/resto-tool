@@ -1545,7 +1545,14 @@ function bindBulkHandlers(kind){
   if(!bulkActive(kind)) return;
   const arr = bulkArrayFor(kind);
   $$(`[data-bulk-all="${kind}"]`).forEach(b=>b.addEventListener('click',()=>{
-    filterByResto(arr).forEach(it=>bulkSelected.add(it.id)); render();
+    // Sélectionne uniquement ce qui est VISIBLE à l'écran maintenant — ça
+    // respecte automatiquement tous les filtres actifs (recherche, catégorie,
+    // magasin, onglet…), pas juste le filtre restaurant. Avant, "Tout"
+    // sélectionnait le tableau complet et ignorait tout filtre affiché.
+    $$('[data-bulk-pick]').forEach(el=>{
+      if(el.offsetParent !== null) bulkSelected.add(el.getAttribute('data-bulk-pick'));
+    });
+    render();
   }));
   $$(`[data-bulk-none="${kind}"]`).forEach(b=>b.addEventListener('click',()=>{
     bulkSelected.clear(); render();
@@ -4801,8 +4808,14 @@ function renderStock(){
     if(stockStoreFilter==='none') items = items.filter(s=>!s.store);
     else items = items.filter(s=>s.store===stockStoreFilter);
   }
-  if(stockCatFilter!=='all') items = items.filter(s=>(s.category||'autre')===stockCatFilter);
-  if(stockLocFilter!=='all') items = items.filter(s=>(s.location||'')===stockLocFilter);
+  if(stockCatFilter!=='all'){
+    if(stockCatFilter==='none') items = items.filter(s=>!s.category);
+    else items = items.filter(s=>(s.category||'autre')===stockCatFilter);
+  }
+  if(stockLocFilter!=='all'){
+    if(stockLocFilter==='none') items = items.filter(s=>!s.location);
+    else items = items.filter(s=>(s.location||'')===stockLocFilter);
+  }
 
   // Ordre figé : évite que les lignes bougent pendant les modifs +/-
   if(_stockOrderSnapshot === null){
@@ -4898,8 +4911,10 @@ function renderStock(){
         const activeFilters = [stockStoreFilter!=='all', stockCatFilter!=='all', stockLocFilter!=='all'].filter(Boolean).length;
         const badge = activeFilters > 0 ? `<span class="ff-badge">${activeFilters} actif${activeFilters>1?'s':''}</span>` : '';
         const previewParts = [];
-        if(stockCatFilter!=='all'){ const c = stockCats.find(x=>x.key===stockCatFilter); if(c) previewParts.push(c.label); }
-        if(stockLocFilter!=='all'){ const l = stockLocs.find(x=>x.key===stockLocFilter); if(l) previewParts.push(l.label); }
+        if(stockCatFilter==='none') previewParts.push('Catégorie non classée');
+        else if(stockCatFilter!=='all'){ const c = stockCats.find(x=>x.key===stockCatFilter); if(c) previewParts.push(c.label); }
+        if(stockLocFilter==='none') previewParts.push('Emplacement non classé');
+        else if(stockLocFilter!=='all'){ const l = stockLocs.find(x=>x.key===stockLocFilter); if(l) previewParts.push(l.label); }
         if(stockStoreFilter!=='all' && stockStoreFilter!=='none') previewParts.push(stockStoreFilter);
         else if(stockStoreFilter==='none') previewParts.push('Sans magasin');
         const preview = previewParts.length ? ` · ${previewParts.join(', ')}` : '';
@@ -7508,14 +7523,14 @@ function openStockFilterSheet(){
       <div class="filter-group">
         <div class="filter-group-label">🏷 Catégorie produit</div>
         <div class="filter-chips">
-          ${buildChips([{key:'all',label:'Toutes'},...stockCats], tmpCat, 'cat')}
+          ${buildChips([{key:'all',label:'Toutes'},...stockCats,{key:'none',label:'Non classé'}], tmpCat, 'cat')}
         </div>
       </div>
 
       <div class="filter-group">
         <div class="filter-group-label">📍 Emplacement</div>
         <div class="filter-chips">
-          ${buildChips([{key:'all',label:'Tous'},...stockLocs], tmpLoc, 'loc')}
+          ${buildChips([{key:'all',label:'Tous'},...stockLocs,{key:'none',label:'Non classé'}], tmpLoc, 'loc')}
         </div>
       </div>
 
