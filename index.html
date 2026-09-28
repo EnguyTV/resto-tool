@@ -1353,7 +1353,7 @@ function mergeStock(localStock, remoteStock, tombstones){
       // seulement si local les a modifiés APRÈS le dernier push connu
       const entry = { ...local, ...remote };
       // Champs "critiques" — on les garde locaux s'ils ont été touchés récemment
-      const criticalFields = ['urgent','toBuy','qty','minQty','targetQty','neverRestock','excludeFromInventory','restockTrigger','note','store','shopZone','category','location'];
+      const criticalFields = ['urgent','toBuy','qty','minQty','targetQty','neverRestock','excludeFromInventory','restockTrigger','note','store','locationMagasin','category','location'];
       criticalFields.forEach(field=>{
         if(local[field] !== undefined && local._localFields && local._localFields.includes(field)){
           entry[field] = local[field];
@@ -1494,7 +1494,7 @@ function getOrCreateStockRecord(id){
   if(s) return s;
   const v = buildStockEntries().find(x=>x.id===id);
   if(!v) return null;
-  s = { id: uid('s'), ingredientId: v.ingredientId||null, name: v.name, qty: v.qty!=null?v.qty:null, unit: v.unit||'', toBuy: v.toBuy||false, note:'', store:null, category: v.category||null, location: v.location||null, urgent:false };
+  s = { id: uid('s'), ingredientId: v.ingredientId||null, name: v.name, qty: v.qty!=null?v.qty:null, unit: v.unit||'', toBuy: v.toBuy||false, note:'', store:null, category: v.category||null, location: v.location||null, locationMagasin: v.locationMagasin||null, urgent:false };
   if(!state.stock) state.stock = [];
   state.stock.push(s);
   return s;
@@ -1684,7 +1684,8 @@ function openBulkDietModal(kind){
 function openBulkStockModal(){
   const ids = Array.from(bulkSelected);
   const cats = getStockCategories();
-  const locs = getStockLocations();
+  const locsResto = getStockLocations('restaurant');
+  const locsMag = getStockLocations('magasin');
   const stores = state.settings.stores || [];
   const ov = document.createElement('div');
   ov.className = 'modal-bg';
@@ -1700,11 +1701,19 @@ function openBulkStockModal(){
       </select>
     </div>
     <div class="form-group">
-      <label>Emplacement stock</label>
+      <label>📍 Emplacement — Restaurant</label>
       <select data-bs-loc>
         <option value="__nochange">Ne pas changer</option>
         <option value="">— Aucun —</option>
-        ${locs.map(l=>`<option value="${l.key}">${escHtml(l.label)}</option>`).join('')}
+        ${locsResto.map(l=>`<option value="${l.key}">${escHtml(l.label)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>🛒 Emplacement — Magasin</label>
+      <select data-bs-locmag>
+        <option value="__nochange">Ne pas changer</option>
+        <option value="">— Aucun —</option>
+        ${locsMag.map(l=>`<option value="${l.key}">${escHtml(l.label)}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
@@ -1713,6 +1722,22 @@ function openBulkStockModal(){
         <option value="__nochange">Ne pas changer</option>
         <option value="">— Aucun —</option>
         ${stores.map(st=>`<option value="${escHtml(st)}">${escHtml(st)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>📋 Ne pas compter à l'inventaire</label>
+      <select data-bs-exclinv>
+        <option value="__nochange">Ne pas changer</option>
+        <option value="1">Oui</option>
+        <option value="0">Non</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>🚫 Ne jamais à racheter</label>
+      <select data-bs-neverrestock>
+        <option value="__nochange">Ne pas changer</option>
+        <option value="1">Oui</option>
+        <option value="0">Non</option>
       </select>
     </div>
     <div class="btn-row">
@@ -1726,14 +1751,23 @@ function openBulkStockModal(){
     if(e.target.closest('[data-bulk-stock-apply]')){
       const catVal = (ov.querySelector('[data-bs-cat]')||{}).value;
       const locVal = (ov.querySelector('[data-bs-loc]')||{}).value;
+      const locMagVal = (ov.querySelector('[data-bs-locmag]')||{}).value;
       const storeVal = (ov.querySelector('[data-bs-store]')||{}).value;
-      if(catVal==='__nochange' && locVal==='__nochange' && storeVal==='__nochange'){ ov.remove(); return; }
+      const exclInvVal = (ov.querySelector('[data-bs-exclinv]')||{}).value;
+      const neverRestockVal = (ov.querySelector('[data-bs-neverrestock]')||{}).value;
+      if([catVal,locVal,locMagVal,storeVal,exclInvVal,neverRestockVal].every(v=>v==='__nochange')){ ov.remove(); return; }
       ids.forEach(id=>{
         const s = getOrCreateStockRecord(id);
         if(!s) return;
         if(catVal!=='__nochange') s.category = catVal || null;
         if(locVal!=='__nochange') s.location = locVal || null;
+        if(locMagVal!=='__nochange') s.locationMagasin = locMagVal || null;
         if(storeVal!=='__nochange') s.store = storeVal || null;
+        if(exclInvVal!=='__nochange') s.excludeFromInventory = exclInvVal==='1';
+        if(neverRestockVal!=='__nochange'){
+          s.neverRestock = neverRestockVal==='1';
+          if(s.neverRestock){ s.toBuy = false; s.urgent = false; }
+        }
         s.updatedAt = Date.now();
       });
       await persistNow();
@@ -4428,11 +4462,20 @@ function renderIngredientEdit(id){
               ${getStockCategories().map(c=>`<option value="${c.key}" ${(i.stockCategory||'')=== c.key?'selected':''}>${escHtml(c.label)}</option>`).join('')}
             </select>
           </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
-            <label>Emplacement stock</label>
+            <label>📍 Emplacement — Restaurant</label>
             <select name="stockLocation">
               <option value="">— Aucun —</option>
-              ${getStockLocations().map(l=>`<option value="${l.key}" ${(i.stockLocation||'')=== l.key?'selected':''}>${escHtml(l.label)}</option>`).join('')}
+              ${getStockLocations('restaurant').map(l=>`<option value="${l.key}" ${(i.stockLocation||'')=== l.key?'selected':''}>${escHtml(l.label)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>🛒 Emplacement — Magasin</label>
+            <select name="stockLocationMagasin">
+              <option value="">— Aucun —</option>
+              ${getStockLocations('magasin').map(l=>`<option value="${l.key}" ${(i.stockLocationMagasin||'')=== l.key?'selected':''}>${escHtml(l.label)}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -4655,9 +4698,9 @@ function buildStockEntries(){
         toBuy: false,
         note: '',
         store: null,
-        shopZone: ing.stockShopZone || null,
         category: ing.stockCategory || null,
         location: ing.stockLocation || null,
+        locationMagasin: ing.stockLocationMagasin || null,
         _virtual: true
       });
     }
@@ -4900,6 +4943,18 @@ function renderStock(){
             <label>Seuil minimum</label>
             <input name="minQty" type="number" inputmode="decimal" step="any" placeholder="Ex : 5">
           </div>
+          <div class="form-group">
+            <label>Stock voulu</label>
+            <input name="targetQty" type="number" inputmode="decimal" step="any" placeholder="Ex : 10">
+          </div>
+        </div>
+        <div class="form-row">
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cream-dim)">
+            <input type="checkbox" name="neverRestock" value="1" style="width:auto"> 🚫 Ne jamais à racheter
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cream-dim)">
+            <input type="checkbox" name="excludeFromInventory" value="1" style="width:auto"> 📋 Ne pas compter à l'inventaire
+          </label>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -7833,7 +7888,7 @@ function attachHandlers(){
       const all = buildStockEntries();
       const v = all.find(x=>x.id===id);
       if(!v) return;
-      s = { id: uid('s'), ingredientId: v.ingredientId, name: v.name, qty: 0, unit: v.unit, toBuy: false, note: '', store: null, category: v.category||null, location: v.location||null };
+      s = { id: uid('s'), ingredientId: v.ingredientId, name: v.name, qty: 0, unit: v.unit, toBuy: false, note: '', store: null, category: v.category||null, location: v.location||null, locationMagasin: v.locationMagasin||null };
       if(!state.stock) state.stock = [];
       state.stock.push(s);
       // L'entrée virtuelle (id=s_v_xxx) devient réelle (nouveau id) →
@@ -7861,7 +7916,7 @@ function attachHandlers(){
       const all = buildStockEntries();
       const v = all.find(x=>x.id===id);
       if(!v) return;
-      s = { id: uid('s'), ingredientId: v.ingredientId, name: v.name, qty: 0, unit: v.unit, toBuy: false, note: '', store: null, category: v.category||null, location: v.location||null };
+      s = { id: uid('s'), ingredientId: v.ingredientId, name: v.name, qty: 0, unit: v.unit, toBuy: false, note: '', store: null, category: v.category||null, location: v.location||null, locationMagasin: v.locationMagasin||null };
       if(!state.stock) state.stock = [];
       state.stock.push(s);
       // Même correction pour −
@@ -7969,7 +8024,7 @@ function attachHandlers(){
       const all = buildStockEntries();
       const v = all.find(x=>x.id===id);
       if(!v) return;
-      s = { id: uid('s'), ingredientId: v.ingredientId, name: v.name, qty: null, unit: v.unit, toBuy: true, note: '', store: null };
+      s = { id: uid('s'), ingredientId: v.ingredientId, name: v.name, qty: null, unit: v.unit, toBuy: true, note: '', store: null, category: v.category||null, location: v.location||null, locationMagasin: v.locationMagasin||null };
       if(!state.stock) state.stock = [];
       state.stock.push(s);
       // Mettre à jour le snapshot si actif (id virtuel → nouvel id réel)
@@ -8314,14 +8369,18 @@ function attachHandlers(){
         qty: fd.get('qty')!=='' ? parseFloat(fd.get('qty')) : null,
         unit: fd.get('unit').toString().trim(),
         minQty: fd.get('minQty')!=='' ? parseFloat(fd.get('minQty')) : null,
+        targetQty: fd.get('targetQty')!=='' ? parseFloat(fd.get('targetQty')) : null,
         toBuy: false,
+        neverRestock: !!fd.get('neverRestock'),
+        excludeFromInventory: !!fd.get('excludeFromInventory'),
         note: fd.get('note').toString().trim(),
         store: (fd.get('store')||'').toString().trim() || null,
         category: (fd.get('category')||'').toString().trim() || null,
         location: (fd.get('location')||'').toString().trim() || null,
-        locationMagasin: (fd.get('locationMagasin')||'').toString().trim() || null
+        locationMagasin: (fd.get('locationMagasin')||'').toString().trim() || null,
+        updatedAt: Date.now()
       });
-      await persist();
+      await persistNow();
       toast('Produit ajouté');
       render();
     });
@@ -9507,6 +9566,7 @@ async function handleIngSubmit(e){
     notes: fd.get('notes').toString(),
     stockCategory: (fd.get('stockCategory')||'').toString().trim() || null,
     stockLocation: (fd.get('stockLocation')||'').toString().trim() || null,
+    stockLocationMagasin: (fd.get('stockLocationMagasin')||'').toString().trim() || null,
     restos: readRestosFromForm(f)
   };
   if(!data.name){ alert('Le nom est requis'); return; }
