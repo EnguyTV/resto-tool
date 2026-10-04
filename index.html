@@ -1249,10 +1249,17 @@ function applyLibraryFromCloud(lib){
   const mergedCats = mergeTaxonomy(state.settings && state.settings.customStockCategories, lib.settings && lib.settings.customStockCategories);
   const mergedLocs = mergeTaxonomy(state.settings && state.settings.customStockLocations, lib.settings && lib.settings.customStockLocations);
   const mergedRooms = mergeTaxonomy(state.settings && state.settings.stockRooms, lib.settings && lib.settings.stockRooms);
+  // Union simple (jamais de perte) pour les listes "supprimé volontairement" :
+  // un appareil qui n'est pas encore au courant d'une suppression ne doit
+  // jamais la faire oublier à un autre.
+  const mergedRemovedCats = Array.from(new Set([...(state.settings&&state.settings._removedDefaultCatKeys||[]), ...(lib.settings&&lib.settings._removedDefaultCatKeys||[])]));
+  const mergedRemovedLocs = Array.from(new Set([...(state.settings&&state.settings._removedDefaultLocKeys||[]), ...(lib.settings&&lib.settings._removedDefaultLocKeys||[])]));
   state.settings = Object.assign(state.settings||{}, lib.settings||{});
   state.settings.customStockCategories = mergedCats;
   state.settings.customStockLocations = mergedLocs;
   state.settings.stockRooms = mergedRooms;
+  state.settings._removedDefaultCatKeys = mergedRemovedCats;
+  state.settings._removedDefaultLocKeys = mergedRemovedLocs;
   // Tasks: replace definitions, preserve local done state by id
   const preservedDone = {};
   (state.tasks||[]).forEach(t => { if(t.done) preservedDone[t.id] = true; });
@@ -4607,20 +4614,26 @@ function getShopZones(){
 // clés restent identiques donc rien ne casse pour les produits déjà classés.
 function ensureStockTaxonomyMigrated(){
   if(!state.settings) state.settings = {};
-  // Additif uniquement : ne fait que RAJOUTER un défaut manquant par sa clé,
-  // ne supprime et n'écrase jamais rien d'existant. Tourne à chaque démarrage
-  // (pas juste une fois) pour se réparer tout seul si jamais une synchro
-  // malheureuse effaçait à nouveau un défaut (voir mergeTaxonomy plus bas,
-  // qui empêche normalement ça de se reproduire).
+  // Additif : ne fait que RAJOUTER un défaut manquant par sa clé, pour se
+  // réparer tout seul si une synchro malheureuse effaçait un défaut (voir
+  // mergeTaxonomy plus bas). MAIS si l'utilisateur a supprimé ce défaut
+  // lui-même (voir removedDefaultCatKeys/removedDefaultLocKeys, alimentés
+  // par les écrans de suppression), on ne le recolle jamais — une
+  // suppression volontaire doit rester supprimée.
+  if(!state.settings._removedDefaultCatKeys) state.settings._removedDefaultCatKeys = [];
+  if(!state.settings._removedDefaultLocKeys) state.settings._removedDefaultLocKeys = [];
+  const removedCatKeys = new Set(state.settings._removedDefaultCatKeys);
+  const removedLocKeys = new Set(state.settings._removedDefaultLocKeys);
+
   const existingCats = state.settings.customStockCategories || [];
   const existingCatKeys = new Set(existingCats.map(c=>c.key));
-  const missingCats = DEFAULT_STOCK_CATEGORIES.filter(c=>!existingCatKeys.has(c.key));
+  const missingCats = DEFAULT_STOCK_CATEGORIES.filter(c=>!existingCatKeys.has(c.key) && !removedCatKeys.has(c.key));
   if(missingCats.length) state.settings.customStockCategories = [...missingCats, ...existingCats];
 
   const existingLocs = state.settings.customStockLocations || [];
   const existingLocKeys = new Set(existingLocs.map(l=>l.key));
   const missingLocs = DEFAULT_STOCK_LOCATIONS
-    .filter(l=>!existingLocKeys.has(l.key))
+    .filter(l=>!existingLocKeys.has(l.key) && !removedLocKeys.has(l.key))
     .map((l,i)=>({ ...l, zone:'restaurant', row:i, col:0 }));
   if(missingLocs.length) state.settings.customStockLocations = [...missingLocs, ...existingLocs];
   state.settings._taxonomyMigratedV2 = true;
@@ -5960,8 +5973,9 @@ function renderSettings(){
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-            <div class="sg-head" style="margin-bottom:10px">📞 Catégories de contacts</div>
+            <div class="sg-head sg-accordion" data-accordion="su_contactcats" style="margin-bottom:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">📞 Catégories de contacts <span class="sg-accordion-arrow">›</span></div>
             <div class="muted" style="margin-bottom:10px;font-size:11px;line-height:1.5">Catégories par défaut (Urgence, Fournisseur, Livreur, Patron, Réparateur, Équipe, Autre) déjà présentes. Tu peux en ajouter d'autres ici.</div>
+            <div class="sg-accordion-body collapsed" id="acc-su_contactcats">
             <div id="contactCatsList"></div>
             <form id="contactCatAddForm" style="margin-top:10px">
               <div class="form-row" style="align-items:flex-end">
@@ -5976,6 +5990,7 @@ function renderSettings(){
                 <button type="submit" class="btn btn-secondary" style="white-space:nowrap">+ Ajouter</button>
               </div>
             </form>
+            </div>
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
@@ -6002,8 +6017,9 @@ function renderSettings(){
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-<div class="sg-head" style="margin-bottom:10px">🍽 Catégories — Cuisines</div>
+<div class="sg-head sg-accordion" data-accordion="su_cuisines" style="margin-bottom:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">🍽 Catégories — Cuisines <span class="sg-accordion-arrow">›</span></div>
         <div class="muted" style="margin-bottom:8px;font-size:11px">Onglets de filtrage pour les recettes et fiches.</div>
+        <div class="sg-accordion-body collapsed" id="acc-su_cuisines">
         <div class="dynamic-list" id="cuisinesList">
           ${(s.cuisines||[]).map((c,i)=>`<div class="dynamic-item" data-cuis-row="${i}">
             <input class="ing-name-i" name="cuis_name" value="${escHtml(c)}" placeholder="Nom de cuisine">
@@ -6012,11 +6028,13 @@ function renderSettings(){
         </div>
         <button type="button" class="add-btn" id="addCuisineBtn">+ Ajouter une cuisine</button>
         <button type="button" class="btn btn-secondary btn-block" id="saveCuisinesBtn" style="margin-top:10px">Enregistrer les cuisines</button>
+        </div>
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-<div class="sg-head" style="margin-bottom:10px">📦 Catégories — Types</div>
+<div class="sg-head sg-accordion" data-accordion="su_types" style="margin-bottom:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">📦 Catégories — Types <span class="sg-accordion-arrow">›</span></div>
         <div class="muted" style="margin-bottom:8px;font-size:11px">Pour classer recettes/fiches : viandes, garnitures, sides, suppléments…</div>
+        <div class="sg-accordion-body collapsed" id="acc-su_types">
         <div class="dynamic-list" id="typesList">
           ${(s.types||[]).map((t,i)=>`<div class="dynamic-item" data-type-row="${i}">
             <input class="ing-name-i" name="type_name" value="${escHtml(t)}" placeholder="Nom de type">
@@ -6025,11 +6043,13 @@ function renderSettings(){
         </div>
         <button type="button" class="add-btn" id="addTypeBtn">+ Ajouter un type</button>
         <button type="button" class="btn btn-secondary btn-block" id="saveCategoriesBtn" style="margin-top:10px">Enregistrer les catégories</button>
+        </div>
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-<div class="sg-head" style="margin-bottom:10px">🛒 Catégories — Magasins</div>
+<div class="sg-head sg-accordion" data-accordion="su_stores" style="margin-bottom:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">🛒 Catégories — Magasins <span class="sg-accordion-arrow">›</span></div>
         <div class="muted" style="margin-bottom:8px;font-size:11px">Pour la liste de stock : où acheter chaque produit.</div>
+        <div class="sg-accordion-body collapsed" id="acc-su_stores">
         <div class="dynamic-list" id="storesList">
           ${(s.stores||[]).map((st,i)=>`<div class="dynamic-item" data-store-row="${i}">
             <input class="ing-name-i" name="store_name" value="${escHtml(st)}" placeholder="Nom de magasin">
@@ -6038,11 +6058,13 @@ function renderSettings(){
         </div>
         <button type="button" class="add-btn" id="addStoreBtn">+ Ajouter un magasin</button>
         <button type="button" class="btn btn-secondary btn-block" id="saveStoresBtn" style="margin-top:10px">Enregistrer les magasins</button>
+        </div>
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-            <div class="sg-head" style="margin-bottom:10px">🏷 Catégories — Stock (produits)</div>
+            <div class="sg-head sg-accordion" data-accordion="su_stockcats" style="margin-bottom:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">🏷 Catégories — Stock (produits) <span class="sg-accordion-arrow">›</span></div>
             <div class="muted" style="margin-bottom:8px;font-size:11px">Catégories pour classer les produits du stock (épice, viande, emballage…). Renommer une catégorie ne touche pas les produits déjà classés dedans.</div>
+            <div class="sg-accordion-body collapsed" id="acc-su_stockcats">
             <div class="dynamic-list" id="stockCatsList">
               ${getStockCategories().map((c,i)=>`<div class="dynamic-item" data-stockcat-row="${i}" data-stockcat-key="${escHtml(c.key)}">
                 <input class="ing-name-i" name="stockcat_name" value="${escHtml(c.label)}" placeholder="Ex: 🥫 Conserve">
@@ -6051,11 +6073,13 @@ function renderSettings(){
             </div>
             <button type="button" class="add-btn" id="addStockCatBtn">+ Ajouter une catégorie</button>
             <button type="button" class="btn btn-secondary btn-block" id="saveStockCatsBtn" style="margin-top:10px">Enregistrer les catégories stock</button>
+            </div>
           </div>
 
           <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px">
-            <div class="sg-head" style="margin-bottom:10px">📍 Emplacements — Stock</div>
+            <div class="sg-head sg-accordion" data-accordion="su_stocklocs" style="margin-bottom:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">📍 Emplacements — Stock <span class="sg-accordion-arrow">›</span></div>
             <div class="muted" style="margin-bottom:8px;font-size:11px">Lieux de stockage (frigo, congélateur, cave…). Renommer un emplacement ne touche pas les produits déjà classés dedans. Pour les positionner sur une carte visuelle (glisser-déposer), utilise "🗺️ Organiser le plan" ci-dessous.</div>
+            <div class="sg-accordion-body collapsed" id="acc-su_stocklocs">
             <div class="dynamic-list" id="stockLocsList">
               ${getStockLocations().map((l,i)=>`<div class="dynamic-item-loc" data-stockloc-row="${i}" data-stockloc-key="${escHtml(l.key)}">
                 <input class="ing-name-i" name="stockloc_name" value="${escHtml(l.label)}" placeholder="Ex: 🧊 Bac réfrigéré">
@@ -6072,6 +6096,7 @@ function renderSettings(){
             <button type="button" class="add-btn" id="addStockLocBtn">+ Ajouter un emplacement</button>
             <button type="button" class="btn btn-secondary btn-block" id="saveStockLocsBtn" style="margin-top:10px">Enregistrer les emplacements</button>
             <button type="button" class="btn btn-primary btn-block" data-go="stockplan" style="margin-top:8px">🗺️ Organiser le plan (glisser-déposer)</button>
+            </div>
           </div>
         `}
       </div>
@@ -7157,6 +7182,7 @@ function bindCategoriesHandlers(){
   }
   if(saveStockCatsBtn){
     saveStockCatsBtn.addEventListener('click',async()=>{
+      const priorCats = state.settings.customStockCategories || [];
       const rows = $$('#stockCatsList .dynamic-item');
       state.settings.customStockCategories = rows.map(row=>{
         const label = row.querySelector('input[name="stockcat_name"]').value.trim();
@@ -7165,6 +7191,14 @@ function bindCategoriesHandlers(){
         const key = existingKey || (label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,30) || ('sc_'+Date.now().toString(36).slice(-4)));
         return {key, label, updatedAt: Date.now()};
       }).filter(Boolean);
+      // Une catégorie "par défaut" qui disparaît de la liste a été supprimée
+      // volontairement : on le note pour que la migration ne la recolle plus.
+      const newKeys = new Set(state.settings.customStockCategories.map(c=>c.key));
+      const newlyRemovedDefaults = priorCats.filter(c=>!newKeys.has(c.key) && DEFAULT_STOCK_CATEGORIES.some(d=>d.key===c.key)).map(c=>c.key);
+      if(newlyRemovedDefaults.length){
+        if(!state.settings._removedDefaultCatKeys) state.settings._removedDefaultCatKeys = [];
+        newlyRemovedDefaults.forEach(k=>{ if(!state.settings._removedDefaultCatKeys.includes(k)) state.settings._removedDefaultCatKeys.push(k); });
+      }
       await persist(); toast('Catégories stock enregistrées'); render();
     });
   }
@@ -7185,7 +7219,6 @@ function bindCategoriesHandlers(){
   if(addStockLocBtn && stockLocsList){
     addStockLocBtn.addEventListener('click',()=>{
       const div = document.createElement('div');
-      const nextRow = stockLocsList.children.length;
       div.innerHTML = `<div class="dynamic-item-loc" data-stockloc-key="">
         <input class="ing-name-i" name="stockloc_name" placeholder="Ex: 🧊 Bac réfrigéré">
         <div class="loc-edit-row">
@@ -7194,8 +7227,6 @@ function bindCategoriesHandlers(){
             <button type="button" class="zone-chip" data-zone-choice="magasin">🏬 Magasin</button>
           </div>
           <input type="hidden" name="stockloc_zone" value="restaurant">
-          <input type="number" class="loc-pos-i" name="stockloc_row" value="${nextRow}" title="Ligne" placeholder="Ligne">
-          <input type="number" class="loc-pos-i" name="stockloc_col" value="0" title="Colonne" placeholder="Col.">
           <button type="button" class="rm" data-rm-stockloc>×</button>
         </div>
       </div>`;
@@ -7214,7 +7245,7 @@ function bindCategoriesHandlers(){
     saveStockLocsBtn.addEventListener('click',async()=>{
       const rows = $$('#stockLocsList .dynamic-item-loc');
       const priorLocs = state.settings.customStockLocations || [];
-      state.settings.customStockLocations = rows.map(row=>{
+      const newLocs = rows.map(row=>{
         const label = row.querySelector('input[name="stockloc_name"]').value.trim();
         if(!label) return null;
         const existingKey = row.getAttribute('data-stockloc-key');
@@ -7226,6 +7257,20 @@ function bindCategoriesHandlers(){
         const roomStillMatchesZone = priorRoom && priorRoom.zone===zone;
         return {key, label, zone, row: roomStillMatchesZone?prior.row:undefined, col: roomStillMatchesZone?prior.col:undefined, roomId: roomStillMatchesZone?prior.roomId:undefined, updatedAt: Date.now()};
       }).filter(Boolean);
+      // Avertir si la suppression laisse des produits orphelins de leur emplacement
+      const newKeys = new Set(newLocs.map(l=>l.key));
+      const removedKeys = priorLocs.filter(l=>!newKeys.has(l.key)).map(l=>l.key);
+      if(removedKeys.length){
+        const affected = buildStockEntries().filter(s=>removedKeys.includes(s.location)||removedKeys.includes(s.locationMagasin)).length;
+        if(affected > 0 && !confirm(`${affected} produit(s) utilisent un emplacement que tu es en train de supprimer. Ils repasseront en "sans emplacement". Continuer ?`)) return;
+      }
+      state.settings.customStockLocations = newLocs;
+      // Un emplacement "par défaut" qui disparaît a été supprimé volontairement.
+      const newlyRemovedDefaults = removedKeys.filter(k=>DEFAULT_STOCK_LOCATIONS.some(d=>d.key===k));
+      if(newlyRemovedDefaults.length){
+        if(!state.settings._removedDefaultLocKeys) state.settings._removedDefaultLocKeys = [];
+        newlyRemovedDefaults.forEach(k=>{ if(!state.settings._removedDefaultLocKeys.includes(k)) state.settings._removedDefaultLocKeys.push(k); });
+      }
       await persist(); toast('Emplacements enregistrés'); render();
     });
   }
