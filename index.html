@@ -747,6 +747,8 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .plan-move-menu button{display:block;width:100%;text-align:left;padding:9px 12px;font-size:12px;color:var(--cream);background:none;border:none;border-bottom:1px solid var(--line);cursor:pointer}
 .plan-move-menu button:last-child{border-bottom:none}
 .plan-move-menu button:hover,.plan-move-menu button:active{background:rgba(102,197,219,.12)}
+.plan-move-menu .plan-move-delete{color:var(--danger)}
+.plan-move-menu .plan-move-delete:hover,.plan-move-menu .plan-move-delete:active{background:rgba(228,90,64,.12)}
 .plan-flat-list{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--navy-2)}
 .plan-flat-row{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);font-size:13px;color:var(--cream)}
 .plan-flat-row:last-child{border-bottom:none}
@@ -5231,10 +5233,11 @@ function renderStockPlan(){
         const loc = roomLocs.find(l=>l.row===r && l.col===c);
         const cellContent = loc ? `<div class="plan-chip-wrap">
           <div class="plan-chip" data-plan-chip="${escHtml(loc.key)}">${escHtml(loc.label)}</div>
-          ${otherRooms.length ? `<button type="button" class="plan-chip-move" data-plan-move-btn="${escHtml(loc.key)}" title="Déplacer vers une autre pièce">↔</button>
+          <button type="button" class="plan-chip-move" data-plan-move-btn="${escHtml(loc.key)}" title="Options">⋮</button>
           <div class="plan-move-menu" data-plan-move-menu="${escHtml(loc.key)}">
             ${otherRooms.map(r=>`<button type="button" data-plan-move-to="${escHtml(r.key)}" data-plan-move-loc="${escHtml(loc.key)}">${r.zone==='magasin'?'🏬':'🍽️'} ${escHtml(r.name)}</button>`).join('')}
-          </div>` : ''}
+            <button type="button" class="plan-move-delete" data-plan-delete-loc="${escHtml(loc.key)}">🗑 Supprimer définitivement</button>
+          </div>
         </div>` : '';
         cells.push(`<div class="plan-cell" data-r="${r}" data-c="${c}">${cellContent}</div>`);
       }
@@ -5291,6 +5294,7 @@ function renderStockPlan(){
             ${otherRooms.map(r=>`<button type="button" data-plan-move-to="${escHtml(r.key)}" data-plan-move-loc="${escHtml(l.key)}">${r.zone==='magasin'?'🏬':'🍽️'} ${escHtml(r.name)}</button>`).join('')}
           </div>` : ''}
           <button type="button" class="rm" data-plan-unassign="${escHtml(l.key)}" title="Retirer de cette pièce">×</button>
+          <button type="button" class="rm" data-plan-delete-loc="${escHtml(l.key)}" title="Supprimer définitivement" style="color:var(--danger)">🗑</button>
         </div>
       </div>`).join('') : `<p class="muted" style="padding:10px 0">Aucun emplacement dans cette pièce pour l'instant.</p>`}
     </div>
@@ -8352,6 +8356,24 @@ function attachHandlers(){
   }));
   $$('[data-plan-quick-assign]').forEach(btn=>btn.addEventListener('click', ()=>{
     moveLocationToRoom(btn.getAttribute('data-plan-quick-assign'), _planRoomKey);
+  }));
+  $$('[data-plan-delete-loc]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const key = btn.getAttribute('data-plan-delete-loc');
+    const loc = (state.settings.customStockLocations||[]).find(l=>l.key===key);
+    if(!loc) return;
+    const affected = buildStockEntries().filter(s=>s.location===key||s.locationMagasin===key).length;
+    const msg = affected>0
+      ? `Supprimer « ${loc.label} » définitivement ? ${affected} produit(s) l'utilisent et repasseront en "sans emplacement".`
+      : `Supprimer « ${loc.label} » définitivement ?`;
+    if(!confirm(msg)) return;
+    state.settings.customStockLocations = (state.settings.customStockLocations||[]).filter(l=>l.key!==key);
+    if(DEFAULT_STOCK_LOCATIONS.some(d=>d.key===key)){
+      if(!state.settings._removedDefaultLocKeys) state.settings._removedDefaultLocKeys = [];
+      if(!state.settings._removedDefaultLocKeys.includes(key)) state.settings._removedDefaultLocKeys.push(key);
+    }
+    await persist();
+    toast('Emplacement supprimé');
+    render();
   }));
   const planNewLocFlatBtn = $('[data-plan-new-loc-flat]');
   if(planNewLocFlatBtn) planNewLocFlatBtn.addEventListener('click', async ()=>{
