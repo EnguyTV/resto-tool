@@ -3232,6 +3232,15 @@ async function persistNow(){
 /* ---------- Router ---------- */
 function navigate(hash){
   if(hash && hash.charAt(0)!=='#') hash='#'+hash;
+  // Avertir avant de quitter un inventaire/courses en cours non terminé —
+  // les comptages déjà faits restent sauvegardés et reprenables, mais le
+  // stock ne sera mis à jour qu'en tapant "Terminer l'inventaire".
+  const currentRoute = parseRoute();
+  const targetPath = (hash||'#home').slice(1).split('/')[0];
+  if(currentRoute.path==='inventory' && targetPath!=='inventory' && state._inventorySession){
+    const ok = confirm("Tu n'as pas terminé l'inventaire/les courses en cours.\n\nTes comptages sont sauvegardés et tu pourras reprendre plus tard, mais le stock ne sera mis à jour qu'en tapant \"Terminer\".\n\nQuitter quand même ?");
+    if(!ok) return;
+  }
   // Leaving a list cancels any active bulk-select session
   if(typeof bulkClear==='function') bulkClear();
   // On capture le scroll actuel AVANT de changer le hash : le navigateur saute
@@ -7769,6 +7778,11 @@ function attachHandlers(){
     navigate('#'+b.getAttribute('data-go'));
   }));
   $$('[data-back]').forEach(b=>b.addEventListener('click',()=>{
+    const currentRoute = parseRoute();
+    if(currentRoute.path==='inventory' && state._inventorySession){
+      const ok = confirm("Tu n'as pas terminé l'inventaire/les courses en cours.\n\nTes comptages sont sauvegardés et tu pourras reprendre plus tard, mais le stock ne sera mis à jour qu'en tapant \"Terminer\".\n\nQuitter quand même ?");
+      if(!ok) return;
+    }
     if(history.length>1) history.back(); else navigate('#home');
   }));
   $$('[data-nav]').forEach(b=>b.addEventListener('click',()=>navigate('#'+b.getAttribute('data-nav'))));
@@ -8159,15 +8173,21 @@ function attachHandlers(){
     _inventoryOpenShelf = null;
     render();
   }));
-  function invConfirmRow(id){
+  function invConfirmRowSilent(id){
     if(!state._inventorySession) return;
     const input = document.querySelector(`[data-inv-input="${id}"]`);
     const raw = input ? input.value : '';
     const qty = raw === '' ? null : parseFloat(raw);
     state._inventorySession.counted[id] = { qty, countedAt: Date.now() };
     persist();
-    render();
+    const row = input && input.closest('.inv-row');
+    if(row && !row.classList.contains('done')){
+      row.classList.add('done');
+      const nameEl = row.querySelector('.inv-row-name');
+      if(nameEl && nameEl.textContent.startsWith('⬜')) nameEl.textContent = nameEl.textContent.replace('⬜','✅');
+    }
   }
+  function invConfirmRow(id){ invConfirmRowSilent(id); render(); }
   $$('[data-inv-confirm]').forEach(b=>b.addEventListener('click', ()=>{
     invConfirmRow(b.getAttribute('data-inv-confirm'));
   }));
@@ -8182,15 +8202,27 @@ function attachHandlers(){
     const input = document.querySelector(`[data-inv-input="${id}"]`);
     if(!input) return;
     input.value = (parseFloat(input.value)||0) + 1;
+    invConfirmRowSilent(id);
   }));
   $$('[data-inv-dec]').forEach(b=>b.addEventListener('click', ()=>{
     const id = b.getAttribute('data-inv-dec');
     const input = document.querySelector(`[data-inv-input="${id}"]`);
     if(!input) return;
     input.value = Math.max(0, (parseFloat(input.value)||0) - 1);
+    invConfirmRowSilent(id);
   }));
   $$('[data-inv-input]').forEach(inp=>inp.addEventListener('keydown', e=>{
     if(e.key==='Enter'){ e.preventDefault(); invConfirmRow(inp.getAttribute('data-inv-input')); }
+  }));
+  $$('[data-inv-input]').forEach(inp=>inp.addEventListener('blur', ()=>{
+    // Filet de sécurité : si la personne tape une quantité puis passe au
+    // produit suivant SANS taper "✓ Valider", la valeur était perdue. On
+    // valide automatiquement en quittant le champ.
+    const id = inp.getAttribute('data-inv-input');
+    if(inp.value.trim()==='' || !state._inventorySession) return;
+    const existing = state._inventorySession.counted[id];
+    if(existing && String(existing.qty)===inp.value.trim()) return;
+    invConfirmRowSilent(id);
   }));
   const invFinishBtn = $('[data-inv-finish]');
   if(invFinishBtn) invFinishBtn.addEventListener('click', async ()=>{
@@ -9742,6 +9774,12 @@ async function init(){
   persist();
   if('scrollRestoration' in history) history.scrollRestoration = 'manual';
   window.addEventListener('hashchange',render);
+  window.addEventListener('beforeunload', e=>{
+    if(state && state._inventorySession){
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
   render();
 
   // Auto-pull at startup if sync configured + start polling
