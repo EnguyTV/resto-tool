@@ -25,7 +25,7 @@
   --dark-2:#0e1116;
   --cream:#FFF1CD;
   --cream-dim:rgba(255,241,205,.65);
-  --cream-faint:rgba(255,241,205,.4);
+  --cream-faint:rgba(255,241,205,.58);
   --line:rgba(102,197,219,.18);
   --line-strong:rgba(102,197,219,.35);
   --danger:#E45A40;
@@ -47,7 +47,7 @@ html[data-theme="sombre"]{
   --dark-2:#050506;
   --cream:#EDEDEF;
   --cream-dim:rgba(237,237,239,.6);
-  --cream-faint:rgba(237,237,239,.35);
+  --cream-faint:rgba(237,237,239,.55);
   --line:rgba(255,255,255,.1);
   --line-strong:rgba(255,255,255,.22);
   --danger:#D85A4A;
@@ -65,7 +65,7 @@ html[data-theme="classique"]{
   --dark-2:#ffffff;
   --cream:#23211e;
   --cream-dim:rgba(35,33,30,.7);
-  --cream-faint:rgba(35,33,30,.45);
+  --cream-faint:rgba(35,33,30,.64);
   --line:rgba(31,111,139,.2);
   --line-strong:rgba(31,111,139,.4);
   --danger:#C0392B;
@@ -83,7 +83,7 @@ html[data-theme="nature"]{
   --dark-2:#081c2c;
   --cream:#e6d8c1;         /* Ecru lightened */
   --cream-dim:rgba(230,216,193,.7);
-  --cream-faint:rgba(230,216,193,.45);
+  --cream-faint:rgba(230,216,193,.6);
   --line:rgba(180,205,194,.18);
   --line-strong:rgba(180,205,194,.35);
   --danger:#d96f5a;
@@ -105,7 +105,7 @@ html[data-theme="retro-desat"]{
   --cream:#a5c8d1;         /* Light Glaucous Blue */
   --cream-dim:rgba(165,200,209,.72)
 ;
-  --cream-faint:rgba(165,200,209,.45);
+  --cream-faint:rgba(165,200,209,.6);
   --line:rgba(165,200,209,.16);
   --line-strong:rgba(165,200,209,.32);
   --danger:#c97a4e;        /* warm desaturated red-brown */
@@ -126,7 +126,7 @@ html[data-theme="fraicheur"]{
   --dark-2:#ffffff;
   --cream:#1e3a40;         /* deep teal-grey for text */
   --cream-dim:rgba(30,58,64,.7);
-  --cream-faint:rgba(30,58,64,.45);
+  --cream-faint:rgba(30,58,64,.64);
   --line:rgba(46,126,142,.2);
   --line-strong:rgba(46,126,142,.4);
   --danger:#c0512b;
@@ -786,6 +786,26 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .type-pill{padding:6px 12px;border-radius:16px;background:var(--dark-2);border:1px solid var(--line);color:var(--cream-dim);font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;cursor:pointer;transition:all .15s}
 .type-pill.active{background:var(--gold);color:var(--dark);border-color:var(--gold)}
 .type-pill.cuisine.active{background:var(--cyan);color:var(--dark);border-color:var(--cyan)}
+
+/* ===== Polissage UI (audit design) ===== */
+.stock-row .stock-qtybox .stock-qty-btn{width:42px;height:44px}
+.stock-row.compact .stock-qtybox .stock-qty-btn{width:38px;height:40px}
+.stock-row .stock-edit,.stock-row .stock-del,.stock-row .stock-check,.stock-row .stock-urgent-check{position:relative}
+.stock-row .stock-edit::after,.stock-row .stock-del::after{content:'';position:absolute;inset:-4px}
+.stock-row .stock-check,.stock-row .stock-urgent-check{width:28px;height:28px}
+.stock-row .stock-left{gap:14px}
+.stock-row .stock-check::after,.stock-row .stock-urgent-check::after{content:'';position:absolute;inset:-8px}
+.stock-row.compact .stock-check,.stock-row.compact .stock-urgent-check{width:22px;height:22px}
+.stock-row.compact .stock-left{gap:10px}
+.stock-row.compact .stock-check::after,.stock-row.compact .stock-urgent-check::after{inset:-6px}
+.stock-row .stock-cat-chip.muted{opacity:.38 !important;font-size:10px}
+.search-fab{width:44px;height:44px;right:2px;opacity:.92}
+.plan-chip{white-space:normal;overflow-wrap:break-word;word-break:normal;text-overflow:clip;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;font-size:8.5px;letter-spacing:0;line-height:1.2;padding:4px 1px;width:100%}
+.plan-palette-chips .plan-chip{width:auto;display:inline-block;white-space:nowrap;-webkit-line-clamp:unset;padding:7px 10px;font-size:11px}
+.plan-chip-move{width:26px;height:26px;font-size:15px;top:-8px;right:-8px}
+.plan-move-title{padding:8px 12px;font-size:11px;color:var(--cream-dim);border-bottom:1px solid var(--line);font-weight:700;overflow-wrap:anywhere}
+.plan-settings-head{margin:4px 0 12px;padding:12px 14px;border:1px solid var(--line-strong);border-radius:10px;background:var(--navy-2);font-size:13px;gap:8px}
+.plan-settings-hint{font-size:11px;color:var(--cream-faint);font-weight:400;margin-left:auto;margin-right:6px}
 </style>
 </head>
 <body>
@@ -4877,7 +4897,7 @@ function renderStock(){
     const name = getStockName(s);
     const lowByThreshold = restock && !s.toBuy && isBelowMinThreshold(s);
     const targetDeficit = (!s.neverRestock && s.targetQty!=null && Number(s.targetQty)>0) ? Math.max(0, Number(s.targetQty) - Number(s.qty||0)) : 0;
-    const catLabel = stockCats.find(c=>c.key===(s.category||'autre'));
+    const catLabel = s.category ? stockCats.find(c=>c.key===s.category) : null;
     const locLabel = stockLocs.find(l=>l.key===s.location);
     const isGhost = stockFilter==='tobuy' && _tobuySnapshot && _tobuySnapshot.has(s.id) && !restock;
     const isUrg = isUrgentNow(s);
@@ -4916,7 +4936,7 @@ function renderStock(){
   return `
     <div class="topbar">
       <button class="back" data-back>‹</button>
-      <h1>Stock & courses</h1>
+      <h1>Stock</h1>
       <div class="actions">
         ${isChef() ? `<button class="iconbtn ${bulkActive('stock')?'active':''}" data-bulk-toggle="stock" title="Sélection groupée" aria-label="Sélection groupée">☑</button>` : ''}
         <button class="iconbtn" data-go="inventory" title="Mode inventaire" aria-label="Mode inventaire">📋</button>
@@ -5223,7 +5243,9 @@ function renderInventory(){
 }
 let _planRoomKey = null;
 let _planMoveMenuOutsideClickBound = false;
+let _planOpenSettingsOnce = false; // ouvre les réglages juste après la création d'une pièce
 function renderStockPlan(){
+  const _openSettings = _planOpenSettingsOnce; _planOpenSettingsOnce = false;
   const rooms = getStockRooms();
   if(!_planRoomKey || !rooms.some(r=>r.key===_planRoomKey)) _planRoomKey = rooms[0] ? rooms[0].key : null;
   const room = rooms.find(r=>r.key===_planRoomKey);
@@ -5244,6 +5266,7 @@ function renderStockPlan(){
           <div class="plan-chip" data-plan-chip="${escHtml(loc.key)}">${escHtml(loc.label)}</div>
           <button type="button" class="plan-chip-move" data-plan-move-btn="${escHtml(loc.key)}" title="Options">⋮</button>
           <div class="plan-move-menu" data-plan-move-menu="${escHtml(loc.key)}">
+            <div class="plan-move-title">${escHtml(loc.label)}</div>
             ${otherRooms.map(r=>`<button type="button" data-plan-move-to="${escHtml(r.key)}" data-plan-move-loc="${escHtml(loc.key)}">${r.zone==='magasin'?'🏬':'🍽️'} ${escHtml(r.name)}</button>`).join('')}
             <button type="button" class="plan-move-delete" data-plan-delete-loc="${escHtml(loc.key)}">🗑 Supprimer définitivement</button>
           </div>
@@ -5251,7 +5274,7 @@ function renderStockPlan(){
         cells.push(`<div class="plan-cell" data-r="${r}" data-c="${c}">${cellContent}</div>`);
       }
     }
-    gridHtml = `<div class="plan-grid" style="grid-template-rows:repeat(${room.rows},56px);grid-template-columns:repeat(${room.cols},1fr)">${cells.join('')}</div>`;
+    gridHtml = `<div class="plan-grid" style="grid-template-rows:repeat(${room.rows},minmax(72px,auto));grid-template-columns:repeat(${room.cols},1fr)">${cells.join('')}</div>`;
   }
 
   const paletteHtml = unassigned.length ? `<div class="plan-palette">
@@ -5268,6 +5291,8 @@ function renderStockPlan(){
   <div class="view">
     <div class="plan-room-tabs">${roomTabsHtml}</div>
     ${room ? `
+    <div class="sg-head sg-accordion plan-settings-head" data-accordion="plan_room_settings">⚙ Réglages de la pièce <span class="plan-settings-hint">nom · zone · taille</span><span class="sg-accordion-arrow">›</span></div>
+    <div class="sg-accordion-body ${_openSettings?'':'collapsed'}" id="acc-plan_room_settings">
     <div class="plan-room-controls">
       <input type="text" id="planRoomName" value="${escHtml(room.name)}" placeholder="Nom de la pièce (ex: Cuisine, Sligro, Ethnic Market…)">
       <div class="loc-zone-toggle" style="margin-top:8px">
@@ -5288,6 +5313,7 @@ function renderStockPlan(){
         <button type="button" class="btn btn-secondary" id="planRoomSaveBtn" style="flex:1">Enregistrer la pièce</button>
         ${rooms.length>1 ? `<button type="button" class="btn btn-ghost" id="planRoomDeleteBtn">Supprimer</button>` : ''}
       </div>
+    </div>
     </div>
     ${room.hasMap ? `
     ${paletteHtml}
@@ -8266,6 +8292,7 @@ function attachHandlers(){
     const newRoom = { key: uid('room'), name: name.trim(), zone:'restaurant', rows:6, cols:6, hasMap, updatedAt: Date.now() };
     state.settings.stockRooms.push(newRoom);
     _planRoomKey = newRoom.key;
+    _planOpenSettingsOnce = true;
     await persist();
     render();
   });
