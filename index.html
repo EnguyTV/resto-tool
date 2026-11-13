@@ -806,6 +806,11 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .plan-move-title{padding:8px 12px;font-size:11px;color:var(--cream-dim);border-bottom:1px solid var(--line);font-weight:700;overflow-wrap:anywhere}
 .plan-settings-head{margin:4px 0 12px;padding:12px 14px;border:1px solid var(--line-strong);border-radius:10px;background:var(--navy-2);font-size:13px;gap:8px}
 .plan-settings-hint{font-size:11px;color:var(--cream-faint);font-weight:400;margin-left:auto;margin-right:6px}
+
+.inv-row-need{font-size:12px;color:var(--gold);font-weight:700;margin-top:-2px}
+.inv-row-need b{font-size:14px}
+.inv-row-need span{font-weight:400;color:var(--cream-faint);font-size:11px}
+.inv-row-need.ok{color:var(--success,#5ac878)}
 </style>
 </head>
 <body>
@@ -3250,6 +3255,7 @@ async function persistNow(){
 }
 
 /* ---------- Router ---------- */
+const INV_LEAVE_MSG = "Inventaire ou courses non terminés.\n\nTes comptages sont sauvegardés, tu pourras reprendre plus tard. Le stock ne sera mis à jour que quand tu appuieras sur « Terminer ».\n\nOK = quitter maintenant\nAnnuler = rester ici";
 function navigate(hash){
   if(hash && hash.charAt(0)!=='#') hash='#'+hash;
   // Avertir avant de quitter un inventaire/courses en cours non terminé —
@@ -3258,7 +3264,7 @@ function navigate(hash){
   const currentRoute = parseRoute();
   const targetPath = (hash||'#home').slice(1).split('/')[0];
   if(currentRoute.path==='inventory' && targetPath!=='inventory' && state._inventorySession){
-    const ok = confirm("Tu n'as pas terminé l'inventaire/les courses en cours.\n\nTes comptages sont sauvegardés et tu pourras reprendre plus tard, mais le stock ne sera mis à jour qu'en tapant \"Terminer\".\n\nQuitter quand même ?");
+    const ok = confirm(INV_LEAVE_MSG);
     if(!ok) return;
   }
   // Leaving a list cancels any active bulk-select session
@@ -4759,6 +4765,26 @@ function buildStockEntries(){
   return result;
 }
 
+// Produits à compter dans la session en cours. On exclut toujours ceux marqués
+// « Ne pas compter à l'inventaire » ; en mode Courses (magasin), on exclut aussi
+// ceux en « Ne jamais à racheter », pour ne pas proposer d'acheter ce dont on n'a pas besoin.
+function invPool(){
+  return buildStockEntries().filter(s=>!s.excludeFromInventory && !(_inventoryZone==='magasin' && s.neverRestock));
+}
+// Courses : combien en racheter = stock voulu − stock en rayon (enregistré avant la session)
+function invNeedHtml(s){
+  if(_inventoryZone!=='magasin' || s.neverRestock) return '';
+  const target = Number(s.targetQty);
+  if(!(target>0)) return '';
+  const fmt = n => String(Number(Number(n).toFixed(2)));
+  const have = s.qty==null ? 0 : Number(s.qty);
+  const unit = s.unit ? ' '+escHtml(s.unit) : '';
+  const detail = `<span>(voulu ${fmt(target)}, en stock ${s.qty==null?'?':fmt(have)})</span>`;
+  const need = Math.max(0, target - have);
+  return need>0
+    ? `<div class="inv-row-need">🛒 À racheter : <b>${fmt(need)}${unit}</b> ${detail}</div>`
+    : `<div class="inv-row-need ok">✔ Stock suffisant ${detail}</div>`;
+}
 function isOrphanedStock(s){
   return !!(s.ingredientId && !state.ingredients.find(i=>i.id===s.ingredientId));
 }
@@ -5082,7 +5108,7 @@ function renderInventory(){
     </div>`;
   }
 
-  const all = buildStockEntries().filter(s=>!s.excludeFromInventory);
+  const all = invPool();
   const counted = session.counted || {};
   const totalCount = all.length;
   const countedCount = Object.keys(counted).length;
@@ -5115,6 +5141,7 @@ function renderInventory(){
         const inputVal = isCounted ? c.qty : (s.qty!=null ? s.qty : '');
         return `<div class="inv-row ${isCounted?'done':''}" data-inv-row="${s.id}">
           <div class="inv-row-name">${isCounted?'✅ ':'⬜ '}${escHtml(name)}</div>
+        ${invNeedHtml(s)}
           <div class="inv-row-ctrl">
             <button type="button" class="inv-qty-btn dec" data-inv-dec="${s.id}" aria-label="Moins 1">−</button>
             <input type="number" inputmode="decimal" step="any" placeholder="—" value="${inputVal}" data-inv-input="${s.id}">
@@ -5180,6 +5207,7 @@ function renderInventory(){
       const inputVal = isCounted ? c.qty : (s.qty!=null ? s.qty : '');
       return `<div class="inv-row ${isCounted?'done':''}" data-inv-row="${s.id}">
         <div class="inv-row-name">${isCounted?'✅ ':'⬜ '}${escHtml(name)}</div>
+        ${invNeedHtml(s)}
         <div class="inv-row-ctrl">
           <button type="button" class="inv-qty-btn dec" data-inv-dec="${s.id}" aria-label="Moins 1">−</button>
           <input type="number" inputmode="decimal" step="any" placeholder="—" value="${inputVal}" data-inv-input="${s.id}">
@@ -7301,7 +7329,7 @@ function bindCategoriesHandlers(){
       const removedKeys = priorLocs.filter(l=>!newKeys.has(l.key)).map(l=>l.key);
       if(removedKeys.length){
         const affected = buildStockEntries().filter(s=>removedKeys.includes(s.location)||removedKeys.includes(s.locationMagasin)).length;
-        if(affected > 0 && !confirm(`${affected} produit(s) utilisent un emplacement que tu es en train de supprimer. Ils repasseront en "sans emplacement". Continuer ?`)) return;
+        if(affected > 0 && !confirm(`${affected} produit(s) utilisent un emplacement que tu es en train de supprimer : ils repasseront en "sans emplacement".\n\nOK = supprimer quand même\nAnnuler = garder l'emplacement`)) return;
       }
       state.settings.customStockLocations = newLocs;
       // Un emplacement "par défaut" qui disparaît a été supprimé volontairement.
@@ -7806,7 +7834,7 @@ function attachHandlers(){
   $$('[data-back]').forEach(b=>b.addEventListener('click',()=>{
     const currentRoute = parseRoute();
     if(currentRoute.path==='inventory' && state._inventorySession){
-      const ok = confirm("Tu n'as pas terminé l'inventaire/les courses en cours.\n\nTes comptages sont sauvegardés et tu pourras reprendre plus tard, mais le stock ne sera mis à jour qu'en tapant \"Terminer\".\n\nQuitter quand même ?");
+      const ok = confirm(INV_LEAVE_MSG);
       if(!ok) return;
     }
     if(history.length>1) history.back(); else navigate('#home');
@@ -8171,7 +8199,7 @@ function attachHandlers(){
     render();
   }));
   $$('[data-inv-cancel]').forEach(b=>b.addEventListener('click', async ()=>{
-    if(!confirm('Annuler cet inventaire ? Les comptages effectués ne seront pas appliqués.')) return;
+    if(!confirm('Abandonner cet inventaire ?\n\nLes comptages faits ne seront pas appliqués au stock.\n\nOK = abandonner\nAnnuler = revenir à l\'inventaire')) return;
     state._inventorySession = null;
     _inventoryRoomKey = null;
     _inventoryOpenShelf = null;
@@ -8254,14 +8282,14 @@ function attachHandlers(){
   if(invFinishBtn) invFinishBtn.addEventListener('click', async ()=>{
     const session = state._inventorySession;
     if(!session) return;
-    const all = buildStockEntries().filter(s=>!s.excludeFromInventory);
+    const all = invPool();
     const counted = session.counted || {};
     const countedIds = Object.keys(counted);
     const uncounted = all.filter(s=>counted[s.id]===undefined);
     if(uncounted.length > 0){
       const names = uncounted.slice(0,8).map(s=>getStockName(s)).join(', ');
       const more = uncounted.length > 8 ? ` (+${uncounted.length-8} autres)` : '';
-      if(!confirm(`${uncounted.length} produit(s) pas encore compté(s) : ${names}${more}.\n\nTerminer quand même ? Les produits non comptés garderont leur quantité actuelle.`)) return;
+      if(!confirm(`${uncounted.length} produit(s) pas encore compté(s) : ${names}${more}.\n\nOK = terminer quand même (ils gardent leur quantité actuelle)\nAnnuler = revenir au comptage`)) return;
     }
     countedIds.forEach(id=>{
       const rec = getOrCreateStockRecord(id);
@@ -8624,7 +8652,7 @@ function attachHandlers(){
   }));
   const clearPrepBtn = document.querySelector('[data-clear-prep]');
   if(clearPrepBtn) clearPrepBtn.addEventListener('click',async()=>{
-    if(!confirm('Marquer toutes les préparations comme faites (tout décocher) ?')) return;
+    if(!confirm('Tout décocher pour repartir à zéro ?\n\nOK = tout décocher\nAnnuler = ne rien changer')) return;
     state.prep = {};
     await persist();
     toast('Préparations réinitialisées');
