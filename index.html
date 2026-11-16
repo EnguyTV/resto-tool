@@ -811,6 +811,10 @@ textarea{resize:vertical;min-height:80px;font-family:var(--font-body)}
 .inv-row-need b{font-size:14px}
 .inv-row-need span{font-weight:400;color:var(--cream-faint);font-size:11px}
 .inv-row-need.ok{color:var(--success,#5ac878)}
+
+.inv-hidden-note{margin-top:16px;font-size:12px;color:var(--cream-faint);border:1px dashed var(--line-strong);border-radius:10px;padding:8px 12px}
+.inv-hidden-note summary{cursor:pointer;font-weight:600;color:var(--cream-dim)}
+.inv-hidden-note ul{margin:8px 0 2px 16px;padding:0;line-height:1.6}
 </style>
 </head>
 <body>
@@ -4768,8 +4772,36 @@ function buildStockEntries(){
 // Produits à compter dans la session en cours. On exclut toujours ceux marqués
 // « Ne pas compter à l'inventaire » ; en mode Courses (magasin), on exclut aussi
 // ceux en « Ne jamais à racheter », pour ne pas proposer d'acheter ce dont on n'a pas besoin.
+// Pourquoi un produit est masqué en mode Courses (null = visible).
+//  - « Ne jamais à racheter » ;
+//  - lié à une préparation (ex : avocats → guacamole) qui est encore assez fournie,
+//    c'est-à-dire AU-DESSUS de son seuil. Même règle que « à racheter » : on ne
+//    propose le produit que quand la préparation est à son seuil ou en dessous.
+//  Si on ne peut pas décider (préparation introuvable, sans seuil, stock inconnu)
+//  ou si le produit est coché 🛒 / 🚨 à la main, on le laisse visible.
+function invHiddenReason(s){
+  if(_inventoryZone!=='magasin') return null;
+  if(s.neverRestock) return 'ne jamais à racheter';
+  if(s.restockTrigger && s.toBuy!==true && !s.urgent){
+    const trig = findStockEntryById(s.restockTrigger);
+    if(trig && trig.qty!=null && trig.minQty!=null && Number(trig.minQty)>0 && Number(trig.qty) > Number(trig.minQty)){
+      const f = n => String(Number(Number(n).toFixed(2)));
+      return `${getStockName(trig)} assez fourni (${f(trig.qty)} en stock, seuil ${f(trig.minQty)})`;
+    }
+  }
+  return null;
+}
 function invPool(){
-  return buildStockEntries().filter(s=>!s.excludeFromInventory && !(_inventoryZone==='magasin' && s.neverRestock));
+  return buildStockEntries().filter(s=>!s.excludeFromInventory && !invHiddenReason(s));
+}
+// Petite note repliable sous la liste, pour savoir pourquoi un produit n'apparaît pas
+function invHiddenNoteHtml(){
+  if(_inventoryZone!=='magasin') return '';
+  const hidden = buildStockEntries().filter(s=>!s.excludeFromInventory && invHiddenReason(s));
+  if(!hidden.length) return '';
+  const items = hidden.sort((a,b)=>getStockName(a).localeCompare(getStockName(b),'fr'))
+    .map(s=>`<li><b>${escHtml(getStockName(s))}</b> — ${escHtml(invHiddenReason(s))}</li>`).join('');
+  return `<details class="inv-hidden-note"><summary>🙈 ${hidden.length} produit${hidden.length>1?'s':''} masqué${hidden.length>1?'s':''} (pas besoin de racheter)</summary><ul>${items}</ul></details>`;
 }
 // Courses : combien en racheter = stock voulu − stock en rayon (enregistré avant la session)
 function invNeedHtml(s){
@@ -5229,6 +5261,7 @@ function renderInventory(){
         ${zoneRooms.length>1 ? `<button type="button" class="btn btn-ghost" data-inv-change-room style="margin-bottom:10px;width:100%">↔ Changer de pièce</button>` : ''}
         <div class="inv-shelf-progress">${done}/${flatItems.length} comptés dans « ${escHtml(currentRoom.name)} »</div>
         <div class="inv-group">${rows || '<div class="empty" style="padding:20px 0">Aucun produit assigné à cette pièce.</div>'}</div>
+        ${invHiddenNoteHtml()}
         <button class="btn btn-primary btn-block" data-inv-finish style="margin-top:20px">${_inventoryZone==='magasin'?'✅ Terminer les courses':"✅ Terminer l'inventaire"}</button>
       </div>`;
   }
@@ -5265,7 +5298,8 @@ function renderInventory(){
       ${zoneRooms.length>1 ? `<button type="button" class="btn btn-ghost" data-inv-change-room style="margin-bottom:10px;width:100%">↔ Changer de pièce (${escHtml(currentRoom?currentRoom.name:'')})</button>` : ''}
       ${cards.length || currentRoom ? `<div class="inv-shelf-grid" style="grid-template-rows:repeat(${currentRoom?currentRoom.rows:1},auto);grid-template-columns:repeat(${currentRoom?currentRoom.cols:1},1fr)">${cardsHtml}</div>` : `<div class="empty" style="margin-top:20px">Aucun emplacement dans cette zone pour l'instant.</div>`}
       ${unassignedCardHtml}
-      <button class="btn btn-primary btn-block" data-inv-finish style="margin-top:20px">${_inventoryZone==='magasin'?'✅ Terminer les courses':"✅ Terminer l'inventaire"}</button>
+      ${invHiddenNoteHtml()}
+        <button class="btn btn-primary btn-block" data-inv-finish style="margin-top:20px">${_inventoryZone==='magasin'?'✅ Terminer les courses':"✅ Terminer l'inventaire"}</button>
       <button class="btn btn-ghost btn-block" data-inv-cancel style="margin-top:8px">Annuler sans enregistrer</button>
     </div>`;
 }
