@@ -4791,17 +4791,38 @@ function invHiddenReason(s){
   }
   return null;
 }
+// Mode Courses : on ne s'occupe que des produits du magasin choisi (ou de tous les
+// magasins tant qu'aucun n'est choisi) = ceux dont l'emplacement Magasin est dans ce plan.
+function invScopeLocKeys(){
+  const rooms = getStockRooms('magasin');
+  const chosen = _inventoryRoomKey && rooms.some(r=>r.key===_inventoryRoomKey);
+  const roomKeys = new Set(chosen ? [_inventoryRoomKey] : rooms.map(r=>r.key));
+  return new Set(getStockLocations().filter(l=>roomKeys.has(l.roomId)).map(l=>l.key));
+}
+function invInScope(s, keys){
+  return _inventoryZone!=='magasin' || (!!s.locationMagasin && keys.has(s.locationMagasin));
+}
 function invPool(){
-  return buildStockEntries().filter(s=>!s.excludeFromInventory && !invHiddenReason(s));
+  const keys = invScopeLocKeys();
+  return buildStockEntries().filter(s=>!s.excludeFromInventory && invInScope(s, keys) && !invHiddenReason(s));
 }
 // Petite note repliable sous la liste, pour savoir pourquoi un produit n'apparaît pas
 function invHiddenNoteHtml(){
   if(_inventoryZone!=='magasin') return '';
-  const hidden = buildStockEntries().filter(s=>!s.excludeFromInventory && invHiddenReason(s));
-  if(!hidden.length) return '';
-  const items = hidden.sort((a,b)=>getStockName(a).localeCompare(getStockName(b),'fr'))
-    .map(s=>`<li><b>${escHtml(getStockName(s))}</b> — ${escHtml(invHiddenReason(s))}</li>`).join('');
-  return `<details class="inv-hidden-note"><summary>🙈 ${hidden.length} produit${hidden.length>1?'s':''} masqué${hidden.length>1?'s':''} (pas besoin de racheter)</summary><ul>${items}</ul></details>`;
+  const keys = invScopeLocKeys();
+  const base = buildStockEntries().filter(s=>!s.excludeFromInventory);
+  const hidden = base.filter(s=>invInScope(s, keys) && invHiddenReason(s));
+  const noLoc = base.filter(s=>!s.locationMagasin && !s.neverRestock).length;
+  let html = '';
+  if(hidden.length){
+    const items = hidden.sort((a,b)=>getStockName(a).localeCompare(getStockName(b),'fr'))
+      .map(s=>`<li><b>${escHtml(getStockName(s))}</b> — ${escHtml(invHiddenReason(s))}</li>`).join('');
+    html += `<details class="inv-hidden-note"><summary>🙈 ${hidden.length} produit${hidden.length>1?'s':''} masqué${hidden.length>1?'s':''} (pas besoin de racheter)</summary><ul>${items}</ul></details>`;
+  }
+  if(noLoc){
+    html += `<div class="inv-hidden-note">📦 ${noLoc} produit${noLoc>1?'s':''} sans emplacement Magasin ne ${noLoc>1?'sont':'est'} pas listé${noLoc>1?'s':''} ici. Donne-leur un emplacement Magasin (Stock → sélection groupée) pour les voir en courses.</div>`;
+  }
+  return html;
 }
 // Courses : combien en racheter = stock voulu − stock en rayon (enregistré avant la session)
 function invNeedHtml(s){
@@ -5143,7 +5164,7 @@ function renderInventory(){
   const all = invPool();
   const counted = session.counted || {};
   const totalCount = all.length;
-  const countedCount = Object.keys(counted).length;
+  const countedCount = all.filter(s=>counted[s.id]!==undefined).length;
   const pct = totalCount ? Math.round(countedCount/totalCount*100) : 0;
   const topBarActions = `<div class="actions"><button class="iconbtn" data-inv-cancel title="Annuler l'inventaire" aria-label="Annuler">✕</button></div>`;
   const progressHtml = `
